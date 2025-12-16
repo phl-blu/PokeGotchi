@@ -9,6 +9,10 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import com.tamagotchi.committracker.config.AppConfig;
 import com.tamagotchi.committracker.util.FileUtils;
+import com.tamagotchi.committracker.ui.components.PokemonDisplayComponent;
+import com.tamagotchi.committracker.pokemon.PokemonSpecies;
+import com.tamagotchi.committracker.pokemon.PokemonState;
+import com.tamagotchi.committracker.pokemon.EvolutionStage;
 
 import java.io.IOException;
 import java.util.Properties;
@@ -22,6 +26,9 @@ public class WidgetWindow {
     private Scene scene;
     private StackPane root;
     private boolean isCompactMode = true;
+    
+    // Pokemon display component
+    private PokemonDisplayComponent pokemonDisplay;
     
     // For dragging functionality
     private double xOffset = 0;
@@ -50,6 +57,14 @@ public class WidgetWindow {
         root = new StackPane();
         root.setStyle("-fx-background-color: transparent;");
         
+        // Create Pokemon display component (starts as egg)
+        pokemonDisplay = new PokemonDisplayComponent(
+            PokemonSpecies.CHARMANDER, EvolutionStage.EGG, PokemonState.CONTENT
+        );
+        
+        // Add Pokemon to the root container
+        root.getChildren().add(pokemonDisplay);
+        
         // Create scene with transparent background
         scene = new Scene(root, AppConfig.COMPACT_WIDTH, AppConfig.COMPACT_HEIGHT);
         scene.setFill(Color.TRANSPARENT);
@@ -70,6 +85,15 @@ public class WidgetWindow {
         stage.setOnCloseRequest(e -> {
             savePosition();
             Platform.exit();
+        });
+        
+        // Add click handler to toggle mode and test evolution
+        root.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 2) { // Double-click
+                toggleMode();
+            } else { // Single click - test evolution
+                testEvolution();
+            }
         });
     }
     
@@ -170,5 +194,40 @@ public class WidgetWindow {
      */
     public void show() {
         stage.show();
+    }
+    
+    /**
+     * Test evolution functionality - for demonstration purposes
+     */
+    private void testEvolution() {
+        if (pokemonDisplay != null) {
+            // Try to evolve the Pokemon (simulate having enough XP and streak)
+            boolean evolved = pokemonDisplay.checkEvolutionRequirements(250, 5);
+            if (evolved) {
+                System.out.println("🎉 Pokemon evolved!");
+            } else {
+                // If already evolved or can't evolve, change state instead
+                pokemonDisplay.updateState(PokemonState.HAPPY);
+                System.out.println("😊 Pokemon is happy!");
+            }
+        }
+    }
+    
+    /**
+     * Update Pokemon display based on current state
+     */
+    public void updatePetDisplay() {
+        // This method can be called by other components to update the Pokemon
+        if (pokemonDisplay != null) {
+            // For now, just refresh the current state
+            pokemonDisplay.updateState(pokemonDisplay.getCurrentState());
+        }
+    }
+    
+    /**
+     * Get the Pokemon display component for external access
+     */
+    public PokemonDisplayComponent getPokemonDisplay() {
+        return pokemonDisplay;
     }
 }

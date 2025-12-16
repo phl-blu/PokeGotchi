@@ -140,7 +140,13 @@ public class PokemonDisplayComponent extends StackPane {
                 currentFrames,
                 this::updateDisplayedFrame
             );
-            currentAnimation.play();
+            
+            if (currentAnimation != null) {
+                currentAnimation.play();
+                
+                // Also set the first frame immediately
+                updateDisplayedFrame(currentFrames.get(0));
+            }
         }
     }
     

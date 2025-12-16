@@ -57,11 +57,33 @@ public class AnimationUtils {
             }
         }
         
-        // If no frames were loaded, try to load a fallback default frame
+        // If no frames were loaded, try to load from 'content' state as fallback
+        if (frames.isEmpty() && !state.equals(PokemonState.CONTENT)) {
+            String contentPath = "/pokemon/sprites/" + species.name().toLowerCase() + "/" + 
+                               stage.name().toLowerCase() + "/content";
+            
+            for (int i = 1; i <= 4; i++) {
+                String framePath = contentPath + "/frame" + i + ".png";
+                InputStream frameStream = AnimationUtils.class.getResourceAsStream(framePath);
+                
+                if (frameStream != null) {
+                    try {
+                        Image frame = new Image(frameStream, SPRITE_SIZE, SPRITE_SIZE, true, true);
+                        frames.add(frame);
+                        frameStream.close();
+                    } catch (Exception e) {
+                        System.err.println("Failed to load fallback frame: " + framePath);
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+        
+        // If still no frames, use the generic fallback
         if (frames.isEmpty()) {
             frames.add(createFallbackImage(species, stage));
         }
-        
         return frames;
     }
     
