@@ -1,0 +1,36 @@
+/* Tamagotchi Commit Tracker Widget Styles */
+
+.widget-root {
+    -fx-background-color: transparent;
+}
+
+.compact-mode {
+    -fx-pref-width: 80px;
+    -fx-pref-height: 80px;
+}
+
+.expanded-mode {
+    -fx-pref-width: 320px;
+    -fx-pref-height: 450px;
+    -fx-background-color: rgba(255, 255, 255, 0.95);
+    -fx-background-radius: 10px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 10, 0, 0, 2);
+}
+
+.pokemon-display {
+    -fx-alignment: center;
+}
+
+.history-tab {
+    -fx-padding: 10px;
+}
+
+.commit-item {
+    -fx-padding: 5px;
+    -fx-border-color: #e0e0e0;
+    -fx-border-width: 0 0 1 0;
+}
+
+.xp-progress-bar {
+    -fx-accent: #4CAF50;
+}
