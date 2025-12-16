@@ -19,7 +19,7 @@ import com.tamagotchi.committracker.pokemon.EvolutionStage;
  */
 public class AnimationUtils {
     
-    private static final double FRAME_DURATION_MS = 500.0; // 500ms per frame for smooth animation
+    private static final double FRAME_DURATION_MS = 250.0; // 250ms per frame for 4 FPS animation
     private static final int SPRITE_SIZE = 64; // 64x64 pixel sprites
     
     /**
@@ -236,14 +236,14 @@ public class AnimationUtils {
         switch (state) {
             case THRIVING:
             case HAPPY:
-                return 400.0; // Faster animation for happy Pokemon
+                return 200.0; // 5 FPS - Faster animation for happy Pokemon
             case EVOLVING:
-                return 200.0; // Very fast for evolution
+                return 100.0; // 10 FPS - Very fast for evolution
             case SAD:
             case NEGLECTED:
-                return 800.0; // Slower animation for sad Pokemon
+                return 400.0; // 2.5 FPS - Slower animation for sad Pokemon
             default:
-                return FRAME_DURATION_MS; // Default speed
+                return FRAME_DURATION_MS; // 4 FPS - Default speed (250ms)
         }
     }
 }
