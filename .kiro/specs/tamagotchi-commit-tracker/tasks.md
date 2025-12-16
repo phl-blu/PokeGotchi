@@ -17,7 +17,12 @@ This implementation plan converts the Pokemon Commit Tracker design into a serie
   - Configure JavaFX module system and application structure
   - _Requirements: All requirements depend on proper project setup_
 
-- [ ] 2. Implement core data models and XP system
+- [x] 2. Implement core data models and XP system
+
+
+
+
+
   - Create Commit, Repository, and CommitHistory data classes
   - Implement PokemonSpecies and EvolutionStage enums with all 27 Pokemon
   - Build XPSystem class with evolution thresholds (0, 200, 800, 2000 XP)
