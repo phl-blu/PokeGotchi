@@ -2,7 +2,7 @@ package com.tamagotchi.committracker;
 
 import javafx.application.Application;
 import javafx.stage.Stage;
-import com.tamagotchi.committracker.config.AppConfig;
+import com.tamagotchi.committracker.ui.widget.WidgetWindow;
 
 /**
  * Main JavaFX Application class for the Tamagotchi Commit Tracker.
@@ -11,14 +11,15 @@ import com.tamagotchi.committracker.config.AppConfig;
  */
 public class TamagotchiCommitTrackerApp extends Application {
 
+    private WidgetWindow widgetWindow;
+
     @Override
     public void start(Stage primaryStage) throws Exception {
-        // TODO: Initialize the widget window and Pokemon display
-        // This will be implemented in task 4
         primaryStage.setTitle("Tamagotchi Commit Tracker");
-        primaryStage.setWidth(AppConfig.COMPACT_WIDTH);
-        primaryStage.setHeight(AppConfig.COMPACT_HEIGHT);
-        primaryStage.show();
+        
+        // Initialize the widget window with transparency and dragging
+        widgetWindow = new WidgetWindow(primaryStage);
+        widgetWindow.show();
     }
 
     public static void main(String[] args) {

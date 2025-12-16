@@ -4,6 +4,7 @@ module com.tamagotchi.committracker {
     requires org.eclipse.jgit;
     requires java.desktop;
     requires java.prefs;
+    requires java.logging;
     
     exports com.tamagotchi.committracker;
     exports com.tamagotchi.committracker.ui.widget;

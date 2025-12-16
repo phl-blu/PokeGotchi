@@ -33,14 +33,15 @@ This implementation plan converts the Pokemon Commit Tracker design into a serie
   - **Property 3: Pokemon State and Evolution Responsiveness**
   - **Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5**
 
-- [ ] 3. Build Git repository discovery and monitoring system
+- [x] 3. Build Git repository discovery and monitoring system
+
   - Implement Repository Scanner to find all Git repositories on system
   - Create Commit Service with JGit integration for reading commit history
   - Add 5-minute polling mechanism with background threading
   - Handle Git authentication using existing system credentials
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 3.1 Write property test for repository discovery
+- [x] 3.1 Write property test for repository discovery
 
   - **Property 1: Repository Discovery and Monitoring**
   - **Validates: Requirements 2.1, 2.2, 2.3, 2.4**
@@ -49,7 +50,12 @@ This implementation plan converts the Pokemon Commit Tracker design into a serie
   - **Property 2: Polling Consistency**
   - **Validates: Requirements 3.1, 3.3, 3.5**
 
-- [ ] 4. Create basic JavaFX widget window with transparency
+- [x] 4. Create basic JavaFX widget window with transparency
+
+
+
+
+
   - Set up transparent JavaFX Stage with 80x80px compact mode
   - Implement window dragging functionality with mouse event handlers
   - Add position persistence (save/restore widget location)

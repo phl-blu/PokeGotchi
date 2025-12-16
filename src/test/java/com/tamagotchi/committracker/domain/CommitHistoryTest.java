@@ -47,18 +47,19 @@ class CommitHistoryTest {
     @Test
     void testAddMultipleCommitsSameDay() {
         CommitHistory history = new CommitHistory();
-        LocalDateTime now = LocalDateTime.now();
-        LocalDate today = now.toLocalDate();
+        // Use a fixed time in the middle of the day to avoid midnight crossing issues
+        LocalDateTime baseTime = LocalDate.now().atTime(12, 0);
+        LocalDate today = baseTime.toLocalDate();
         
-        Commit commit1 = new Commit("hash1", "message1", "author", now, "repo", "/path");
-        Commit commit2 = new Commit("hash2", "message2", "author", now.plusHours(1), "repo", "/path");
+        Commit commit1 = new Commit("hash1", "message1", "author", baseTime, "repo", "/path");
+        Commit commit2 = new Commit("hash2", "message2", "author", baseTime.plusHours(1), "repo", "/path");
         
         history.addCommit(commit1);
         history.addCommit(commit2);
         
         assertEquals(2, history.getRecentCommits().size());
         assertEquals(2, history.getDailyCommitCounts().get(today).intValue());
-        assertEquals(now.plusHours(1), history.getLastCommitTime()); // Should be the later commit
+        assertEquals(baseTime.plusHours(1), history.getLastCommitTime()); // Should be the later commit
     }
     
     @Test
