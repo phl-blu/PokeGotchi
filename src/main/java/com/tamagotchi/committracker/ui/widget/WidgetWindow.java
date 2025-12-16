@@ -71,6 +71,10 @@ public class WidgetWindow {
         
         stage.setScene(scene);
         
+        // Make sure the scene can receive keyboard focus
+        root.setFocusTraversable(true);
+        root.requestFocus();
+        
         // Enable dragging
         enableDragging();
         
@@ -87,12 +91,39 @@ public class WidgetWindow {
             Platform.exit();
         });
         
-        // Add click handler to toggle mode and test evolution
+        // Add click handler to toggle mode
         root.setOnMouseClicked(event -> {
             if (event.getClickCount() == 2) { // Double-click
                 toggleMode();
-            } else { // Single click - test evolution
-                testEvolution();
+            } else { // Single click - show Pokemon info
+                showPokemonInfo();
+            }
+        });
+        
+        // Add keyboard shortcuts for testing
+        // TODO: REMOVE THESE TESTING SHORTCUTS BEFORE PRODUCTION - See TODO.md
+        scene.setOnKeyPressed(event -> {
+            switch (event.getCode()) {
+                case E: // Press 'E' to force evolution for testing
+                    if (pokemonDisplay != null) {
+                        pokemonDisplay.forceEvolutionForTesting();
+                    }
+                    break;
+                case H: // Press 'H' to make Pokemon happy
+                    if (pokemonDisplay != null) {
+                        pokemonDisplay.updateState(PokemonState.HAPPY);
+                        System.out.println("🧪 TESTING: Pokemon state changed to HAPPY");
+                    }
+                    break;
+                case S: // Press 'S' to make Pokemon sad
+                    if (pokemonDisplay != null) {
+                        pokemonDisplay.updateState(PokemonState.SAD);
+                        System.out.println("🧪 TESTING: Pokemon state changed to SAD");
+                    }
+                    break;
+                case I: // Press 'I' to show Pokemon info
+                    showPokemonInfo();
+                    break;
             }
         });
     }
@@ -197,19 +228,15 @@ public class WidgetWindow {
     }
     
     /**
-     * Test evolution functionality - for demonstration purposes
+     * Shows current Pokemon information when clicked.
      */
-    private void testEvolution() {
+    private void showPokemonInfo() {
         if (pokemonDisplay != null) {
-            // Try to evolve the Pokemon (simulate having enough XP and streak)
-            boolean evolved = pokemonDisplay.checkEvolutionRequirements(250, 5);
-            if (evolved) {
-                System.out.println("🎉 Pokemon evolved!");
-            } else {
-                // If already evolved or can't evolve, change state instead
-                pokemonDisplay.updateState(PokemonState.HAPPY);
-                System.out.println("😊 Pokemon is happy!");
-            }
+            System.out.println("🎮 Pokemon Info:");
+            System.out.println("   Species: " + pokemonDisplay.getCurrentSpecies());
+            System.out.println("   Stage: " + pokemonDisplay.getCurrentStage());
+            System.out.println("   State: " + pokemonDisplay.getCurrentState());
+            System.out.println("   Evolution in progress: " + pokemonDisplay.isEvolutionInProgress());
         }
     }
     

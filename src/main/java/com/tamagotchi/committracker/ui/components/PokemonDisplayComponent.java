@@ -334,6 +334,21 @@ public class PokemonDisplayComponent extends StackPane {
     }
     
     /**
+     * FOR TESTING ONLY: Forces evolution to the next stage regardless of requirements.
+     * This bypasses the normal XP and streak requirements for testing purposes.
+     * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
+     */
+    public void forceEvolutionForTesting() {
+        EvolutionStage nextStage = getNextEvolutionStage();
+        if (nextStage != null) {
+            System.out.println("🧪 TESTING: Forcing evolution from " + currentStage + " to " + nextStage);
+            triggerEvolution(nextStage);
+        } else {
+            System.out.println("🧪 TESTING: Already at max evolution stage: " + currentStage);
+        }
+    }
+    
+    /**
      * Stops all animations and cleans up resources.
      */
     public void cleanup() {
