@@ -108,17 +108,29 @@ graph TB
   - `restorePosition()`: Load saved widget position on startup
 - **Properties**: Always-on-top, transparent background, draggable, minimizes to taskbar (not system tray)
 
+### Pokemon Selection Screen
+- **Responsibility**: First-time startup screen for choosing starter Pokemon
+- **Key Methods**:
+  - `displayStarterOptions()`: Show 9 starter Pokemon in grid layout
+  - `handlePokemonSelection(PokemonSpecies species)`: Process user's choice
+  - `confirmSelection()`: Display confirmation dialog and save choice
+  - `closeSelectionScreen()`: Hide screen and initialize main widget
+- **Starter Options**: Charmander, Cyndaquil, Mudkip, Piplup, Snivy, Froakie, Rowlet, Grookey, Fuecoco
+- **UI Layout**: 3x3 grid with Pokemon sprites and names
+- **Persistence**: Save selection to prevent showing screen again
+
 ### Pokemon Display Component
-- **Responsibility**: Renders animated Pokemon with evolution stages
+- **Responsibility**: Renders animated Pokemon with evolution stages using standardized 2 FPS animations
 - **Key Methods**:
   - `playAnimation(AnimationType type)`: Display specific animation sequence using frame cycling
   - `updateState(PokemonState state)`: Change Pokemon's emotional/health state
-  - `loadSpriteFrames(PokemonSpecies species, EvolutionStage stage)`: Load PNG/JPEG animation frames
+  - `loadSpriteFrames(PokemonSpecies species, EvolutionStage stage)`: Load exactly 2 PNG frames per state
   - `checkEvolutionRequirements()`: Evaluate if evolution criteria are met
   - `triggerEvolution(EvolutionStage newStage)`: Animate evolution sequence
+- **Animation System**: All Pokemon use consistent 2 FPS (500ms per frame) with exactly 2 frames
+- **Frame Structure**: frame1.png, frame2.png for each Pokemon state
 - **Animation States**: Idle, Happy, Excited, Sleeping, Celebrating, Sad, Evolving
-- **Starter Pokemon**: 9 choices 
-- **Evolution Stages**: Basic → Stage 1 → Stage 2 (triggered by XP/streak milestones)
+- **Evolution Stages**: Egg → Basic → Stage 1 → Stage 2 (triggered by XP/streak milestones)
 
 ### Commit Service
 - **Responsibility**: Orchestrates repository monitoring and data collection
@@ -192,20 +204,65 @@ public enum PokemonState {
 ### PokemonSpecies
 ```java
 public enum PokemonSpecies {
-    // Kanto Starters
-    BULBASAUR, IVYSAUR, VENUSAUR,
+    // 1. Kanto Fire Starter - Charmander line
     CHARMANDER, CHARMELEON, CHARIZARD,
-    SQUIRTLE, WARTORTLE, BLASTOISE,
     
-    // Johto Starters  
-    CHIKORITA, BAYLEEF, MEGANIUM,
+    // 2. Johto Fire Starter - Cyndaquil line
     CYNDAQUIL, QUILAVA, TYPHLOSION,
-    TOTODILE, CROCONAW, FERALIGATR,
     
-    // Hoenn Starters
-    TREECKO, GROVYLE, SCEPTILE,
-    TORCHIC, COMBUSKEN, BLAZIKEN,
-    MUDKIP, MARSHTOMP, SWAMPERT
+    // 3. Hoenn Water Starter - Mudkip line
+    MUDKIP, MARSHTOMP, SWAMPERT,
+    
+    // 4. Sinnoh Water Starter - Piplup line
+    PIPLUP, PRINPLUP, EMPOLEON,
+    
+    // 5. Unova Grass Starter - Snivy line
+    SNIVY, SERVINE, SERPERIOR,
+    
+    // 6. Kalos Water Starter - Froakie line
+    FROAKIE, FROGADIER, GRENINJA,
+    
+    // 7. Alola Grass Starter - Rowlet line
+    ROWLET, DARTRIX, DECIDUEYE,
+    
+    // 8. Galar Grass Starter - Grookey line
+    GROOKEY, THWACKEY, RILLABOOM,
+    
+    // 9. Paldea Fire Starter - Fuecoco line
+    FUECOCO, CROCALOR, SKELEDIRGE
+}
+```
+
+### PokemonSelectionData
+```java
+public class PokemonSelectionData {
+    private PokemonSpecies selectedStarter;
+    private boolean hasSelectedStarter;
+    private LocalDateTime selectionTimestamp;
+    
+    public void saveSelection(PokemonSpecies starter) {
+        // Persist selection to prevent showing screen again
+    }
+    
+    public boolean isFirstTimeUser() {
+        return !hasSelectedStarter;
+    }
+}
+```
+
+### AnimationSystem
+```java
+public class AnimationSystem {
+    private static final double FRAME_DURATION_MS = 500.0; // 2 FPS for all Pokemon
+    private static final int FRAMES_PER_STATE = 2; // Exactly 2 frames per animation
+    
+    public List<Image> loadFrames(PokemonSpecies species, EvolutionStage stage, PokemonState state) {
+        // Load frame1.png and frame2.png for consistent 2-frame animations
+    }
+    
+    public Timeline createAnimation(List<Image> frames) {
+        // Create 2 FPS animation cycling between exactly 2 frames
+    }
 }
 ```
 
@@ -287,9 +344,17 @@ After reviewing all testable properties from the prework analysis, several can b
 *For any* Windows system interaction, the widget should properly integrate with system tray, theme changes, window management, and credential storage using native Windows APIs
 **Validates: Requirements 6.2, 6.3, 6.4, 6.5**
 
-**Property 8: Authentication Security**
+**Property 8: Pokemon Selection Screen Behavior**
+*For any* first-time application startup, the Pokemon selection screen should display all 9 starter options, save the user's choice permanently, and never show the selection screen again for that user
+**Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.5, 7.6**
+
+**Property 9: Animation Consistency**
+*For any* Pokemon species and state, the animation system should load exactly 2 frames and cycle them at 2 FPS consistently, providing smooth idle animations across all 9 Pokemon lines
+**Validates: Requirements 8.5**
+
+**Property 10: Authentication Security**
 *For any* repository requiring authentication, the system should use existing Git credentials and SSH configurations without storing or exposing sensitive authentication data
-**Validates: Requirements 7.1, 7.2, 7.4, 7.5**
+**Validates: Requirements 9.1, 9.2, 9.4, 9.5**
 
 ## Error Handling
 
@@ -342,6 +407,31 @@ The application will use both unit testing and property-based testing to ensure 
 - **Network Simulation**: Mock network conditions for resilience testing
 
 ## UI Mockup Design
+
+### Pokemon Selection Screen (First-Time Startup)
+```
+┌─────────────────────────────────────────────────────┐
+│              Choose Your Starter Pokemon            │
+├─────────────────────────────────────────────────────┤
+│  [Charmander]  [Cyndaquil]   [Mudkip]              │
+│   Fire Type    Fire Type     Water Type             │
+│                                                     │
+│   [Piplup]     [Snivy]      [Froakie]              │
+│  Water Type   Grass Type    Water Type              │
+│                                                     │
+│   [Rowlet]     [Grookey]    [Fuecoco]              │
+│  Grass Type   Grass Type    Fire Type               │
+├─────────────────────────────────────────────────────┤
+│              [Confirm Selection]                    │
+└─────────────────────────────────────────────────────┘
+```
+- 480x360px modal dialog
+- 3x3 grid layout with Pokemon sprites (64x64px each)
+- Pokemon name and type displayed below each sprite
+- Selection highlights chosen Pokemon
+- Confirm button becomes active after selection
+- Modal blocks access to main application until choice is made
+- Choice is saved permanently and screen never shows again
 
 ### Compact Mode (Desktop Widget)
 ```

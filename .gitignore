@@ -44,3 +44,6 @@ config/
 logs/
 pokemon-data/
 user-preferences.properties
+
+# TODO LIST
+TODO.md

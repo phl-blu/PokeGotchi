@@ -19,7 +19,7 @@ import com.tamagotchi.committracker.pokemon.EvolutionStage;
  */
 public class AnimationUtils {
     
-    private static final double FRAME_DURATION_MS = 250.0; // 250ms per frame for 4 FPS animation
+    private static final double FRAME_DURATION_MS = 500.0; // 500ms per frame for 2 FPS animation
     private static final int SPRITE_SIZE = 64; // 64x64 pixel sprites
     
     /**
@@ -33,12 +33,15 @@ public class AnimationUtils {
     public static List<Image> loadSpriteFrames(PokemonSpecies species, EvolutionStage stage, PokemonState state) {
         List<Image> frames = new ArrayList<>();
         
+        // Get the base species folder name (e.g., charmander for all Charmander evolutions)
+        String speciesFolder = getBaseSpeciesFolder(species);
+        
         // Build the base path for sprites
-        String basePath = "/pokemon/sprites/" + species.name().toLowerCase() + "/" + 
+        String basePath = "/pokemon/sprites/" + speciesFolder + "/" + 
                          stage.name().toLowerCase() + "/" + state.name().toLowerCase();
         
-        // Try to load 3-4 frames for the animation
-        for (int i = 1; i <= 4; i++) {
+        // Try to load up to 8 frames for the animation (flexible frame count)
+        for (int i = 1; i <= 8; i++) {
             String framePath = basePath + "/frame" + i + ".png";
             InputStream frameStream = AnimationUtils.class.getResourceAsStream(framePath);
             
@@ -59,10 +62,11 @@ public class AnimationUtils {
         
         // If no frames were loaded, try to load from 'content' state as fallback
         if (frames.isEmpty() && !state.equals(PokemonState.CONTENT)) {
-            String contentPath = "/pokemon/sprites/" + species.name().toLowerCase() + "/" + 
+            String speciesFolderFallback = getBaseSpeciesFolder(species);
+            String contentPath = "/pokemon/sprites/" + speciesFolderFallback + "/" + 
                                stage.name().toLowerCase() + "/content";
             
-            for (int i = 1; i <= 4; i++) {
+            for (int i = 1; i <= 8; i++) {
                 String framePath = contentPath + "/frame" + i + ".png";
                 InputStream frameStream = AnimationUtils.class.getResourceAsStream(framePath);
                 
@@ -83,6 +87,9 @@ public class AnimationUtils {
         // If still no frames, use the generic fallback
         if (frames.isEmpty()) {
             frames.add(createFallbackImage(species, stage));
+            System.out.println("🖼️ Using fallback image for " + species + "/" + stage + "/" + state);
+        } else {
+            System.out.println("🖼️ Loaded " + frames.size() + " frames for " + species + "/" + stage + "/" + state);
         }
         return frames;
     }
@@ -113,32 +120,63 @@ public class AnimationUtils {
     
     /**
      * Creates a Timeline animation that cycles through the provided frames.
+     * Uses Pokemon-specific animation speed for unique personalities.
      * 
      * @param frames List of Image frames to animate
      * @param frameUpdateCallback Callback function to update the displayed frame
+     * @param species Pokemon species (for individual animation speed)
      * @return Timeline animation object
      */
-    public static Timeline createFrameAnimation(List<Image> frames, Consumer<Image> frameUpdateCallback) {
+    public static Timeline createFrameAnimation(List<Image> frames, Consumer<Image> frameUpdateCallback, PokemonSpecies species) {
         if (frames.isEmpty()) {
             return new Timeline(); // Return empty timeline if no frames
         }
         
         Timeline timeline = new Timeline();
         
+        // Get Pokemon-specific animation speed
+        double frameDuration = getPokemonAnimationSpeed(species);
+        double fps = 1000.0 / frameDuration;
+        
+        // Log how many frames we're animating with Pokemon-specific speed
+        System.out.println("🎬 Creating animation for " + species + " with " + frames.size() + 
+                          " frames at " + frameDuration + "ms per frame (~" + String.format("%.1f", fps) + " FPS)");
+        
         // Create keyframes for each sprite frame
+        // Each frame starts at its designated time slot
         for (int i = 0; i < frames.size(); i++) {
             final int frameIndex = i;
             KeyFrame keyFrame = new KeyFrame(
-                Duration.millis(i * FRAME_DURATION_MS),
+                Duration.millis(i * frameDuration),
                 e -> frameUpdateCallback.accept(frames.get(frameIndex))
             );
             timeline.getKeyFrames().add(keyFrame);
         }
         
+        // Add a final empty keyframe to ensure the last frame displays for the full duration
+        // This makes the total cycle = frames.size() * frameDuration
+        // Without this, the timeline restarts immediately after the last keyframe triggers
+        KeyFrame endFrame = new KeyFrame(
+            Duration.millis(frames.size() * frameDuration)
+        );
+        timeline.getKeyFrames().add(endFrame);
+        
         // Set the timeline to cycle indefinitely
         timeline.setCycleCount(Timeline.INDEFINITE);
         
         return timeline;
+    }
+    
+    /**
+     * Creates a Timeline animation that cycles through the provided frames.
+     * Uses default 2 FPS speed (for backward compatibility).
+     * 
+     * @param frames List of Image frames to animate
+     * @param frameUpdateCallback Callback function to update the displayed frame
+     * @return Timeline animation object
+     */
+    public static Timeline createFrameAnimation(List<Image> frames, Consumer<Image> frameUpdateCallback) {
+        return createFrameAnimation(frames, frameUpdateCallback, PokemonSpecies.CHARMANDER); // Default to Charmander speed
     }
     
     /**
@@ -229,21 +267,90 @@ public class AnimationUtils {
     }
     
     /**
-     * Calculates the appropriate frame duration based on Pokemon state.
-     * More energetic states have faster animations.
+     * Returns the frame duration for all Pokemon states.
+     * All animations run at a consistent 2 FPS (500ms per frame).
      */
     public static double getFrameDuration(PokemonState state) {
-        switch (state) {
-            case THRIVING:
-            case HAPPY:
-                return 200.0; // 5 FPS - Faster animation for happy Pokemon
-            case EVOLVING:
-                return 100.0; // 10 FPS - Very fast for evolution
-            case SAD:
-            case NEGLECTED:
-                return 400.0; // 2.5 FPS - Slower animation for sad Pokemon
+        return FRAME_DURATION_MS; // 2 FPS - Consistent speed for all states (500ms)
+    }
+    
+    /**
+     * Gets the animation speed (frame duration) for a specific Pokemon species.
+     * All basic idle animations run at 2 FPS with 2 frames for consistency.
+     * 
+     * @param species The Pokemon species
+     * @return Frame duration in milliseconds (500ms = 2 FPS)
+     */
+    public static double getPokemonAnimationSpeed(PokemonSpecies species) {
+        // All Pokemon now use consistent 2 FPS for basic idle animations
+        // This ensures smooth, consistent animation across all species
+        // Each Pokemon uses exactly 2 frames (frame1.png, frame2.png)
+        return FRAME_DURATION_MS; // 500ms = 2 FPS for all Pokemon
+    }
+    
+    /**
+     * Gets the base species folder name for sprite loading.
+     * All evolutions of a Pokemon line share the same base folder.
+     * e.g., Charmander, Charmeleon, Charizard all use "charmander" folder
+     */
+    private static String getBaseSpeciesFolder(PokemonSpecies species) {
+        switch (species) {
+            // 1. Charmander line (Kanto Fire)
+            case CHARMANDER:
+            case CHARMELEON:
+            case CHARIZARD:
+                return "charmander";
+            
+            // 2. Cyndaquil line (Johto Fire)
+            case CYNDAQUIL:
+            case QUILAVA:
+            case TYPHLOSION:
+                return "cyndaquil";
+            
+            // 3. Mudkip line (Hoenn Water)
+            case MUDKIP:
+            case MARSHTOMP:
+            case SWAMPERT:
+                return "mudkip";
+            
+            // 4. Piplup line (Sinnoh Water)
+            case PIPLUP:
+            case PRINPLUP:
+            case EMPOLEON:
+                return "piplup";
+            
+            // 5. Snivy line (Unova Grass)
+            case SNIVY:
+            case SERVINE:
+            case SERPERIOR:
+                return "snivy";
+            
+            // 6. Froakie line (Kalos Water)
+            case FROAKIE:
+            case FROGADIER:
+            case GRENINJA:
+                return "froakie";
+            
+            // 7. Rowlet line (Alola Grass)
+            case ROWLET:
+            case DARTRIX:
+            case DECIDUEYE:
+                return "rowlet";
+            
+            // 8. Grookey line (Galar Grass)
+            case GROOKEY:
+            case THWACKEY:
+            case RILLABOOM:
+                return "grookey";
+            
+            // 9. Fuecoco line (Paldea Fire)
+            case FUECOCO:
+            case CROCALOR:
+            case SKELEDIRGE:
+                return "fuecoco";
+            
             default:
-                return FRAME_DURATION_MS; // 4 FPS - Default speed (250ms)
+                return species.name().toLowerCase();
         }
     }
 }

@@ -13,6 +13,11 @@ A Tamagotchi-themed desktop widget application that tracks Git commits across al
 - **History Tab**: The expanded view showing detailed commit logs and statistics
 - **Compact Mode**: The minimized widget state showing only the Pokemon animation
 - **Expanded Mode**: The full widget state showing commit history, Pokemon details, and evolution progress
+- **Pokemon Selection Screen**: The initial interface for choosing one of 9 starter Pokemon
+- **Evolution Stage**: The current development level of a Pokemon (EGG, BASIC, STAGE_1, STAGE_2)
+- **XP System**: The experience point mechanism that tracks commit activity for evolution
+- **Commit Streak**: Consecutive days with at least one commit, required for Pokemon evolution
+- **Development Mode**: Testing environment with manual evolution triggers and debugging features
 
 ## Requirements
 
@@ -91,18 +96,54 @@ A Tamagotchi-themed desktop widget application that tracks Git commits across al
 
 ### Requirement 7
 
-**User Story:** As a developer, I want to choose from 9 starter Pokemon and watch them evolve based on my commit consistency, so that I can have a personalized companion that grows with my coding journey.
+**User Story:** As a developer, I want to choose from 9 starter Pokemon through a selection screen, so that I can pick my preferred companion before starting my coding journey.
 
 #### Acceptance Criteria
 
-1. WHEN the application first starts, THE Widget SHALL present 9 starter Pokemon options and SHALL display a corresponding egg
-2. WHEN the egg reaches the XP threshold and maintains a 4-day commit streak, THE egg SHALL hatch into the Pokemon they chose
-3. WHEN a Pokemon reaches the XP threshold and maintains a 11-day commit streak, THE Pokemon SHALL evolve to its second stage
-4. WHEN a Pokemon reaches the higher XP threshold and maintains a 22-day commit streak, THE Pokemon SHALL evolve to its final stage
-5. WHERE evolution requirements are met, THE Pokemon SHALL display an evolution animation sequence
-6. WHEN displaying Pokemon animations, THE Widget SHALL cycle through 3-4 PNG/JPEG frames for smooth movement
+1. WHEN the application starts for the first time, THE Widget SHALL display a Pokemon selection screen with 9 starter options
+2. WHEN displaying starter options, THE Pokemon Selection Screen SHALL show Charmander, Cyndaquil, Mudkip, Piplup, Snivy, Froakie, Rowlet, Grookey, and Fuecoco
+3. WHEN a user clicks on a starter Pokemon, THE Pokemon Selection Screen SHALL confirm the selection and close
+4. WHEN a Pokemon is selected, THE Widget SHALL display the corresponding egg and begin tracking commits
+5. WHERE no selection is made, THE Pokemon Selection Screen SHALL remain open until a choice is confirmed
+6. WHEN the selection is complete, THE Widget SHALL save the choice and never show the selection screen again
 
 ### Requirement 8
+
+**User Story:** As a developer, I want to watch my chosen Pokemon evolve based on my commit consistency, so that I can see my productivity growth reflected in my companion's development.
+
+#### Acceptance Criteria
+
+1. WHEN the egg reaches 200 XP and maintains a 4-day commit streak, THE egg SHALL hatch into the chosen starter Pokemon
+2. WHEN a Pokemon reaches 800 XP and maintains an 11-day commit streak, THE Pokemon SHALL evolve to its second stage
+3. WHEN a Pokemon reaches 2000 XP and maintains a 22-day commit streak, THE Pokemon SHALL evolve to its final stage
+4. WHERE evolution requirements are met, THE Pokemon SHALL display an evolution animation sequence
+5. WHEN displaying Pokemon animations, THE Widget SHALL cycle through exactly 2 frames at 2 FPS for consistent idle animations
+
+### Requirement 9
+
+**User Story:** As a developer working on the application, I want to test Pokemon evolution mechanics without waiting for real commit streaks, so that I can verify the system works correctly during development.
+
+#### Acceptance Criteria
+
+1. WHEN in development mode, THE Widget SHALL provide manual evolution triggers for testing purposes
+2. WHEN testing evolution, THE Widget SHALL support keyboard shortcuts to force evolution stages
+3. WHEN evolution is triggered manually, THE Widget SHALL display the same animations as production evolution
+4. WHERE testing code exists, THE Widget SHALL clearly separate testing functionality from production code
+5. WHEN building for production, THE Widget SHALL exclude all testing shortcuts and manual triggers
+
+### Requirement 10
+
+**User Story:** As a developer, I want the Pokemon animation system to support variable frame counts and speeds, so that each Pokemon can have unique and engaging animations.
+
+#### Acceptance Criteria
+
+1. WHEN displaying Pokemon animations, THE Widget SHALL support 1-8 animation frames per Pokemon state
+2. WHEN animating Pokemon, THE Widget SHALL use individual animation speeds per Pokemon species
+3. WHEN transitioning between states, THE Widget SHALL provide smooth animation transitions
+4. WHERE Pokemon sprites are missing, THE Widget SHALL use fallback animations to prevent crashes
+5. WHEN loading animations, THE Widget SHALL handle different frame counts gracefully
+
+### Requirement 11
 
 **User Story:** As a developer, I want the application to handle Git authentication securely, so that my private repositories can be monitored without compromising security.
 

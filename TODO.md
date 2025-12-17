@@ -22,11 +22,28 @@
 - **STAGE_1 → STAGE_2**: 22+ day streak + 2000 XP
 
 ### Frame Animation Status:
-✅ **All 4 frames are properly supported**:
-- AnimationUtils loads frames 1-4 for each Pokemon state
-- Timeline cycles through all loaded frames at 4 FPS (250ms per frame)
+✅ **Individual Pokemon Animation Speeds**:
+- AnimationUtils loads frames 1-8 for each Pokemon state (flexible)
+- Each Pokemon species has its own unique animation speed for personality
 - Fallback system works correctly for missing frames
-- Variable animation speeds based on Pokemon state (2.5-10 FPS)
+- Animation system handles different frame counts per Pokemon automatically
+
+### Pokemon Animation Speeds:
+**All Pokemon Lines (Consistent):**
+- **All 9 Pokemon lines**: 2.0 FPS (500ms) - Consistent idle animation speed
+- **Frame Count**: Exactly 2 frames per Pokemon state (frame1.png, frame2.png)
+- **Animation Style**: Smooth, consistent idle animations across all species
+
+### Updated Pokemon List:
+1. **Charmander** → Charmeleon → Charizard (Kanto Fire)
+2. **Cyndaquil** → Quilava → Typhlosion (Johto Fire)
+3. **Mudkip** → Marshtomp → Swampert (Hoenn Water)
+4. **Piplup** → Prinplup → Empoleon (Sinnoh Water)
+5. **Snivy** → Servine → Serperior (Unova Grass)
+6. **Froakie** → Frogadier → Greninja (Kalos Water)
+7. **Rowlet** → Dartrix → Decidueye (Alola Grass)
+8. **Grookey** → Thwackey → Rillaboom (Galar Grass)
+9. **Fuecoco** → Crocalor → Skeledirge (Paldea Fire)
 
 ### Testing Notes:
 - Testing shortcuts work correctly for immediate evolution testing
