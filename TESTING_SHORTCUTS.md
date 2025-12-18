@@ -10,6 +10,9 @@ When the application is running, you can use these keyboard shortcuts for testin
 - **E** - Force evolution to the next stage (Egg → Basic → Stage1 → Stage2)
 - **R** - Reset Pokemon back to egg stage (de-evolution)
 
+### Animation Testing
+- **C** - Simulate a single commit (7-12 XP) to trigger egg shake/Pokemon animation
+
 ### State Testing  
 - **H** - Change Pokemon state to HAPPY (temporary animation)
 - **S** - Change Pokemon state to SAD
@@ -28,10 +31,14 @@ When the application is running, you can use these keyboard shortcuts for testin
 
 ## Testing Scenarios
 
-### Test Egg Animation
+### Test Egg Animation (Key Behavior)
 1. Press **R** to reset Pokemon to egg stage
-2. Make a commit to your repository
-3. Watch the egg animate once then return to static
+2. Press **C** to simulate a single commit (7-12 XP randomly)
+3. **IMPORTANT**: Watch the egg shake/animate once then return to static
+4. Press **C** multiple times to simulate multiple commits
+5. **Each individual commit should make the egg shake** - this is the core behavior
+6. The egg stage (visual appearance) may advance occasionally for variety
+7. The egg should animate on EVERY commit, not just when changing stages
 
 ### Test Evolution Cycle
 1. Press **R** to reset to egg
@@ -53,6 +60,10 @@ All testing actions produce console output like:
 🧪 TESTING: 'R' pressed - Resetting Pokemon to egg stage
 🧪 TESTING: Forcing de-evolution from BASIC back to EGG stage
 🥚 TESTING: Pokemon reset to egg stage for testing
+
+🧪 TESTING: 'C' pressed - Simulating single commit
+🥚 TESTING: Commit gives +9 XP (total: 34 XP)
+🥚 TESTING: Egg should shake/animate for this single commit
 ```
 
 ## Production Cleanup

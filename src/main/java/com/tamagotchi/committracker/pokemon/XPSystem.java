@@ -22,42 +22,45 @@ public class XPSystem {
     
     /**
      * Calculates XP gained from a commit based on various factors.
+     * XP range: 7-12 based on commit quality and size.
      */
     public int calculateXPFromCommit(Commit commit) {
         if (commit == null || commit.getMessage() == null) {
             return 0;
         }
         
-        int baseXP = 10; // Base XP for any commit
-        int bonusXP = 0;
+        int baseXP = 7; // Minimum XP for any commit
+        int bonusXP = 0; // Up to 5 bonus XP (total max: 12)
         
         String message = commit.getMessage().toLowerCase().trim();
         
         // Bonus for meaningful commit messages (longer than 10 characters)
         if (message.length() > 10) {
-            bonusXP += 5;
+            bonusXP += 1;
         }
         
-        // Bonus for conventional commit prefixes
+        // Bonus for conventional commit prefixes (high quality commits)
         if (message.startsWith("feat:") || message.startsWith("feature:")) {
-            bonusXP += 15; // New features get more XP
+            bonusXP += 3; // New features get more XP
         } else if (message.startsWith("fix:") || message.startsWith("bugfix:")) {
-            bonusXP += 10; // Bug fixes get moderate XP
+            bonusXP += 2; // Bug fixes get moderate XP
         } else if (message.startsWith("docs:") || message.startsWith("doc:")) {
-            bonusXP += 5; // Documentation gets some XP
+            bonusXP += 1; // Documentation gets some XP
         } else if (message.startsWith("refactor:") || message.startsWith("style:")) {
-            bonusXP += 8; // Code improvements get moderate XP
+            bonusXP += 2; // Code improvements get moderate XP
         } else if (message.startsWith("test:") || message.startsWith("tests:")) {
-            bonusXP += 12; // Tests are valuable
+            bonusXP += 2; // Tests are valuable
         }
         
         // Bonus for descriptive messages (contains common development keywords)
         if (message.contains("implement") || message.contains("add") || 
             message.contains("create") || message.contains("update")) {
-            bonusXP += 3;
+            bonusXP += 1;
         }
         
-        return baseXP + bonusXP;
+        // Ensure XP stays within 7-12 range
+        int totalXP = baseXP + bonusXP;
+        return Math.min(totalXP, 12); // Cap at 12 XP maximum
     }
     
     /**

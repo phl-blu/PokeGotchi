@@ -116,6 +116,9 @@ public class WidgetWindow {
                         pokemonDisplay.forceDeevolutionToEggForTesting();
                     }
                     break;
+                case C: // Press 'C' to simulate a commit for testing egg animations
+                    simulateCommitForTesting();
+                    break;
                 case H: // Press 'H' to make Pokemon happy
                     if (pokemonDisplay != null) {
                         pokemonDisplay.updateState(PokemonState.HAPPY);
@@ -270,5 +273,50 @@ public class WidgetWindow {
      */
     public PokemonDisplayComponent getPokemonDisplay() {
         return pokemonDisplay;
+    }
+    
+    // FOR TESTING ONLY: Counter to cycle through different egg stages
+    // TODO: REMOVE THIS FIELD BEFORE PRODUCTION - See TODO.md
+    private int testingEggStageCounter = 1;
+    
+    /**
+     * FOR TESTING ONLY: Simulates a commit being made to trigger egg animations.
+     * This simulates individual commits with random XP (7-12) to test egg shaking on every commit.
+     * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
+     */
+    private void simulateCommitForTesting() {
+        if (pokemonDisplay != null) {
+            // Generate random XP between 7-12 to simulate different commit quality/size
+            int commitXP = 7 + (int) (Math.random() * 6); // Random between 7-12
+            
+            System.out.println("🧪 TESTING: 'C' pressed - Simulating single commit");
+            
+            switch (pokemonDisplay.getCurrentStage()) {
+                case EGG:
+                    // For eggs: determine current total XP based on stage counter, then add this commit's XP
+                    int currentTotalXP = (testingEggStageCounter - 1) * 25 + commitXP;
+                    
+                    System.out.println("🥚 TESTING: Commit gives +" + commitXP + " XP (total: " + currentTotalXP + " XP)");
+                    System.out.println("🥚 TESTING: Egg should shake/animate for this single commit");
+                    
+                    // Trigger animation with current total XP (this determines egg stage visually)
+                    pokemonDisplay.triggerCommitAnimation(currentTotalXP);
+                    
+                    // Increment counter occasionally to test different egg stages
+                    if (Math.random() < 0.3) { // 30% chance to advance stage for variety
+                        testingEggStageCounter = (testingEggStageCounter % 4) + 1;
+                        System.out.println("🔄 TESTING: Advanced to test stage " + testingEggStageCounter + " egg visuals");
+                    }
+                    break;
+                    
+                case BASIC:
+                case STAGE_1:
+                case STAGE_2:
+                    // For evolved Pokemon, trigger commit animation
+                    System.out.println("🐣 TESTING: Commit gives +" + commitXP + " XP - Pokemon should animate");
+                    pokemonDisplay.triggerCommitAnimation(commitXP, 1); // This commit's XP, 1 day streak
+                    break;
+            }
+        }
     }
 }
