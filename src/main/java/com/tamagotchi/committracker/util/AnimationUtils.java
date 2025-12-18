@@ -121,7 +121,7 @@ public class AnimationUtils {
      * Loads Pokemon-specific egg sprite frames for a specific stage and animation state.
      * 
      * @param species The Pokemon species (determines which egg folder to use)
-     * @param eggStage The egg stage (1-4 based on commit streak days)
+     * @param eggStage The egg stage (1-4 based on XP days)
      * @param state The animation state (determines if animating or static)
      * @return List of Image objects representing egg animation frames
      */
@@ -173,8 +173,8 @@ public class AnimationUtils {
             frames.add(createFallbackImage(species, EvolutionStage.EGG));
             System.out.println("🥚 Using fallback egg image for " + species + " stage " + eggStage);
         } else {
-            String animationType = isAnimationState(state) ? "animated" : "static";
-            System.out.println("🥚 Loaded " + frames.size() + " " + species + " egg frames for stage " + eggStage + " (" + animationType + ")");
+            String animationType = isAnimationState(state) ? "animated (" + frames.size() + " frames)" : "static (frame1 only)";
+            System.out.println("🥚 Loaded " + species + " egg for stage " + eggStage + " (" + animationType + ")");
         }
         
         return frames;
@@ -194,11 +194,36 @@ public class AnimationUtils {
     }
     
     /**
+     * Gets the egg stage based on XP days instead of streak days.
+     * XP days are calculated from total accumulated XP.
+     * 
+     * @param totalXP Total accumulated XP
+     * @return Egg stage (1-4)
+     */
+    public static int getEggStageFromXPDays(int totalXP) {
+        // Calculate XP days: assuming average 25 XP per day (base 10 + bonuses)
+        // This maps XP to equivalent "days of activity"
+        int xpDays = Math.max(1, totalXP / 25);
+        
+        if (xpDays <= 1) {
+            return 1; // Stage 1: Fresh egg (1 day XP)
+        } else if (xpDays == 2) {
+            return 2; // Stage 2: Barely cracked (2 days XP)
+        } else if (xpDays == 3) {
+            return 3; // Stage 3: More cracked (3 days XP)
+        } else {
+            return 4; // Stage 4: Very cracked, ready to hatch (4+ days XP)
+        }
+    }
+    
+    /**
      * Gets the egg stage based on commit streak days.
      * 
+     * @deprecated Use getEggStageFromXPDays() instead for XP-based progression
      * @param streakDays Number of consecutive commit days
      * @return Egg stage (1-4)
      */
+    @Deprecated
     public static int getEggStageFromStreak(int streakDays) {
         if (streakDays <= 1) {
             return 1; // Basic egg
@@ -212,14 +237,29 @@ public class AnimationUtils {
     }
     
     /**
-     * Loads Pokemon-specific egg sprite frames for a specific streak and animation state.
-     * This is the main method to be called by components.
+     * Loads Pokemon-specific egg sprite frames based on XP days and animation state.
+     * This is the main method to be called by components for XP-based progression.
      * 
+     * @param species The Pokemon species (determines which egg sprites to load)
+     * @param totalXP Total accumulated XP
+     * @param state The animation state (determines if animating or static)
+     * @return List of Image objects representing egg animation frames
+     */
+    public static List<Image> loadEggSpriteFramesForXP(PokemonSpecies species, int totalXP, PokemonState state) {
+        int eggStage = getEggStageFromXPDays(totalXP);
+        return loadPokemonEggSpriteFramesForStage(species, eggStage, state);
+    }
+    
+    /**
+     * Loads Pokemon-specific egg sprite frames for a specific streak and animation state.
+     * 
+     * @deprecated Use loadEggSpriteFramesForXP() instead for XP-based progression
      * @param species The Pokemon species (determines which egg sprites to load)
      * @param streakDays Number of consecutive commit days
      * @param state The animation state (determines if animating or static)
      * @return List of Image objects representing egg animation frames
      */
+    @Deprecated
     public static List<Image> loadEggSpriteFramesForStreak(PokemonSpecies species, int streakDays, PokemonState state) {
         int eggStage = getEggStageFromStreak(streakDays);
         return loadPokemonEggSpriteFramesForStage(species, eggStage, state);
@@ -247,6 +287,61 @@ public class AnimationUtils {
         // If even fallback fails, create a simple colored rectangle as last resort
         // This would be replaced with actual sprite loading in a real implementation
         return new Image(AnimationUtils.class.getResourceAsStream("/pokemon/sprites/.gitkeep"));
+    }
+    
+    /**
+     * Creates a Timeline animation that plays once through the provided frames.
+     * Used for commit-triggered egg animations that play once then return to static.
+     * 
+     * @param frames List of Image frames to animate
+     * @param frameUpdateCallback Callback function to update the displayed frame
+     * @param species Pokemon species (for individual animation speed)
+     * @param stage Evolution stage (affects animation speed for eggs)
+     * @param onComplete Callback when animation completes
+     * @return Timeline animation object that plays once
+     */
+    public static Timeline createSingleCycleAnimation(List<Image> frames, Consumer<Image> frameUpdateCallback, 
+                                                    PokemonSpecies species, EvolutionStage stage, Runnable onComplete) {
+        if (frames.isEmpty()) {
+            return new Timeline(); // Return empty timeline if no frames
+        }
+        
+        Timeline timeline = new Timeline();
+        
+        // Get Pokemon-specific animation speed based on species and stage
+        double frameDuration = getPokemonAnimationSpeed(species, stage);
+        double fps = 1000.0 / frameDuration;
+        
+        // Log the single-cycle animation creation
+        String stageInfo = stage == EvolutionStage.EGG ? "EGG" : stage.name();
+        System.out.println("🎬 Creating single-cycle animation for " + species + "/" + stageInfo + " with " + frames.size() + 
+                          " frames at " + frameDuration + "ms per frame (~" + String.format("%.1f", fps) + " FPS)");
+        
+        // Create keyframes for each sprite frame
+        for (int i = 0; i < frames.size(); i++) {
+            final int frameIndex = i;
+            KeyFrame keyFrame = new KeyFrame(
+                Duration.millis(i * frameDuration),
+                e -> frameUpdateCallback.accept(frames.get(frameIndex))
+            );
+            timeline.getKeyFrames().add(keyFrame);
+        }
+        
+        // Add completion callback at the end
+        KeyFrame endFrame = new KeyFrame(
+            Duration.millis(frames.size() * frameDuration),
+            e -> {
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+            }
+        );
+        timeline.getKeyFrames().add(endFrame);
+        
+        // Set to play only once
+        timeline.setCycleCount(1);
+        
+        return timeline;
     }
     
     /**
@@ -295,12 +390,8 @@ public class AnimationUtils {
         );
         timeline.getKeyFrames().add(endFrame);
         
-        // Set the timeline to cycle indefinitely for eggs, or once for Pokemon animations
-        if (stage == EvolutionStage.EGG) {
-            timeline.setCycleCount(Timeline.INDEFINITE);
-        } else {
-            timeline.setCycleCount(Timeline.INDEFINITE);
-        }
+        // Set the timeline to cycle indefinitely for continuous animation
+        timeline.setCycleCount(Timeline.INDEFINITE);
         
         return timeline;
     }

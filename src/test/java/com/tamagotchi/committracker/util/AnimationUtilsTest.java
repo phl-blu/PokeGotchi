@@ -28,7 +28,7 @@ class AnimationUtilsTest {
     
     @Test
     void testGetFrameDuration() {
-        // Test that different states have appropriate frame durations
+        // Test that all states have consistent frame durations (2 FPS = 500ms)
         double happyDuration = AnimationUtils.getFrameDuration(PokemonState.HAPPY);
         double sadDuration = AnimationUtils.getFrameDuration(PokemonState.SAD);
         double evolvingDuration = AnimationUtils.getFrameDuration(PokemonState.EVOLVING);
@@ -46,29 +46,29 @@ class AnimationUtilsTest {
         assertTrue(concernedDuration > 0);
         assertTrue(neglectedDuration > 0);
         
-        // Happy and thriving should be faster than sad and neglected
-        assertTrue(happyDuration < sadDuration);
-        assertTrue(thrivingDuration < neglectedDuration);
-        
-        // Evolving should be fastest
-        assertTrue(evolvingDuration < happyDuration);
-        assertTrue(evolvingDuration < sadDuration);
+        // All Pokemon states should have consistent 2 FPS animation (500ms per frame)
+        assertEquals(500.0, happyDuration, 0.001);
+        assertEquals(500.0, sadDuration, 0.001);
+        assertEquals(500.0, evolvingDuration, 0.001);
+        assertEquals(500.0, thrivingDuration, 0.001);
+        assertEquals(500.0, contentDuration, 0.001);
+        assertEquals(500.0, concernedDuration, 0.001);
+        assertEquals(500.0, neglectedDuration, 0.001);
     }
     
     @Test
     void testFrameDurationConsistency() {
-        // Test that frame durations are consistent for similar states
+        // Test that all frame durations are consistent (2 FPS = 500ms)
         double happyDuration = AnimationUtils.getFrameDuration(PokemonState.HAPPY);
         double thrivingDuration = AnimationUtils.getFrameDuration(PokemonState.THRIVING);
-        
-        // Happy and thriving should have the same duration (both positive states)
-        assertEquals(happyDuration, thrivingDuration, 0.001);
-        
         double sadDuration = AnimationUtils.getFrameDuration(PokemonState.SAD);
         double neglectedDuration = AnimationUtils.getFrameDuration(PokemonState.NEGLECTED);
         
-        // Sad and neglected should have the same duration (both negative states)
+        // All states should have the same duration for consistent animation
+        assertEquals(happyDuration, thrivingDuration, 0.001);
         assertEquals(sadDuration, neglectedDuration, 0.001);
+        assertEquals(happyDuration, sadDuration, 0.001);
+        assertEquals(thrivingDuration, neglectedDuration, 0.001);
     }
     
     @Test

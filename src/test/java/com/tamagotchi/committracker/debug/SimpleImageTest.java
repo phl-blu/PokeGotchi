@@ -14,7 +14,7 @@ class SimpleImageTest {
     @Test
     void testImagePaths() {
         // Test if we can find the image files
-        String eggPath = "/pokemon/sprites/charmander/egg/content/frame1.png";
+        String eggPath = "/pokemon/sprites/charmander/egg/stage1/frame1.png";
         String charmanderPath = "/pokemon/sprites/charmander/basic/content/frame1.png";
         
         System.out.println("Testing image paths...");

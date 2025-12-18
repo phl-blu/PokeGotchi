@@ -39,23 +39,21 @@ class PokemonDisplayComponentTest {
     void testEvolutionSpeciesMapping() {
         // Test that evolution species mapping works correctly
         
-        // Kanto starters
-        assertEquals(PokemonSpecies.IVYSAUR, getEvolvedSpecies(PokemonSpecies.BULBASAUR, EvolutionStage.STAGE_1));
-        assertEquals(PokemonSpecies.VENUSAUR, getEvolvedSpecies(PokemonSpecies.BULBASAUR, EvolutionStage.STAGE_2));
-        
+        // Charmander line (Kanto Fire)
         assertEquals(PokemonSpecies.CHARMELEON, getEvolvedSpecies(PokemonSpecies.CHARMANDER, EvolutionStage.STAGE_1));
         assertEquals(PokemonSpecies.CHARIZARD, getEvolvedSpecies(PokemonSpecies.CHARMANDER, EvolutionStage.STAGE_2));
         
-        assertEquals(PokemonSpecies.WARTORTLE, getEvolvedSpecies(PokemonSpecies.SQUIRTLE, EvolutionStage.STAGE_1));
-        assertEquals(PokemonSpecies.BLASTOISE, getEvolvedSpecies(PokemonSpecies.SQUIRTLE, EvolutionStage.STAGE_2));
+        // Cyndaquil line (Johto Fire)
+        assertEquals(PokemonSpecies.QUILAVA, getEvolvedSpecies(PokemonSpecies.CYNDAQUIL, EvolutionStage.STAGE_1));
+        assertEquals(PokemonSpecies.TYPHLOSION, getEvolvedSpecies(PokemonSpecies.CYNDAQUIL, EvolutionStage.STAGE_2));
         
-        // Johto starters
-        assertEquals(PokemonSpecies.BAYLEEF, getEvolvedSpecies(PokemonSpecies.CHIKORITA, EvolutionStage.STAGE_1));
-        assertEquals(PokemonSpecies.MEGANIUM, getEvolvedSpecies(PokemonSpecies.CHIKORITA, EvolutionStage.STAGE_2));
+        // Mudkip line (Hoenn Water)
+        assertEquals(PokemonSpecies.MARSHTOMP, getEvolvedSpecies(PokemonSpecies.MUDKIP, EvolutionStage.STAGE_1));
+        assertEquals(PokemonSpecies.SWAMPERT, getEvolvedSpecies(PokemonSpecies.MUDKIP, EvolutionStage.STAGE_2));
         
-        // Hoenn starters
-        assertEquals(PokemonSpecies.GROVYLE, getEvolvedSpecies(PokemonSpecies.TREECKO, EvolutionStage.STAGE_1));
-        assertEquals(PokemonSpecies.SCEPTILE, getEvolvedSpecies(PokemonSpecies.TREECKO, EvolutionStage.STAGE_2));
+        // Piplup line (Sinnoh Water)
+        assertEquals(PokemonSpecies.PRINPLUP, getEvolvedSpecies(PokemonSpecies.PIPLUP, EvolutionStage.STAGE_1));
+        assertEquals(PokemonSpecies.EMPOLEON, getEvolvedSpecies(PokemonSpecies.PIPLUP, EvolutionStage.STAGE_2));
     }
     
     @Test
@@ -122,38 +120,50 @@ class PokemonDisplayComponentTest {
     
     private PokemonSpecies getEvolvedSpecies(PokemonSpecies baseSpecies, EvolutionStage targetStage) {
         switch (baseSpecies) {
-            // Kanto starters
-            case BULBASAUR:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.IVYSAUR : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.VENUSAUR : baseSpecies;
+            // 1. Charmander line (Kanto Fire)
             case CHARMANDER:
                 return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.CHARMELEON : 
                        targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.CHARIZARD : baseSpecies;
-            case SQUIRTLE:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.WARTORTLE : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.BLASTOISE : baseSpecies;
             
-            // Johto starters
-            case CHIKORITA:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.BAYLEEF : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.MEGANIUM : baseSpecies;
+            // 2. Cyndaquil line (Johto Fire)
             case CYNDAQUIL:
                 return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.QUILAVA : 
                        targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.TYPHLOSION : baseSpecies;
-            case TOTODILE:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.CROCONAW : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.FERALIGATR : baseSpecies;
             
-            // Hoenn starters
-            case TREECKO:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.GROVYLE : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.SCEPTILE : baseSpecies;
-            case TORCHIC:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.COMBUSKEN : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.BLAZIKEN : baseSpecies;
+            // 3. Mudkip line (Hoenn Water)
             case MUDKIP:
                 return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.MARSHTOMP : 
                        targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.SWAMPERT : baseSpecies;
+            
+            // 4. Piplup line (Sinnoh Water)
+            case PIPLUP:
+                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.PRINPLUP : 
+                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.EMPOLEON : baseSpecies;
+            
+            // 5. Snivy line (Unova Grass)
+            case SNIVY:
+                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.SERVINE : 
+                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.SERPERIOR : baseSpecies;
+            
+            // 6. Froakie line (Kalos Water)
+            case FROAKIE:
+                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.FROGADIER : 
+                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.GRENINJA : baseSpecies;
+            
+            // 7. Rowlet line (Alola Grass)
+            case ROWLET:
+                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.DARTRIX : 
+                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.DECIDUEYE : baseSpecies;
+            
+            // 8. Grookey line (Galar Grass)
+            case GROOKEY:
+                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.THWACKEY : 
+                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.RILLABOOM : baseSpecies;
+            
+            // 9. Fuecoco line (Paldea Fire)
+            case FUECOCO:
+                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.CROCALOR : 
+                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.SKELEDIRGE : baseSpecies;
             
             default:
                 return baseSpecies;

@@ -87,11 +87,35 @@ public class PokemonDisplayComponent extends StackPane {
      * @param newState The new Pokemon state
      */
     public void updateState(PokemonState newState) {
-        updateStateWithStreak(newState, 1);
+        if (currentStage == EvolutionStage.EGG) {
+            updateStateWithXP(newState, 25); // Use XP for eggs
+        } else {
+            updateStateWithStreak(newState, 1); // Use streak for Pokemon
+        }
+    }
+    
+    /**
+     * Updates the Pokemon's emotional/health state with XP information.
+     * Used for eggs only.
+     * 
+     * @param newState The new Pokemon state
+     * @param totalXP Total accumulated XP
+     */
+    public void updateStateWithXP(PokemonState newState, int totalXP) {
+        if (this.currentState != newState && !isEvolutionInProgress) {
+            this.currentState = newState;
+            if (currentStage == EvolutionStage.EGG) {
+                loadAndStartAnimationWithXP(totalXP);
+            } else {
+                // For non-eggs, just load normal animation
+                loadAndStartAnimation();
+            }
+        }
     }
     
     /**
      * Updates the Pokemon's emotional/health state with streak information.
+     * Used for Pokemon after they hatch.
      * 
      * @param newState The new Pokemon state
      * @param streakDays Number of consecutive commit days
@@ -99,39 +123,140 @@ public class PokemonDisplayComponent extends StackPane {
     public void updateStateWithStreak(PokemonState newState, int streakDays) {
         if (this.currentState != newState && !isEvolutionInProgress) {
             this.currentState = newState;
-            loadAndStartAnimationWithStreak(streakDays);
+            if (currentStage == EvolutionStage.EGG) {
+                // For eggs, convert to XP
+                int approximateXP = streakDays * 25;
+                loadAndStartAnimationWithXP(approximateXP);
+            } else {
+                // For Pokemon, just load normal animation
+                loadAndStartAnimation();
+            }
         }
     }
     
     /**
      * Triggers animation when a new commit is detected.
-     * For eggs: cycles through all 4 frames at 11 FPS
-     * For Pokemon: cycles through 2 frames at 2 FPS
+     * For eggs: plays frames 1-4 once at 11 FPS then returns to static frame1
+     * For Pokemon: cycles through 2 frames at 2 FPS then returns to static
      * 
-     * @param streakDays Number of consecutive commit days
+     * @param totalXP Total accumulated XP (for egg stage calculation)
      */
-    public void triggerCommitAnimation(int streakDays) {
+    public void triggerCommitAnimation(int totalXP) {
         if (!isEvolutionInProgress) {
-            // Set state to HAPPY to trigger animation
-            PokemonState animationState = PokemonState.HAPPY;
-            this.currentState = animationState;
-            loadAndStartAnimationWithStreak(streakDays);
-            
-            // For eggs, the animation will cycle indefinitely until stopped
-            // For Pokemon, we might want to revert to static after a period
-            if (currentStage != EvolutionStage.EGG) {
+            if (currentStage == EvolutionStage.EGG) {
+                // For eggs: play single-cycle animation then return to static
+                playOnceAnimation(totalXP);
+            } else {
+                // For Pokemon: set to HAPPY state temporarily
+                PokemonState animationState = PokemonState.HAPPY;
+                this.currentState = animationState;
+                loadAndStartAnimation(); // Use normal animation for Pokemon
+                
                 // Revert to static state after 3 seconds for Pokemon
                 Platform.runLater(() -> {
                     try {
                         Thread.sleep(3000);
                         if (this.currentState == animationState) {
                             this.currentState = PokemonState.CONTENT;
-                            loadAndStartAnimationWithStreak(streakDays);
+                            loadAndStartAnimation();
                         }
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
                 });
+            }
+        }
+    }
+    
+    /**
+     * Triggers animation when a new commit is detected with both XP and streak data.
+     * For eggs: uses XP for stage calculation
+     * For Pokemon: uses streak for evolution requirements
+     * 
+     * @param totalXP Total accumulated XP (for egg stage calculation)
+     * @param streakDays Current commit streak (for Pokemon evolution)
+     */
+    public void triggerCommitAnimation(int totalXP, int streakDays) {
+        if (!isEvolutionInProgress) {
+            if (currentStage == EvolutionStage.EGG) {
+                // For eggs: play single-cycle animation then return to static
+                playOnceAnimation(totalXP);
+            } else {
+                // For Pokemon: set to HAPPY state temporarily
+                PokemonState animationState = PokemonState.HAPPY;
+                this.currentState = animationState;
+                loadAndStartAnimation(); // Use normal animation for Pokemon
+                
+                // Revert to static state after 3 seconds for Pokemon
+                Platform.runLater(() -> {
+                    try {
+                        Thread.sleep(3000);
+                        if (this.currentState == animationState) {
+                            this.currentState = PokemonState.CONTENT;
+                            loadAndStartAnimation();
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                });
+            }
+        }
+    }
+    
+    /**
+     * Plays a single-cycle animation for eggs when a commit is detected.
+     * Animation plays frames 1-4 once at 11 FPS then returns to static frame1.
+     * 
+     * @param totalXP Total accumulated XP (for egg stage calculation)
+     */
+    public void playOnceAnimation(int totalXP) {
+        if (currentStage != EvolutionStage.EGG || isEvolutionInProgress) {
+            return;
+        }
+        
+        // Stop current animation if running
+        if (currentAnimation != null) {
+            currentAnimation.stop();
+        }
+        
+        // Load all 4 frames for the animation
+        List<Image> animationFrames = AnimationUtils.loadEggSpriteFramesForXP(currentSpecies, totalXP, PokemonState.HAPPY);
+        
+        if (!animationFrames.isEmpty()) {
+            // Create single-cycle animation that returns to static after completion
+            currentAnimation = AnimationUtils.createSingleCycleAnimation(
+                animationFrames,
+                this::updateDisplayedFrame,
+                currentSpecies,
+                currentStage,
+                () -> returnToStaticEgg(totalXP) // Callback when animation completes
+            );
+            
+            if (currentAnimation != null) {
+                currentAnimation.play();
+            }
+        }
+    }
+    
+    /**
+     * Returns the egg to static display (frame1 only) after animation completes.
+     * 
+     * @param totalXP Total accumulated XP (for egg stage calculation)
+     */
+    private void returnToStaticEgg(int totalXP) {
+        if (currentStage == EvolutionStage.EGG) {
+            // Load only frame1 for static display
+            List<Image> staticFrames = AnimationUtils.loadEggSpriteFramesForXP(currentSpecies, totalXP, PokemonState.CONTENT);
+            
+            if (!staticFrames.isEmpty()) {
+                // Display the first frame statically
+                updateDisplayedFrame(staticFrames.get(0));
+                
+                // Stop any running animation
+                if (currentAnimation != null) {
+                    currentAnimation.stop();
+                    currentAnimation = null;
+                }
             }
         }
     }
@@ -169,45 +294,96 @@ public class PokemonDisplayComponent extends StackPane {
      * Loads sprite frames for the current Pokemon configuration and starts animation.
      */
     private void loadAndStartAnimation() {
-        loadAndStartAnimationWithStreak(1); // Default to 1 day streak, will be updated by external calls
+        if (currentStage == EvolutionStage.EGG) {
+            // For eggs, always show static - use XP-based loading
+            loadAndStartAnimationWithXP(25); // Default to 25 XP (1 day equivalent)
+        } else {
+            // For Pokemon, load normal sprite animation
+            // Stop current animation if running
+            if (currentAnimation != null) {
+                currentAnimation.stop();
+                currentAnimation = null;
+            }
+            
+            // Load sprite frames for current Pokemon configuration
+            currentFrames = AnimationUtils.loadSpriteFrames(currentSpecies, currentStage, currentState);
+            
+            if (!currentFrames.isEmpty()) {
+                // Create continuous animation for Pokemon
+                currentAnimation = AnimationUtils.createFrameAnimation(
+                    currentFrames,
+                    this::updateDisplayedFrame,
+                    currentSpecies,
+                    currentStage
+                );
+                
+                if (currentAnimation != null) {
+                    currentAnimation.play();
+                    
+                    // Also set the first frame immediately
+                    updateDisplayedFrame(currentFrames.get(0));
+                }
+            }
+        }
+    }
+    
+    /**
+     * Loads sprite frames for the current Pokemon configuration with specific XP data.
+     * 
+     * @param totalXP Total accumulated XP (for egg stage determination)
+     */
+    public void loadAndStartAnimationWithXP(int totalXP) {
+        // Stop current animation if running
+        if (currentAnimation != null) {
+            currentAnimation.stop();
+            currentAnimation = null;
+        }
+        
+        // Load sprite frames for current configuration
+        if (currentStage == EvolutionStage.EGG) {
+            // For eggs, ALWAYS show static display unless explicitly animating
+            // Only animate during commit-triggered single-cycle animations
+            currentFrames = AnimationUtils.loadEggSpriteFramesForXP(currentSpecies, totalXP, PokemonState.CONTENT);
+            
+            // Display first frame statically without any continuous animation
+            if (!currentFrames.isEmpty()) {
+                updateDisplayedFrame(currentFrames.get(0));
+            }
+            return; // Never start continuous animation for eggs - they should be static
+        } else {
+            // Use normal Pokemon sprite loading for non-egg stages
+            currentFrames = AnimationUtils.loadSpriteFrames(currentSpecies, currentStage, currentState);
+            
+            if (!currentFrames.isEmpty()) {
+                // For Pokemon, create continuous animation
+                currentAnimation = AnimationUtils.createFrameAnimation(
+                    currentFrames,
+                    this::updateDisplayedFrame,
+                    currentSpecies,
+                    currentStage
+                );
+                
+                if (currentAnimation != null) {
+                    currentAnimation.play();
+                    
+                    // Also set the first frame immediately
+                    updateDisplayedFrame(currentFrames.get(0));
+                }
+            }
+        }
     }
     
     /**
      * Loads sprite frames for the current Pokemon configuration with specific streak data.
      * 
+     * @deprecated Use loadAndStartAnimationWithXP() instead for XP-based progression
      * @param streakDays Number of consecutive commit days (for egg stage determination)
      */
+    @Deprecated
     public void loadAndStartAnimationWithStreak(int streakDays) {
-        // Stop current animation if running
-        if (currentAnimation != null) {
-            currentAnimation.stop();
-        }
-        
-        // Load sprite frames for current configuration
-        if (currentStage == EvolutionStage.EGG) {
-            // Use Pokemon-specific egg loading with streak-based stage determination
-            currentFrames = AnimationUtils.loadEggSpriteFramesForStreak(currentSpecies, streakDays, currentState);
-        } else {
-            // Use normal Pokemon sprite loading
-            currentFrames = AnimationUtils.loadSpriteFrames(currentSpecies, currentStage, currentState);
-        }
-        
-        if (!currentFrames.isEmpty()) {
-            // Create and start new animation with Pokemon-specific speed
-            currentAnimation = AnimationUtils.createFrameAnimation(
-                currentFrames,
-                this::updateDisplayedFrame,
-                currentSpecies,
-                currentStage
-            );
-            
-            if (currentAnimation != null) {
-                currentAnimation.play();
-                
-                // Also set the first frame immediately
-                updateDisplayedFrame(currentFrames.get(0));
-            }
-        }
+        // Convert streak days to approximate XP for backward compatibility
+        int approximateXP = streakDays * 25; // Assume 25 XP per day
+        loadAndStartAnimationWithXP(approximateXP);
     }
     
     /**
