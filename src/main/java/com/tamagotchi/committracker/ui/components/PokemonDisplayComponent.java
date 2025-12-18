@@ -211,8 +211,11 @@ public class PokemonDisplayComponent extends StackPane {
      */
     public void playOnceAnimation(int totalXP) {
         if (currentStage != EvolutionStage.EGG || isEvolutionInProgress) {
+            System.out.println("🥚 Cannot play egg animation - not an egg or evolution in progress");
             return;
         }
+        
+        System.out.println("🥚 Triggering egg animation! XP: " + totalXP);
         
         // Stop current animation if running
         if (currentAnimation != null) {
@@ -223,6 +226,8 @@ public class PokemonDisplayComponent extends StackPane {
         List<Image> animationFrames = AnimationUtils.loadEggSpriteFramesForXP(currentSpecies, totalXP, PokemonState.HAPPY);
         
         if (!animationFrames.isEmpty()) {
+            System.out.println("🎬 Starting egg animation with " + animationFrames.size() + " frames");
+            
             // Create single-cycle animation that returns to static after completion
             currentAnimation = AnimationUtils.createSingleCycleAnimation(
                 animationFrames,
@@ -234,7 +239,12 @@ public class PokemonDisplayComponent extends StackPane {
             
             if (currentAnimation != null) {
                 currentAnimation.play();
+                System.out.println("🎬 Egg animation started successfully!");
+            } else {
+                System.out.println("❌ Failed to create egg animation");
             }
+        } else {
+            System.out.println("❌ No animation frames loaded for egg");
         }
     }
     
@@ -245,6 +255,8 @@ public class PokemonDisplayComponent extends StackPane {
      */
     private void returnToStaticEgg(int totalXP) {
         if (currentStage == EvolutionStage.EGG) {
+            System.out.println("🥚 Returning egg to static display");
+            
             // Load only frame1 for static display
             List<Image> staticFrames = AnimationUtils.loadEggSpriteFramesForXP(currentSpecies, totalXP, PokemonState.CONTENT);
             
@@ -257,6 +269,10 @@ public class PokemonDisplayComponent extends StackPane {
                     currentAnimation.stop();
                     currentAnimation = null;
                 }
+                
+                System.out.println("🥚 Egg returned to static state");
+            } else {
+                System.out.println("❌ Failed to load static egg frame");
             }
         }
     }
@@ -594,6 +610,36 @@ public class PokemonDisplayComponent extends StackPane {
         } else {
             System.out.println("🧪 TESTING: Already at max evolution stage: " + currentStage);
         }
+    }
+    
+    /**
+     * FOR TESTING ONLY: Forces de-evolution back to egg stage for testing egg animations.
+     * This allows testing of egg behavior without waiting for natural progression.
+     * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
+     */
+    public void forceDeevolutionToEggForTesting() {
+        if (currentStage == EvolutionStage.EGG) {
+            System.out.println("🧪 TESTING: Already at egg stage");
+            return;
+        }
+        
+        System.out.println("🧪 TESTING: Forcing de-evolution from " + currentStage + " back to EGG stage");
+        
+        // Stop current animation
+        if (currentAnimation != null) {
+            currentAnimation.stop();
+            currentAnimation = null;
+        }
+        
+        // Reset to egg stage
+        this.currentStage = EvolutionStage.EGG;
+        this.currentState = PokemonState.CONTENT;
+        this.isEvolutionInProgress = false;
+        
+        // Load egg animation with minimal XP (stage 1 egg)
+        loadAndStartAnimationWithXP(25); // 1 day worth of XP = stage 1 egg
+        
+        System.out.println("🥚 TESTING: Pokemon reset to egg stage for testing");
     }
     
     /**

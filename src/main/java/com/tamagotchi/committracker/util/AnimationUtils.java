@@ -303,6 +303,7 @@ public class AnimationUtils {
     public static Timeline createSingleCycleAnimation(List<Image> frames, Consumer<Image> frameUpdateCallback, 
                                                     PokemonSpecies species, EvolutionStage stage, Runnable onComplete) {
         if (frames.isEmpty()) {
+            System.out.println("❌ Cannot create single-cycle animation - no frames provided");
             return new Timeline(); // Return empty timeline if no frames
         }
         
@@ -322,7 +323,10 @@ public class AnimationUtils {
             final int frameIndex = i;
             KeyFrame keyFrame = new KeyFrame(
                 Duration.millis(i * frameDuration),
-                e -> frameUpdateCallback.accept(frames.get(frameIndex))
+                e -> {
+                    System.out.println("🎬 Playing frame " + (frameIndex + 1) + "/" + frames.size());
+                    frameUpdateCallback.accept(frames.get(frameIndex));
+                }
             );
             timeline.getKeyFrames().add(keyFrame);
         }
@@ -331,6 +335,7 @@ public class AnimationUtils {
         KeyFrame endFrame = new KeyFrame(
             Duration.millis(frames.size() * frameDuration),
             e -> {
+                System.out.println("🎬 Single-cycle animation completed");
                 if (onComplete != null) {
                     onComplete.run();
                 }
@@ -341,6 +346,7 @@ public class AnimationUtils {
         // Set to play only once
         timeline.setCycleCount(1);
         
+        System.out.println("🎬 Single-cycle animation created successfully");
         return timeline;
     }
     

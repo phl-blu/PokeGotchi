@@ -147,6 +147,16 @@ public class XPSystem {
         return EVOLUTION_XP_THRESHOLDS[EVOLUTION_XP_THRESHOLDS.length - 1];
     }
     
+    /**
+     * FOR TESTING ONLY: Resets XP and level back to 0 for testing purposes.
+     * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
+     */
+    public void resetForTesting() {
+        System.out.println("🧪 TESTING: Resetting XP system - XP: " + currentXP + " -> 0, Level: " + level + " -> 0");
+        this.currentXP = 0;
+        this.level = 0;
+    }
+    
     @Override
     public String toString() {
         return "XPSystem{" +

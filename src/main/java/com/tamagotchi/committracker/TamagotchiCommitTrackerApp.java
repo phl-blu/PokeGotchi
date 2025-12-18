@@ -48,37 +48,100 @@ public class TamagotchiCommitTrackerApp extends Application {
      */
     private void setupCommitMonitoring() {
         commitService.addCommitListener(newCommits -> {
-            System.out.println("🎉 Found " + newCommits.size() + " new commits!");
+            boolean isInitialScan = newCommits.size() > 5; // Assume initial scan if many commits found
+            
+            if (isInitialScan) {
+                System.out.println("🔍 Initial repository scan found " + newCommits.size() + " commits from last 30 days");
+            } else {
+                System.out.println("🎉 Found " + newCommits.size() + " new commits!");
+            }
             
             // Calculate XP from new commits
             int totalXP = 0;
             for (var commit : newCommits) {
                 int commitXP = xpSystem.calculateXPFromCommit(commit);
                 totalXP += commitXP;
-                System.out.println("📈 Commit: \"" + commit.getMessage() + "\" +XP: " + commitXP);
+                if (!isInitialScan) {
+                    System.out.println("📈 Commit: \"" + commit.getMessage() + "\" +XP: " + commitXP);
+                }
             }
             
             // Add XP to the system
             xpSystem.addXP(totalXP);
             
-            // Update Pokemon state based on commit history
+            // Get current stats
             var commitHistory = commitService.getCommitHistory();
+            int currentXP = xpSystem.getCurrentXP();
+            int currentStreak = commitHistory.getCurrentStreak();
+            
+            // Log current XP and streak
+            System.out.println("💎 Total XP accumulated: " + currentXP);
+            System.out.println("🔥 Current day streak: " + currentStreak + " days");
+            
+            // Update Pokemon state based on commit history
             var pokemonState = pokemonStateManager.calculateState(commitHistory);
             
             // Update the Pokemon display
             if (widgetWindow.getPokemonDisplay() != null) {
+                // Get current evolution stage before checking requirements
+                var currentStage = widgetWindow.getPokemonDisplay().getCurrentStage();
+                
+                // IMPORTANT: Trigger commit animation for eggs/Pokemon
+                if (!isInitialScan) {
+                    widgetWindow.getPokemonDisplay().triggerCommitAnimation(currentXP, currentStreak);
+                }
+                
+                // Update Pokemon state
                 widgetWindow.getPokemonDisplay().updateState(pokemonState);
                 
                 // Check for evolution based on XP and streak
-                int currentXP = xpSystem.getCurrentXP();
-                int currentStreak = commitHistory.getCurrentStreak();
-                
                 boolean evolved = widgetWindow.getPokemonDisplay().checkEvolutionRequirements(currentXP, currentStreak);
                 if (evolved) {
-                    System.out.println("🌟 Pokemon evolved! XP: " + currentXP + ", Streak: " + currentStreak + " days");
+                    if (isInitialScan && currentStage == com.tamagotchi.committracker.pokemon.EvolutionStage.EGG) {
+                        System.out.println("🥚➡️🐣 " + currentStreak + " day streak found! " + currentXP + " XP accumulated! Automatic hatching commenced!");
+                    } else if (isInitialScan) {
+                        System.out.println("🌟 " + currentStreak + " day streak found! " + currentXP + " XP accumulated! Automatic evolution triggered!");
+                    } else {
+                        System.out.println("🌟 Pokemon evolved! XP: " + currentXP + ", Streak: " + currentStreak + " days");
+                    }
+                } else {
+                    if (!isInitialScan) {
+                        System.out.println("🥚 Evolution requirements not met yet. Need more XP or longer streak.");
+                    }
                 }
             }
         });
+    }
+
+    /**
+     * FOR TESTING ONLY: Resets Pokemon to egg stage and XP to 0 for testing purposes.
+     * This allows testing of egg animations and evolution progression from scratch.
+     * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
+     */
+    public void resetPokemonForTesting() {
+        System.out.println("🧪 TESTING: Performing complete Pokemon reset for testing");
+        
+        // Reset XP system
+        if (xpSystem != null) {
+            xpSystem.resetForTesting();
+        }
+        
+        // Reset Pokemon display to egg stage
+        if (widgetWindow != null && widgetWindow.getPokemonDisplay() != null) {
+            widgetWindow.getPokemonDisplay().forceDeevolutionToEggForTesting();
+        }
+        
+        System.out.println("🥚 TESTING: Complete reset finished - Pokemon is now an egg with 0 XP");
+    }
+    
+    /**
+     * FOR TESTING ONLY: Forces Pokemon evolution for testing purposes.
+     * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
+     */
+    public void forceEvolutionForTesting() {
+        if (widgetWindow != null && widgetWindow.getPokemonDisplay() != null) {
+            widgetWindow.getPokemonDisplay().forceEvolutionForTesting();
+        }
     }
 
     @Override

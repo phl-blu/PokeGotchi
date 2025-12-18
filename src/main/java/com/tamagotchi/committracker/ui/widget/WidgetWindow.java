@@ -106,22 +106,36 @@ public class WidgetWindow {
             switch (event.getCode()) {
                 case E: // Press 'E' to force evolution for testing
                     if (pokemonDisplay != null) {
+                        System.out.println("🧪 TESTING: 'E' pressed - Forcing evolution");
                         pokemonDisplay.forceEvolutionForTesting();
+                    }
+                    break;
+                case R: // Press 'R' to reset Pokemon to egg stage for testing
+                    if (pokemonDisplay != null) {
+                        System.out.println("🧪 TESTING: 'R' pressed - Resetting Pokemon to egg stage");
+                        pokemonDisplay.forceDeevolutionToEggForTesting();
                     }
                     break;
                 case H: // Press 'H' to make Pokemon happy
                     if (pokemonDisplay != null) {
                         pokemonDisplay.updateState(PokemonState.HAPPY);
-                        System.out.println("🧪 TESTING: Pokemon state changed to HAPPY");
+                        System.out.println("🧪 TESTING: 'H' pressed - Pokemon state changed to HAPPY");
                     }
                     break;
                 case S: // Press 'S' to make Pokemon sad
                     if (pokemonDisplay != null) {
                         pokemonDisplay.updateState(PokemonState.SAD);
-                        System.out.println("🧪 TESTING: Pokemon state changed to SAD");
+                        System.out.println("🧪 TESTING: 'S' pressed - Pokemon state changed to SAD");
+                    }
+                    break;
+                case T: // Press 'T' to make Pokemon thriving
+                    if (pokemonDisplay != null) {
+                        pokemonDisplay.updateState(PokemonState.THRIVING);
+                        System.out.println("🧪 TESTING: 'T' pressed - Pokemon state changed to THRIVING");
                     }
                     break;
                 case I: // Press 'I' to show Pokemon info
+                    System.out.println("🧪 TESTING: 'I' pressed - Showing Pokemon info");
                     showPokemonInfo();
                     break;
             }
