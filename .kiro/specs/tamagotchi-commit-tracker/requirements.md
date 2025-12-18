@@ -15,6 +15,7 @@ A Tamagotchi-themed desktop widget application that tracks Git commits across al
 - **Expanded Mode**: The full widget state showing commit history, Pokemon details, and evolution progress
 - **Pokemon Selection Screen**: The initial interface for choosing one of 9 starter Pokemon
 - **Evolution Stage**: The current development level of a Pokemon (EGG, BASIC, STAGE_1, STAGE_2)
+- **Egg Stage**: The visual progression of an egg from Stage 1 (fresh) to Stage 4 (ready to hatch)
 - **XP System**: The experience point mechanism that tracks commit activity for evolution
 - **Commit Streak**: Consecutive days with at least one commit, required for Pokemon evolution
 - **Development Mode**: Testing environment with manual evolution triggers and debugging features
@@ -109,6 +110,19 @@ A Tamagotchi-themed desktop widget application that tracks Git commits across al
 
 ### Requirement 8
 
+**User Story:** As a developer, I want to see my egg progress through visual stages as I build my commit streak, so that I can anticipate when my Pokemon will hatch.
+
+#### Acceptance Criteria
+
+1. WHEN a Pokemon is selected, THE Widget SHALL display the egg in Stage 1 (fresh egg) as a static image
+2. WHEN the commit streak reaches 1 day, THE Widget SHALL progress the egg to Stage 2 with updated visual appearance
+3. WHEN the commit streak reaches 2 days, THE Widget SHALL progress the egg to Stage 3 with more advanced cracking
+4. WHEN the commit streak reaches 3 days, THE Widget SHALL progress the egg to Stage 4 showing imminent hatching
+5. WHEN a new commit is detected, THE Widget SHALL trigger the 2-frame animation for the current egg stage
+6. WHERE no recent commits are detected, THE Widget SHALL display the egg as a static image (frame 1 only)
+
+### Requirement 9
+
 **User Story:** As a developer, I want to watch my chosen Pokemon evolve based on my commit consistency, so that I can see my productivity growth reflected in my companion's development.
 
 #### Acceptance Criteria
@@ -117,9 +131,10 @@ A Tamagotchi-themed desktop widget application that tracks Git commits across al
 2. WHEN a Pokemon reaches 800 XP and maintains an 11-day commit streak, THE Pokemon SHALL evolve to its second stage
 3. WHEN a Pokemon reaches 2000 XP and maintains a 22-day commit streak, THE Pokemon SHALL evolve to its final stage
 4. WHERE evolution requirements are met, THE Pokemon SHALL display an evolution animation sequence
-5. WHEN displaying Pokemon animations, THE Widget SHALL cycle through exactly 2 frames at 2 FPS for consistent idle animations
+5. WHEN a new commit is detected, THE Pokemon SHALL trigger its 2-frame idle animation at 2 FPS
+6. WHERE no recent commits are detected, THE Pokemon SHALL display as a static image (frame 1 only)
 
-### Requirement 9
+### Requirement 10
 
 **User Story:** As a developer working on the application, I want to test Pokemon evolution mechanics without waiting for real commit streaks, so that I can verify the system works correctly during development.
 
@@ -131,7 +146,7 @@ A Tamagotchi-themed desktop widget application that tracks Git commits across al
 4. WHERE testing code exists, THE Widget SHALL clearly separate testing functionality from production code
 5. WHEN building for production, THE Widget SHALL exclude all testing shortcuts and manual triggers
 
-### Requirement 10
+### Requirement 11
 
 **User Story:** As a developer, I want the Pokemon animation system to support variable frame counts and speeds, so that each Pokemon can have unique and engaging animations.
 
@@ -143,7 +158,7 @@ A Tamagotchi-themed desktop widget application that tracks Git commits across al
 4. WHERE Pokemon sprites are missing, THE Widget SHALL use fallback animations to prevent crashes
 5. WHEN loading animations, THE Widget SHALL handle different frame counts gracefully
 
-### Requirement 11
+### Requirement 12
 
 **User Story:** As a developer, I want the application to handle Git authentication securely, so that my private repositories can be monitored without compromising security.
 

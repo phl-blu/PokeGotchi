@@ -87,9 +87,52 @@ public class PokemonDisplayComponent extends StackPane {
      * @param newState The new Pokemon state
      */
     public void updateState(PokemonState newState) {
+        updateStateWithStreak(newState, 1);
+    }
+    
+    /**
+     * Updates the Pokemon's emotional/health state with streak information.
+     * 
+     * @param newState The new Pokemon state
+     * @param streakDays Number of consecutive commit days
+     */
+    public void updateStateWithStreak(PokemonState newState, int streakDays) {
         if (this.currentState != newState && !isEvolutionInProgress) {
             this.currentState = newState;
-            loadAndStartAnimation();
+            loadAndStartAnimationWithStreak(streakDays);
+        }
+    }
+    
+    /**
+     * Triggers animation when a new commit is detected.
+     * For eggs: cycles through all 4 frames at 11 FPS
+     * For Pokemon: cycles through 2 frames at 2 FPS
+     * 
+     * @param streakDays Number of consecutive commit days
+     */
+    public void triggerCommitAnimation(int streakDays) {
+        if (!isEvolutionInProgress) {
+            // Set state to HAPPY to trigger animation
+            PokemonState animationState = PokemonState.HAPPY;
+            this.currentState = animationState;
+            loadAndStartAnimationWithStreak(streakDays);
+            
+            // For eggs, the animation will cycle indefinitely until stopped
+            // For Pokemon, we might want to revert to static after a period
+            if (currentStage != EvolutionStage.EGG) {
+                // Revert to static state after 3 seconds for Pokemon
+                Platform.runLater(() -> {
+                    try {
+                        Thread.sleep(3000);
+                        if (this.currentState == animationState) {
+                            this.currentState = PokemonState.CONTENT;
+                            loadAndStartAnimationWithStreak(streakDays);
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                });
+            }
         }
     }
     
@@ -126,20 +169,36 @@ public class PokemonDisplayComponent extends StackPane {
      * Loads sprite frames for the current Pokemon configuration and starts animation.
      */
     private void loadAndStartAnimation() {
+        loadAndStartAnimationWithStreak(1); // Default to 1 day streak, will be updated by external calls
+    }
+    
+    /**
+     * Loads sprite frames for the current Pokemon configuration with specific streak data.
+     * 
+     * @param streakDays Number of consecutive commit days (for egg stage determination)
+     */
+    public void loadAndStartAnimationWithStreak(int streakDays) {
         // Stop current animation if running
         if (currentAnimation != null) {
             currentAnimation.stop();
         }
         
         // Load sprite frames for current configuration
-        currentFrames = AnimationUtils.loadSpriteFrames(currentSpecies, currentStage, currentState);
+        if (currentStage == EvolutionStage.EGG) {
+            // Use Pokemon-specific egg loading with streak-based stage determination
+            currentFrames = AnimationUtils.loadEggSpriteFramesForStreak(currentSpecies, streakDays, currentState);
+        } else {
+            // Use normal Pokemon sprite loading
+            currentFrames = AnimationUtils.loadSpriteFrames(currentSpecies, currentStage, currentState);
+        }
         
         if (!currentFrames.isEmpty()) {
             // Create and start new animation with Pokemon-specific speed
             currentAnimation = AnimationUtils.createFrameAnimation(
                 currentFrames,
                 this::updateDisplayedFrame,
-                currentSpecies
+                currentSpecies,
+                currentStage
             );
             
             if (currentAnimation != null) {
