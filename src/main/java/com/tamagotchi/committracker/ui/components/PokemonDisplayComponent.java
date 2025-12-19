@@ -88,7 +88,7 @@ public class PokemonDisplayComponent extends StackPane {
      */
     public void updateState(PokemonState newState) {
         if (currentStage == EvolutionStage.EGG) {
-            updateStateWithXP(newState, 25); // Use XP for eggs
+            updateStateWithXP(newState, 0); // Use 0 XP for eggs (stage 1)
         } else {
             updateStateWithStreak(newState, 1); // Use streak for Pokemon
         }
@@ -124,8 +124,8 @@ public class PokemonDisplayComponent extends StackPane {
         if (this.currentState != newState && !isEvolutionInProgress) {
             this.currentState = newState;
             if (currentStage == EvolutionStage.EGG) {
-                // For eggs, convert to XP
-                int approximateXP = streakDays * 25;
+                // For eggs, convert to XP (approximately 10 XP per day)
+                int approximateXP = streakDays * 10;
                 loadAndStartAnimationWithXP(approximateXP);
             } else {
                 // For Pokemon, just load normal animation
@@ -312,7 +312,7 @@ public class PokemonDisplayComponent extends StackPane {
     private void loadAndStartAnimation() {
         if (currentStage == EvolutionStage.EGG) {
             // For eggs, always show static - use XP-based loading
-            loadAndStartAnimationWithXP(25); // Default to 25 XP (1 day equivalent)
+            loadAndStartAnimationWithXP(0); // Default to 0 XP (stage 1 egg)
         } else {
             // For Pokemon, load normal sprite animation
             // Stop current animation if running
@@ -398,7 +398,7 @@ public class PokemonDisplayComponent extends StackPane {
     @Deprecated
     public void loadAndStartAnimationWithStreak(int streakDays) {
         // Convert streak days to approximate XP for backward compatibility
-        int approximateXP = streakDays * 25; // Assume 25 XP per day
+        int approximateXP = streakDays * 10; // Assume 10 XP per day
         loadAndStartAnimationWithXP(approximateXP);
     }
     
@@ -436,16 +436,16 @@ public class PokemonDisplayComponent extends StackPane {
         boolean canEvolve = false;
         switch (nextStage) {
             case BASIC:
-                // Hatch from egg: 4+ day streak + XP threshold
-                canEvolve = (streakDays >= 4 && xpLevel >= 200);
+                // Hatch from egg: EITHER 4+ day streak OR 50+ XP (whichever comes first)
+                canEvolve = (streakDays >= 4 || xpLevel >= 50);
                 break;
             case STAGE_1:
-                // First evolution: 11+ day streak + XP threshold
-                canEvolve = (streakDays >= 11 && xpLevel >= 800);
+                // First evolution: ONLY 11+ day streak (XP doesn't matter after hatching)
+                canEvolve = (streakDays >= 11);
                 break;
             case STAGE_2:
-                // Final evolution: 22+ day streak + XP threshold
-                canEvolve = (streakDays >= 22 && xpLevel >= 2000);
+                // Final evolution: ONLY 22+ day streak (XP doesn't matter after hatching)
+                canEvolve = (streakDays >= 22);
                 break;
         }
         

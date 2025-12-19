@@ -194,25 +194,22 @@ public class AnimationUtils {
     }
     
     /**
-     * Gets the egg stage based on XP days instead of streak days.
-     * XP days are calculated from total accumulated XP.
+     * Gets the egg stage based on total accumulated XP.
+     * Updated XP thresholds for more granular progression:
+     * Stage 1: 0-10 XP, Stage 2: 11-20 XP, Stage 3: 21-35 XP, Stage 4: 36-50 XP
      * 
      * @param totalXP Total accumulated XP
      * @return Egg stage (1-4)
      */
     public static int getEggStageFromXPDays(int totalXP) {
-        // Calculate XP days: assuming average 25 XP per day (base 10 + bonuses)
-        // This maps XP to equivalent "days of activity"
-        int xpDays = Math.max(1, totalXP / 25);
-        
-        if (xpDays <= 1) {
-            return 1; // Stage 1: Fresh egg (1 day XP)
-        } else if (xpDays == 2) {
-            return 2; // Stage 2: Barely cracked (2 days XP)
-        } else if (xpDays == 3) {
-            return 3; // Stage 3: More cracked (3 days XP)
+        if (totalXP <= 10) {
+            return 1; // Stage 1: Fresh egg (0-10 XP)
+        } else if (totalXP <= 20) {
+            return 2; // Stage 2: Barely cracked (11-20 XP)
+        } else if (totalXP <= 35) {
+            return 3; // Stage 3: More cracked (21-35 XP)
         } else {
-            return 4; // Stage 4: Very cracked, ready to hatch (4+ days XP)
+            return 4; // Stage 4: Very cracked, ready to hatch (36-50 XP)
         }
     }
     
@@ -237,8 +234,10 @@ public class AnimationUtils {
     }
     
     /**
-     * Loads Pokemon-specific egg sprite frames based on XP days and animation state.
+     * Loads Pokemon-specific egg sprite frames based on XP and animation state.
      * This is the main method to be called by components for XP-based progression.
+     * 
+     * XP Progression: Stage 1 (0-10 XP) -> Stage 2 (11-20 XP) -> Stage 3 (21-35 XP) -> Stage 4 (36-50 XP) -> Evolution
      * 
      * @param species The Pokemon species (determines which egg sprites to load)
      * @param totalXP Total accumulated XP

@@ -57,7 +57,7 @@ public class WidgetWindow {
         root = new StackPane();
         root.setStyle("-fx-background-color: transparent;");
         
-        // Create Pokemon display component (starts as egg)
+        // Create Pokemon display component (starts as egg, will evolve based on initial scan)
         pokemonDisplay = new PokemonDisplayComponent(
             PokemonSpecies.CHARMANDER, EvolutionStage.EGG, PokemonState.CONTENT
         );

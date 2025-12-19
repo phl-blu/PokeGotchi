@@ -86,6 +86,15 @@ public class TamagotchiCommitTrackerApp extends Application {
                 // Get current evolution stage before checking requirements
                 var currentStage = widgetWindow.getPokemonDisplay().getCurrentStage();
                 
+                if (isInitialScan) {
+                    System.out.println("🔍 Pokemon started as: " + currentStage + " (XP: " + currentXP + ", Streak: " + currentStreak + " days)");
+                    if (currentStage == com.tamagotchi.committracker.pokemon.EvolutionStage.EGG) {
+                        System.out.println("🔍 Checking evolution requirements: 4+ day streak OR 50+ XP for hatching");
+                    } else {
+                        System.out.println("🔍 Checking evolution requirements: streak-based only (11+ days for Stage1, 22+ days for Stage2)");
+                    }
+                }
+                
                 // IMPORTANT: Trigger commit animation for eggs/Pokemon
                 if (!isInitialScan) {
                     widgetWindow.getPokemonDisplay().triggerCommitAnimation(currentXP, currentStreak);
@@ -97,16 +106,28 @@ public class TamagotchiCommitTrackerApp extends Application {
                 // Check for evolution based on XP and streak
                 boolean evolved = widgetWindow.getPokemonDisplay().checkEvolutionRequirements(currentXP, currentStreak);
                 if (evolved) {
+                    var newStage = widgetWindow.getPokemonDisplay().getCurrentStage();
                     if (isInitialScan && currentStage == com.tamagotchi.committracker.pokemon.EvolutionStage.EGG) {
                         System.out.println("🥚➡️🐣 " + currentStreak + " day streak found! " + currentXP + " XP accumulated! Automatic hatching commenced!");
+                        System.out.println("🌟 Pokemon evolved from " + currentStage + " to " + newStage);
                     } else if (isInitialScan) {
                         System.out.println("🌟 " + currentStreak + " day streak found! " + currentXP + " XP accumulated! Automatic evolution triggered!");
+                        System.out.println("🌟 Pokemon evolved from " + currentStage + " to " + newStage);
                     } else {
                         System.out.println("🌟 Pokemon evolved! XP: " + currentXP + ", Streak: " + currentStreak + " days");
                     }
                 } else {
-                    if (!isInitialScan) {
-                        System.out.println("🥚 Evolution requirements not met yet. Need more XP or longer streak.");
+                    if (isInitialScan) {
+                        System.out.println("🥚 Evolution requirements not met. Current: " + currentXP + " XP, " + currentStreak + " day streak");
+                        if (currentStage == com.tamagotchi.committracker.pokemon.EvolutionStage.EGG) {
+                            System.out.println("🥚 Need: 4+ day streak OR 50+ XP for hatching");
+                        } else if (currentStage == com.tamagotchi.committracker.pokemon.EvolutionStage.BASIC) {
+                            System.out.println("🐣 Need: 11+ day streak for Stage1 evolution");
+                        } else if (currentStage == com.tamagotchi.committracker.pokemon.EvolutionStage.STAGE_1) {
+                            System.out.println("🌟 Need: 22+ day streak for Stage2 evolution");
+                        }
+                    } else {
+                        System.out.println("🥚 Evolution requirements not met yet. Need more streak days.");
                     }
                 }
             }

@@ -17,9 +17,9 @@ The current Pokemon evolution system requires real commit streaks (4/11/22 days)
 - **I want** Pokemon to evolve based on my real coding commitment
 - **So that** the evolution feels earned and meaningful
 - **Acceptance Criteria:**
-  - EGG → BASIC requires 4+ day streak + 200 XP
-  - BASIC → STAGE_1 requires 11+ day streak + 800 XP
-  - STAGE_1 → STAGE_2 requires 22+ day streak + 2000 XP
+  - EGG → BASIC requires 4+ day streak OR 50 XP (whichever comes first)
+  - BASIC → STAGE_1 requires 11+ day streak (XP not required)
+  - STAGE_1 → STAGE_2 requires 22+ day streak (XP not required)
   - No shortcuts available in production
 
 ## Current Implementation Status

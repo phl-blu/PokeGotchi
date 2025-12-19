@@ -93,4 +93,66 @@ class AnimationUtilsTest {
             assertTrue(duration <= 1000.0, "Duration too long for state: " + state);
         }
     }
+    
+    @Test
+    void testEggStageFromXPDays() {
+        // Test the new XP-based egg stage calculation
+        
+        // Stage 1: 0-10 XP
+        assertEquals(1, AnimationUtils.getEggStageFromXPDays(0));
+        assertEquals(1, AnimationUtils.getEggStageFromXPDays(5));
+        assertEquals(1, AnimationUtils.getEggStageFromXPDays(10));
+        
+        // Stage 2: 11-20 XP
+        assertEquals(2, AnimationUtils.getEggStageFromXPDays(11));
+        assertEquals(2, AnimationUtils.getEggStageFromXPDays(15));
+        assertEquals(2, AnimationUtils.getEggStageFromXPDays(20));
+        
+        // Stage 3: 21-35 XP
+        assertEquals(3, AnimationUtils.getEggStageFromXPDays(21));
+        assertEquals(3, AnimationUtils.getEggStageFromXPDays(28));
+        assertEquals(3, AnimationUtils.getEggStageFromXPDays(35));
+        
+        // Stage 4: 36-50+ XP
+        assertEquals(4, AnimationUtils.getEggStageFromXPDays(36));
+        assertEquals(4, AnimationUtils.getEggStageFromXPDays(45));
+        assertEquals(4, AnimationUtils.getEggStageFromXPDays(50));
+        assertEquals(4, AnimationUtils.getEggStageFromXPDays(100)); // Still stage 4 even with high XP
+    }
+    
+    @Test
+    void testEggStageThresholds() {
+        // Test boundary conditions for egg stages
+        
+        // Test exact boundaries
+        assertEquals(1, AnimationUtils.getEggStageFromXPDays(10)); // Upper bound of stage 1
+        assertEquals(2, AnimationUtils.getEggStageFromXPDays(11)); // Lower bound of stage 2
+        assertEquals(2, AnimationUtils.getEggStageFromXPDays(20)); // Upper bound of stage 2
+        assertEquals(3, AnimationUtils.getEggStageFromXPDays(21)); // Lower bound of stage 3
+        assertEquals(3, AnimationUtils.getEggStageFromXPDays(35)); // Upper bound of stage 3
+        assertEquals(4, AnimationUtils.getEggStageFromXPDays(36)); // Lower bound of stage 4
+        
+        // Test negative XP (should still return stage 1)
+        assertEquals(1, AnimationUtils.getEggStageFromXPDays(-5));
+    }
+    
+    @Test
+    void testEggStageProgression() {
+        // Test that egg stages progress correctly as XP increases
+        int previousStage = 0;
+        
+        for (int xp = 0; xp <= 60; xp += 5) {
+            int currentStage = AnimationUtils.getEggStageFromXPDays(xp);
+            
+            // Stage should never decrease
+            assertTrue(currentStage >= previousStage, 
+                "Egg stage decreased from " + previousStage + " to " + currentStage + " at XP " + xp);
+            
+            // Stage should be between 1 and 4
+            assertTrue(currentStage >= 1 && currentStage <= 4, 
+                "Invalid egg stage " + currentStage + " at XP " + xp);
+            
+            previousStage = currentStage;
+        }
+    }
 }
