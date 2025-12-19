@@ -19,9 +19,13 @@ public class PokemonStateManager {
     private PokemonSpecies currentSpecies;
     private EvolutionStage currentStage;
     
+    /**
+     * Creates a PokemonStateManager with no species selected.
+     * The species must be set via setCurrentSpecies() before use.
+     */
     public PokemonStateManager() {
         this.xpSystem = new XPSystem();
-        this.currentSpecies = PokemonSpecies.CHARMANDER; // Default starter
+        this.currentSpecies = null; // No default - must be set after Pokemon selection
         this.currentStage = EvolutionStage.EGG;
     }
     

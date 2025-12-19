@@ -4,6 +4,8 @@ import javafx.application.Application;
 import javafx.stage.Stage;
 import com.tamagotchi.committracker.ui.widget.WidgetWindow;
 import com.tamagotchi.committracker.git.CommitService;
+import com.tamagotchi.committracker.pokemon.PokemonSelectionData;
+import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonStateManager;
 import com.tamagotchi.committracker.pokemon.XPSystem;
 
@@ -29,10 +31,53 @@ public class TamagotchiCommitTrackerApp extends Application {
         pokemonStateManager = new PokemonStateManager();
         
         // Initialize the widget window with transparency and dragging
-        widgetWindow = new WidgetWindow(primaryStage);
+        // Pass callback for when Pokemon is selected (to update state manager)
+        widgetWindow = new WidgetWindow(primaryStage, selectedSpecies -> {
+            // Update the Pokemon state manager with the selected species
+            pokemonStateManager.setCurrentSpecies(selectedSpecies);
+            System.out.println("🎮 Pokemon state manager updated with: " + selectedSpecies);
+            
+            // Re-setup reset listener for the new Pokemon display
+            setupResetListener();
+        });
+        
+        // Check if this is a first-time user
+        if (widgetWindow.isFirstTimeUser()) {
+            // Show the widget first (so selection screen has an owner)
+            widgetWindow.show();
+            
+            // Show Pokemon selection screen (blocks until selection is made)
+            widgetWindow.showPokemonSelectionScreen();
+        } else {
+            // Returning user - use saved Pokemon selection
+            PokemonSpecies savedSpecies = widgetWindow.getSelectedPokemonSpecies();
+            if (savedSpecies != null) {
+                pokemonStateManager.setCurrentSpecies(savedSpecies);
+                System.out.println("🎮 Welcome back! Continuing with " + 
+                    PokemonSelectionData.getDisplayName(savedSpecies));
+            }
+            widgetWindow.show();
+        }
         
         // Set up reset listener to reset XP when Pokemon is reset (R key pressed)
         // TODO: REMOVE THIS LISTENER SETUP BEFORE PRODUCTION - See TODO.md
+        setupResetListener();
+        
+        // Connect commit monitoring to Pokemon updates
+        setupCommitMonitoring();
+        
+        // Start monitoring Git repositories
+        commitService.startMonitoring();
+        
+        System.out.println("🚀 Tamagotchi Commit Tracker started!");
+        System.out.println("📊 Monitoring Git repositories every 5 minutes...");
+    }
+    
+    /**
+     * Sets up the reset listener for the Pokemon display.
+     * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
+     */
+    private void setupResetListener() {
         if (widgetWindow.getPokemonDisplay() != null) {
             widgetWindow.getPokemonDisplay().setResetListener(() -> {
                 System.out.println("🧪 TESTING: Reset listener triggered - resetting XP to 0");
@@ -41,17 +86,6 @@ public class TamagotchiCommitTrackerApp extends Application {
                 }
             });
         }
-        
-        // Connect commit monitoring to Pokemon updates
-        setupCommitMonitoring();
-        
-        // Start monitoring Git repositories
-        commitService.startMonitoring();
-        
-        widgetWindow.show();
-        
-        System.out.println("🚀 Tamagotchi Commit Tracker started!");
-        System.out.println("📊 Monitoring Git repositories every 5 minutes...");
     }
     
     /**

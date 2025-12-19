@@ -46,18 +46,22 @@ public class PokemonDisplayComponent extends StackPane {
     
     /**
      * Creates a new Pokemon Display Component with default settings.
+     * Note: This constructor should only be used when a species will be set later.
+     * For proper initialization, use the constructor that takes a PokemonSpecies.
+     * 
+     * @deprecated Use PokemonDisplayComponent(PokemonSpecies, EvolutionStage, PokemonState) instead
      */
+    @Deprecated
     public PokemonDisplayComponent() {
         initializeComponent();
         
-        // Set default Pokemon (egg state)
-        this.currentSpecies = PokemonSpecies.CHARMANDER; // Default starter
+        // Initialize with null species - must be set via changeSpecies() before use
+        this.currentSpecies = null;
         this.currentStage = EvolutionStage.EGG;
         this.currentState = PokemonState.CONTENT;
         this.isEvolutionInProgress = false;
         
-        // Load initial animation
-        loadAndStartAnimation();
+        // Don't load animation - no species selected yet
     }
     
     /**
@@ -591,6 +595,35 @@ public class PokemonDisplayComponent extends StackPane {
             default:
                 return baseSpecies; // Return same species if no evolution found
         }
+    }
+    
+    /**
+     * Changes the Pokemon species and resets to egg stage.
+     * Used when user selects a different Pokemon.
+     * 
+     * @param newSpecies The new Pokemon species
+     */
+    public void changeSpecies(PokemonSpecies newSpecies) {
+        if (newSpecies == null || newSpecies == currentSpecies) {
+            return;
+        }
+        
+        System.out.println("🔄 Changing Pokemon species from " + currentSpecies + " to " + newSpecies);
+        
+        // Stop current animation
+        if (currentAnimation != null) {
+            currentAnimation.stop();
+            currentAnimation = null;
+        }
+        
+        // Update species and reset to egg
+        this.currentSpecies = newSpecies;
+        this.currentStage = EvolutionStage.EGG;
+        this.currentState = PokemonState.CONTENT;
+        this.isEvolutionInProgress = false;
+        
+        // Load new egg animation
+        loadAndStartAnimationWithXP(0);
     }
     
     // Getters for current state

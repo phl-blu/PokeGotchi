@@ -10,12 +10,15 @@ import javafx.stage.StageStyle;
 import com.tamagotchi.committracker.config.AppConfig;
 import com.tamagotchi.committracker.util.FileUtils;
 import com.tamagotchi.committracker.ui.components.PokemonDisplayComponent;
+import com.tamagotchi.committracker.ui.components.PokemonSelectionScreen;
+import com.tamagotchi.committracker.pokemon.PokemonSelectionData;
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonState;
 import com.tamagotchi.committracker.pokemon.EvolutionStage;
 
 import java.io.IOException;
 import java.util.Properties;
+import java.util.function.Consumer;
 
 /**
  * Main UI container with transparent background and drag functionality.
@@ -39,8 +42,26 @@ public class WidgetWindow {
     private static final String X_KEY = "widget.x";
     private static final String Y_KEY = "widget.y";
     
+    // Pokemon selection
+    private PokemonSelectionData selectionData;
+    private Consumer<PokemonSpecies> onPokemonSelected;
+    
     public WidgetWindow(Stage primaryStage) {
         this.stage = primaryStage;
+        this.selectionData = new PokemonSelectionData();
+        initialize();
+    }
+    
+    /**
+     * Creates a WidgetWindow with a callback for when Pokemon is selected.
+     * 
+     * @param primaryStage The primary stage
+     * @param onPokemonSelected Callback when Pokemon is selected (for first-time users)
+     */
+    public WidgetWindow(Stage primaryStage, Consumer<PokemonSpecies> onPokemonSelected) {
+        this.stage = primaryStage;
+        this.selectionData = new PokemonSelectionData();
+        this.onPokemonSelected = onPokemonSelected;
         initialize();
     }
     
@@ -57,13 +78,20 @@ public class WidgetWindow {
         root = new StackPane();
         root.setStyle("-fx-background-color: transparent;");
         
-        // Create Pokemon display component (starts as egg, will evolve based on initial scan)
-        pokemonDisplay = new PokemonDisplayComponent(
-            PokemonSpecies.CHARMANDER, EvolutionStage.EGG, PokemonState.CONTENT
-        );
-        
-        // Add Pokemon to the root container
-        root.getChildren().add(pokemonDisplay);
+        // Only create Pokemon display if user has already selected a starter
+        // For first-time users, the display will be created after selection
+        if (selectionData.hasSelectedStarter()) {
+            PokemonSpecies selectedSpecies = selectionData.getSelectedStarter();
+            
+            // Create Pokemon display component (starts as egg, will evolve based on initial scan)
+            pokemonDisplay = new PokemonDisplayComponent(
+                selectedSpecies, EvolutionStage.EGG, PokemonState.CONTENT
+            );
+            
+            // Add Pokemon to the root container
+            root.getChildren().add(pokemonDisplay);
+        }
+        // For first-time users, pokemonDisplay remains null until selection is made
         
         // Create scene with transparent background
         scene = new Scene(root, AppConfig.COMPACT_WIDTH, AppConfig.COMPACT_HEIGHT);
@@ -196,7 +224,8 @@ public class WidgetWindow {
     }
     
     /**
-     * Load saved widget position on startup
+     * Load saved widget position on startup.
+     * If no saved position or position is off-screen, centers on screen.
      */
     public void restorePosition() {
         try {
@@ -205,16 +234,33 @@ public class WidgetWindow {
                 double x = Double.parseDouble(props.getProperty(X_KEY));
                 double y = Double.parseDouble(props.getProperty(Y_KEY));
                 
-                // Ensure position is within screen bounds
-                if (x >= 0 && y >= 0) {
+                // Get screen bounds to validate position
+                javafx.geometry.Rectangle2D screenBounds = javafx.stage.Screen.getPrimary().getVisualBounds();
+                
+                // Ensure position is within screen bounds (with some margin)
+                if (x >= 0 && y >= 0 && 
+                    x < screenBounds.getWidth() - 50 && 
+                    y < screenBounds.getHeight() - 50) {
                     stage.setX(x);
                     stage.setY(y);
+                    return;
                 }
             }
         } catch (IOException | NumberFormatException e) {
-            // Use default position if loading fails
-            stage.centerOnScreen();
+            // Fall through to center on screen
         }
+        
+        // Default: center on screen
+        centerOnScreen();
+    }
+    
+    /**
+     * Centers the widget on the screen.
+     */
+    public void centerOnScreen() {
+        javafx.geometry.Rectangle2D screenBounds = javafx.stage.Screen.getPrimary().getVisualBounds();
+        stage.setX((screenBounds.getWidth() - AppConfig.COMPACT_WIDTH) / 2);
+        stage.setY((screenBounds.getHeight() - AppConfig.COMPACT_HEIGHT) / 2);
     }
     
     /**
@@ -288,6 +334,103 @@ public class WidgetWindow {
     public void resetTestingXP() {
         testingAccumulatedXP = 0;
         System.out.println("🧪 TESTING: Testing XP reset to 0");
+    }
+    
+    /**
+     * Checks if this is a first-time user who needs to select a Pokemon.
+     * 
+     * TODO: FOR PRODUCTION - This should check if user has selected a Pokemon via GitHub auth.
+     * Currently always returns true for testing purposes.
+     * See TODO.md for details on GitHub authentication integration.
+     * 
+     * @return true if no Pokemon has been selected yet (always true for testing)
+     */
+    public boolean isFirstTimeUser() {
+        // TODO: TESTING MODE - Always show selection screen for testing
+        // For production: return selectionData.isFirstTimeUser();
+        return true;
+    }
+    
+    /**
+     * Shows the Pokemon selection screen.
+     * The screen blocks until a selection is made.
+     * 
+     * TODO: FOR PRODUCTION - This should only show on first GitHub sign-up.
+     * Currently shows every time for testing purposes.
+     * See TODO.md for details on GitHub authentication integration.
+     */
+    public void showPokemonSelectionScreen() {
+        // TODO: TESTING MODE - Always show selection screen
+        // For production: check if (!selectionData.isFirstTimeUser()) and return early
+        
+        System.out.println("🎮 Showing Pokemon selection screen (TESTING MODE - always shows)");
+        
+        PokemonSelectionScreen selectionScreen = new PokemonSelectionScreen(stage, selectedSpecies -> {
+            // Update the Pokemon display with the selected species
+            changePokemonSpecies(selectedSpecies);
+            
+            // Notify callback if set
+            if (onPokemonSelected != null) {
+                onPokemonSelected.accept(selectedSpecies);
+            }
+            
+            System.out.println("🎉 Pokemon selection complete! Starting with " + 
+                PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
+        });
+        
+        selectionScreen.show();
+    }
+    
+    /**
+     * Changes the current Pokemon species.
+     * This creates a new Pokemon display with the selected species.
+     * Used both for initial selection and for switching Pokemon later.
+     * 
+     * @param newSpecies The new Pokemon species to display
+     */
+    public void changePokemonSpecies(PokemonSpecies newSpecies) {
+        if (newSpecies == null) {
+            return;
+        }
+        
+        System.out.println("🔄 Setting Pokemon to: " + PokemonSelectionData.getDisplayName(newSpecies));
+        
+        // Remove old Pokemon display if it exists
+        if (pokemonDisplay != null) {
+            pokemonDisplay.cleanup();
+            root.getChildren().remove(pokemonDisplay);
+        }
+        
+        // Create new Pokemon display with selected species (starts as egg)
+        pokemonDisplay = new PokemonDisplayComponent(
+            newSpecies, EvolutionStage.EGG, PokemonState.CONTENT
+        );
+        
+        // Add to root container at index 0 to keep it behind other UI elements
+        root.getChildren().add(0, pokemonDisplay);
+        
+        // Reset testing XP when changing Pokemon
+        testingAccumulatedXP = 0;
+        
+        System.out.println("🥚 Now displaying " + PokemonSelectionData.getDisplayName(newSpecies) + " egg");
+    }
+    
+    /**
+     * Gets the currently selected Pokemon species.
+     * 
+     * @return The selected Pokemon species, or null if none selected
+     */
+    public PokemonSpecies getSelectedPokemonSpecies() {
+        return selectionData.getSelectedStarter();
+    }
+    
+    /**
+     * Gets the Pokemon selection data for external access.
+     * 
+     * @return The PokemonSelectionData instance
+     */
+    public PokemonSelectionData getSelectionData() {
+        return selectionData;
     }
     
     /**

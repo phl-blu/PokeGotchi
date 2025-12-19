@@ -543,6 +543,34 @@ public class AnimationUtils {
     }
     
     /**
+     * Loads a preview sprite for the Pokemon selection screen.
+     * Shows the egg (stage 1, frame 1) for the given species.
+     * 
+     * @param species The Pokemon species
+     * @return The egg preview image, or null if not found
+     */
+    public static Image loadEggPreviewSprite(PokemonSpecies species) {
+        String speciesFolder = getBaseSpeciesFolder(species);
+        String framePath = "/pokemon/sprites/" + speciesFolder + "/egg/stage1/frame1.png";
+        
+        InputStream frameStream = AnimationUtils.class.getResourceAsStream(framePath);
+        
+        if (frameStream != null) {
+            try {
+                Image frame = new Image(frameStream, SPRITE_SIZE, SPRITE_SIZE, true, true);
+                frameStream.close();
+                return frame;
+            } catch (Exception e) {
+                System.err.println("Failed to load egg preview for " + species + ": " + e.getMessage());
+            }
+        }
+        
+        // Try fallback - generic egg image
+        System.out.println("🥚 No egg preview found for " + species + ", using fallback");
+        return null;
+    }
+    
+    /**
      * Gets the base species folder name for sprite loading.
      * All evolutions of a Pokemon line share the same base folder.
      * e.g., Charmander, Charmeleon, Charizard all use "charmander" folder
