@@ -31,6 +31,17 @@ public class TamagotchiCommitTrackerApp extends Application {
         // Initialize the widget window with transparency and dragging
         widgetWindow = new WidgetWindow(primaryStage);
         
+        // Set up reset listener to reset XP when Pokemon is reset (R key pressed)
+        // TODO: REMOVE THIS LISTENER SETUP BEFORE PRODUCTION - See TODO.md
+        if (widgetWindow.getPokemonDisplay() != null) {
+            widgetWindow.getPokemonDisplay().setResetListener(() -> {
+                System.out.println("🧪 TESTING: Reset listener triggered - resetting XP to 0");
+                if (xpSystem != null) {
+                    xpSystem.resetForTesting();
+                }
+            });
+        }
+        
         // Connect commit monitoring to Pokemon updates
         setupCommitMonitoring();
         

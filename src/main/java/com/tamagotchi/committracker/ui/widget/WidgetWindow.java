@@ -114,6 +114,7 @@ public class WidgetWindow {
                     if (pokemonDisplay != null) {
                         System.out.println("🧪 TESTING: 'R' pressed - Resetting Pokemon to egg stage");
                         pokemonDisplay.forceDeevolutionToEggForTesting();
+                        resetTestingXP(); // Also reset the testing XP accumulator
                     }
                     break;
                 case C: // Press 'C' to simulate a commit for testing egg animations
@@ -275,37 +276,70 @@ public class WidgetWindow {
         return pokemonDisplay;
     }
     
-    // FOR TESTING ONLY: Counter to cycle through different egg stages
+    // FOR TESTING ONLY: Accumulated XP for testing commit simulation
     // TODO: REMOVE THIS FIELD BEFORE PRODUCTION - See TODO.md
-    private int testingEggStageCounter = 1;
+    private int testingAccumulatedXP = 0;
+    
+    /**
+     * FOR TESTING ONLY: Resets the testing XP accumulator to 0.
+     * Called when Pokemon is reset via R key.
+     * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
+     */
+    public void resetTestingXP() {
+        testingAccumulatedXP = 0;
+        System.out.println("🧪 TESTING: Testing XP reset to 0");
+    }
     
     /**
      * FOR TESTING ONLY: Simulates a commit being made to trigger egg animations.
-     * This simulates individual commits with random XP (7-12) to test egg shaking on every commit.
+     * This simulates individual commits with random XP (6-10) to test egg shaking on every commit.
+     * XP is accumulated properly across multiple C key presses.
      * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
      */
     private void simulateCommitForTesting() {
         if (pokemonDisplay != null) {
-            // Generate random XP between 7-12 to simulate different commit quality/size
-            int commitXP = 7 + (int) (Math.random() * 6); // Random between 7-12
+            // Generate random XP between 6-10 to simulate different commit quality/size
+            int commitXP = 6 + (int) (Math.random() * 5); // Random between 6-10
             
             System.out.println("🧪 TESTING: 'C' pressed - Simulating single commit");
             
             switch (pokemonDisplay.getCurrentStage()) {
                 case EGG:
-                    // For eggs: determine current total XP based on stage counter, then add this commit's XP
-                    int currentTotalXP = (testingEggStageCounter - 1) * 25 + commitXP;
+                    // Log XP before
+                    int xpBefore = testingAccumulatedXP;
                     
-                    System.out.println("🥚 TESTING: Commit gives +" + commitXP + " XP (total: " + currentTotalXP + " XP)");
-                    System.out.println("🥚 TESTING: Egg should shake/animate for this single commit");
+                    // Add XP to accumulated total
+                    testingAccumulatedXP += commitXP;
                     
-                    // Trigger animation with current total XP (this determines egg stage visually)
-                    pokemonDisplay.triggerCommitAnimation(currentTotalXP);
+                    // Log in the requested format
+                    System.out.println("XP before commit: " + xpBefore);
+                    System.out.println("XP earned from commit: " + commitXP);
+                    System.out.println("XP after commit: " + testingAccumulatedXP);
+                    System.out.println("-----------------------------");
                     
-                    // Increment counter occasionally to test different egg stages
-                    if (Math.random() < 0.3) { // 30% chance to advance stage for variety
-                        testingEggStageCounter = (testingEggStageCounter % 4) + 1;
-                        System.out.println("🔄 TESTING: Advanced to test stage " + testingEggStageCounter + " egg visuals");
+                    // Determine egg stage based on XP thresholds
+                    // Stage 1: 0-10 XP, Stage 2: 11-25 XP, Stage 3: 26-40 XP, Stage 4: 41-60 XP
+                    int eggStage;
+                    if (testingAccumulatedXP <= 10) {
+                        eggStage = 1;
+                    } else if (testingAccumulatedXP <= 25) {
+                        eggStage = 2;
+                    } else if (testingAccumulatedXP <= 40) {
+                        eggStage = 3;
+                    } else {
+                        eggStage = 4;
+                    }
+                    System.out.println("🥚 TESTING: Egg is at stage " + eggStage + " (XP: " + testingAccumulatedXP + ")");
+                    
+                    // Trigger animation with accumulated XP (this determines egg stage visually)
+                    pokemonDisplay.triggerCommitAnimation(testingAccumulatedXP);
+                    
+                    // Auto-evolve when XP reaches 60 (XP evolution condition)
+                    // Evolution can happen via: 4+ day streak OR 60+ XP
+                    if (testingAccumulatedXP >= 60) {
+                        System.out.println("🎉 TESTING: Egg has reached 60 XP! Hatching now!");
+                        // Use checkEvolutionRequirements which handles both XP and streak conditions
+                        pokemonDisplay.checkEvolutionRequirements(testingAccumulatedXP, 0); // 0 streak, but 60+ XP triggers evolution
                     }
                     break;
                     

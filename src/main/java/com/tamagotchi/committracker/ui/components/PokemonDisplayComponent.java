@@ -19,6 +19,15 @@ import com.tamagotchi.committracker.util.AnimationUtils;
  */
 public class PokemonDisplayComponent extends StackPane {
     
+    /**
+     * Listener interface for reset events.
+     * TODO: REMOVE THIS INTERFACE BEFORE PRODUCTION - See TODO.md
+     */
+    @FunctionalInterface
+    public interface ResetListener {
+        void onReset();
+    }
+    
     private ImageView pokemonImageView;
     private Timeline currentAnimation;
     
@@ -30,6 +39,10 @@ public class PokemonDisplayComponent extends StackPane {
     // Animation state
     private boolean isEvolutionInProgress;
     private List<Image> currentFrames;
+    
+    // Reset listener for notifying when Pokemon is reset
+    // TODO: REMOVE THIS FIELD BEFORE PRODUCTION - See TODO.md
+    private ResetListener resetListener;
     
     /**
      * Creates a new Pokemon Display Component with default settings.
@@ -436,8 +449,8 @@ public class PokemonDisplayComponent extends StackPane {
         boolean canEvolve = false;
         switch (nextStage) {
             case BASIC:
-                // Hatch from egg: EITHER 4+ day streak OR 50+ XP (whichever comes first)
-                canEvolve = (streakDays >= 4 || xpLevel >= 50);
+                // Hatch from egg: EITHER 4+ day streak OR 60+ XP (whichever comes first)
+                canEvolve = (streakDays >= 4 || xpLevel >= 60);
                 break;
             case STAGE_1:
                 // First evolution: ONLY 11+ day streak (XP doesn't matter after hatching)
@@ -613,17 +626,20 @@ public class PokemonDisplayComponent extends StackPane {
     }
     
     /**
-     * FOR TESTING ONLY: Forces de-evolution back to egg stage for testing egg animations.
+     * FOR TESTING ONLY: Sets a listener to be notified when Pokemon is reset.
+     * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
+     */
+    public void setResetListener(ResetListener listener) {
+        this.resetListener = listener;
+    }
+    
+    /**
+     * FOR TESTING ONLY: Forces de-evolution back to egg stage 1 (no cracks) with 0 XP.
      * This allows testing of egg behavior without waiting for natural progression.
      * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
      */
     public void forceDeevolutionToEggForTesting() {
-        if (currentStage == EvolutionStage.EGG) {
-            System.out.println("🧪 TESTING: Already at egg stage");
-            return;
-        }
-        
-        System.out.println("🧪 TESTING: Forcing de-evolution from " + currentStage + " back to EGG stage");
+        System.out.println("🧪 TESTING: Forcing de-evolution to EGG stage 1 (0 XP)");
         
         // Stop current animation
         if (currentAnimation != null) {
@@ -636,10 +652,15 @@ public class PokemonDisplayComponent extends StackPane {
         this.currentState = PokemonState.CONTENT;
         this.isEvolutionInProgress = false;
         
-        // Load egg animation with minimal XP (stage 1 egg)
-        loadAndStartAnimationWithXP(25); // 1 day worth of XP = stage 1 egg
+        // Load egg animation with 0 XP (stage 1 egg - no cracks)
+        loadAndStartAnimationWithXP(0);
         
-        System.out.println("🥚 TESTING: Pokemon reset to egg stage for testing");
+        // Notify listener to reset XP system
+        if (resetListener != null) {
+            resetListener.onReset();
+        }
+        
+        System.out.println("🥚 TESTING: Pokemon reset to egg stage 1 (0 XP, no cracks)");
     }
     
     /**

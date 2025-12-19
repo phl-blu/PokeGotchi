@@ -196,7 +196,7 @@ public class AnimationUtils {
     /**
      * Gets the egg stage based on total accumulated XP.
      * Updated XP thresholds for more granular progression:
-     * Stage 1: 0-10 XP, Stage 2: 11-20 XP, Stage 3: 21-35 XP, Stage 4: 36-50 XP
+     * Stage 1: 0-10 XP, Stage 2: 11-25 XP, Stage 3: 26-40 XP, Stage 4: 41-60 XP
      * 
      * @param totalXP Total accumulated XP
      * @return Egg stage (1-4)
@@ -204,12 +204,12 @@ public class AnimationUtils {
     public static int getEggStageFromXPDays(int totalXP) {
         if (totalXP <= 10) {
             return 1; // Stage 1: Fresh egg (0-10 XP)
-        } else if (totalXP <= 20) {
-            return 2; // Stage 2: Barely cracked (11-20 XP)
-        } else if (totalXP <= 35) {
-            return 3; // Stage 3: More cracked (21-35 XP)
+        } else if (totalXP <= 25) {
+            return 2; // Stage 2: Barely cracked (11-25 XP)
+        } else if (totalXP <= 40) {
+            return 3; // Stage 3: More cracked (26-40 XP)
         } else {
-            return 4; // Stage 4: Very cracked, ready to hatch (36-50 XP)
+            return 4; // Stage 4: Very cracked, ready to hatch (41-60 XP)
         }
     }
     
@@ -237,7 +237,7 @@ public class AnimationUtils {
      * Loads Pokemon-specific egg sprite frames based on XP and animation state.
      * This is the main method to be called by components for XP-based progression.
      * 
-     * XP Progression: Stage 1 (0-10 XP) -> Stage 2 (11-20 XP) -> Stage 3 (21-35 XP) -> Stage 4 (36-50 XP) -> Evolution
+     * XP Progression: Stage 1 (0-10 XP) -> Stage 2 (11-25 XP) -> Stage 3 (26-40 XP) -> Stage 4 (41-60 XP) -> Evolution
      * 
      * @param species The Pokemon species (determines which egg sprites to load)
      * @param totalXP Total accumulated XP
@@ -310,22 +310,13 @@ public class AnimationUtils {
         
         // Get Pokemon-specific animation speed based on species and stage
         double frameDuration = getPokemonAnimationSpeed(species, stage);
-        double fps = 1000.0 / frameDuration;
-        
-        // Log the single-cycle animation creation
-        String stageInfo = stage == EvolutionStage.EGG ? "EGG" : stage.name();
-        System.out.println("🎬 Creating single-cycle animation for " + species + "/" + stageInfo + " with " + frames.size() + 
-                          " frames at " + frameDuration + "ms per frame (~" + String.format("%.1f", fps) + " FPS)");
         
         // Create keyframes for each sprite frame
         for (int i = 0; i < frames.size(); i++) {
             final int frameIndex = i;
             KeyFrame keyFrame = new KeyFrame(
                 Duration.millis(i * frameDuration),
-                e -> {
-                    System.out.println("🎬 Playing frame " + (frameIndex + 1) + "/" + frames.size());
-                    frameUpdateCallback.accept(frames.get(frameIndex));
-                }
+                e -> frameUpdateCallback.accept(frames.get(frameIndex))
             );
             timeline.getKeyFrames().add(keyFrame);
         }
@@ -334,7 +325,6 @@ public class AnimationUtils {
         KeyFrame endFrame = new KeyFrame(
             Duration.millis(frames.size() * frameDuration),
             e -> {
-                System.out.println("🎬 Single-cycle animation completed");
                 if (onComplete != null) {
                     onComplete.run();
                 }
@@ -345,7 +335,6 @@ public class AnimationUtils {
         // Set to play only once
         timeline.setCycleCount(1);
         
-        System.out.println("🎬 Single-cycle animation created successfully");
         return timeline;
     }
     

@@ -22,15 +22,15 @@ public class XPSystem {
     
     /**
      * Calculates XP gained from a commit based on various factors.
-     * XP range: 7-12 based on commit quality and size.
+     * XP range: 6-10 based on commit quality and size.
      */
     public int calculateXPFromCommit(Commit commit) {
         if (commit == null || commit.getMessage() == null) {
             return 0;
         }
         
-        int baseXP = 7; // Minimum XP for any commit
-        int bonusXP = 0; // Up to 5 bonus XP (total max: 12)
+        int baseXP = 6; // Minimum XP for any commit
+        int bonusXP = 0; // Up to 4 bonus XP (total max: 10)
         
         String message = commit.getMessage().toLowerCase().trim();
         
@@ -41,15 +41,15 @@ public class XPSystem {
         
         // Bonus for conventional commit prefixes (high quality commits)
         if (message.startsWith("feat:") || message.startsWith("feature:")) {
-            bonusXP += 3; // New features get more XP
+            bonusXP += 2; // New features get more XP
         } else if (message.startsWith("fix:") || message.startsWith("bugfix:")) {
-            bonusXP += 2; // Bug fixes get moderate XP
+            bonusXP += 1; // Bug fixes get moderate XP
         } else if (message.startsWith("docs:") || message.startsWith("doc:")) {
             bonusXP += 1; // Documentation gets some XP
         } else if (message.startsWith("refactor:") || message.startsWith("style:")) {
-            bonusXP += 2; // Code improvements get moderate XP
+            bonusXP += 1; // Code improvements get moderate XP
         } else if (message.startsWith("test:") || message.startsWith("tests:")) {
-            bonusXP += 2; // Tests are valuable
+            bonusXP += 1; // Tests are valuable
         }
         
         // Bonus for descriptive messages (contains common development keywords)
@@ -58,9 +58,9 @@ public class XPSystem {
             bonusXP += 1;
         }
         
-        // Ensure XP stays within 7-12 range
+        // Ensure XP stays within 6-10 range
         int totalXP = baseXP + bonusXP;
-        return Math.min(totalXP, 12); // Cap at 12 XP maximum
+        return Math.min(totalXP, 10); // Cap at 10 XP maximum
     }
     
     /**

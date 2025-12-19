@@ -185,7 +185,7 @@ public class PokemonStateManager {
     
     /**
      * Checks if evolution criteria are met based on XP and streak requirements.
-     * Updated XP thresholds: Egg evolves at exactly 50 XP (when reaching stage 4).
+     * Updated XP thresholds: Egg evolves at 60 XP.
      */
     public boolean checkEvolutionCriteria(int xp, int streakDays, EvolutionStage currentStage) {
         if (currentStage == null) {
@@ -195,9 +195,9 @@ public class PokemonStateManager {
         // Evolution requirements with updated XP thresholds
         switch (currentStage) {
             case EGG:
-                // Hatch from egg: EITHER 4+ day streak OR exactly 50 XP (when reaching stage 4)
-                // XP stages: 0-10=stage1, 11-20=stage2, 21-35=stage3, 36-49=stage4, 50+=evolve
-                return streakDays >= 4 || xp >= 50;
+                // Hatch from egg: EITHER 4+ day streak OR 60+ XP
+                // XP stages: 0-10=stage1, 11-20=stage2, 21-35=stage3, 36-59=stage4, 60+=evolve
+                return streakDays >= 4 || xp >= 60;
                 
             case BASIC:
                 // Evolve to Stage 1: 11+ day streak (XP not required after hatching)
@@ -359,24 +359,22 @@ public class PokemonStateManager {
         int currentXP = xpSystem.getCurrentXP();
         if (currentXP <= 10) {
             return 1; // Stage 1: Fresh egg (0-10 XP)
-        } else if (currentXP <= 20) {
-            return 2; // Stage 2: Barely cracked (11-20 XP)
-        } else if (currentXP <= 35) {
-            return 3; // Stage 3: More cracked (21-35 XP)
-        } else if (currentXP < 50) {
-            return 4; // Stage 4: Very cracked, ready to hatch (36-49 XP)
+        } else if (currentXP <= 25) {
+            return 2; // Stage 2: Barely cracked (11-25 XP)
+        } else if (currentXP <= 40) {
+            return 3; // Stage 3: More cracked (26-40 XP)
         } else {
-            return 4; // Still stage 4 until evolution is triggered
+            return 4; // Stage 4: Very cracked, ready to hatch (41-60 XP)
         }
     }
     
     /**
      * Checks if the egg is ready to hatch based on XP.
      * 
-     * @return true if XP >= 50 and still in egg stage
+     * @return true if XP >= 60 and still in egg stage
      */
     public boolean isEggReadyToHatch() {
-        return currentStage == EvolutionStage.EGG && xpSystem.getCurrentXP() >= 50;
+        return currentStage == EvolutionStage.EGG && xpSystem.getCurrentXP() >= 60;
     }
     
     /**
