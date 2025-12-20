@@ -3,6 +3,7 @@ package com.tamagotchi.committracker.git;
 import com.tamagotchi.committracker.domain.Commit;
 import com.tamagotchi.committracker.domain.CommitHistory;
 import com.tamagotchi.committracker.domain.Repository;
+import com.tamagotchi.committracker.config.AppConfig;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.LogCommand;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -23,7 +24,6 @@ import java.util.logging.Logger;
  */
 public class CommitService {
     private static final Logger logger = Logger.getLogger(CommitService.class.getName());
-    private static final int POLLING_INTERVAL_MINUTES = 5;
     private static final int MAX_COMMITS_PER_REPO = 100;
     
     private final RepositoryScanner repositoryScanner;
@@ -69,12 +69,12 @@ public class CommitService {
         // Schedule periodic polling
         pollingTask = scheduler.scheduleAtFixedRate(
             this::scanAllRepositories,
-            POLLING_INTERVAL_MINUTES,
-            POLLING_INTERVAL_MINUTES,
-            TimeUnit.MINUTES
+            AppConfig.POLLING_INTERVAL_SECONDS,
+            AppConfig.POLLING_INTERVAL_SECONDS,
+            TimeUnit.SECONDS
         );
         
-        logger.info("Commit monitoring started with " + POLLING_INTERVAL_MINUTES + "-minute intervals");
+        logger.info("Commit monitoring started with " + AppConfig.POLLING_INTERVAL_SECONDS + "-second intervals");
     }
     
     /**

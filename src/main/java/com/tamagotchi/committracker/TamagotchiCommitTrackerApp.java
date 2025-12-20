@@ -86,7 +86,7 @@ public class TamagotchiCommitTrackerApp extends Application {
         System.out.println("   Last commit time: " + initialHistory.getLastCommitTime());
         
         System.out.println("🚀 Tamagotchi Commit Tracker started!");
-        System.out.println("📊 Monitoring Git repositories every 5 minutes...");
+        System.out.println("📊 Monitoring Git repositories every 10 seconds for real-time updates!");
     }
     
     /**

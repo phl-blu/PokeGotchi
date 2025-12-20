@@ -33,7 +33,7 @@ Press these keys while the widget has focus:
 
 ### Real-Time Testing
 1. **Make a commit** in any Git repository on your system
-2. **Wait up to 5 minutes** for automatic detection, OR
+2. **Wait up to 10 seconds** for automatic detection, OR
 3. **Press 'F'** to force an immediate scan
 4. **Check the expanded view** to see the new commit appear
 5. **Press 'I'** to see updated XP and streak values
@@ -80,7 +80,7 @@ Example:
 
 ## 🚀 Real-Time Features
 
-### Automatic Updates (Every 5 Minutes)
+### Automatic Updates (Every 10 Seconds)
 - Scans all Git repositories on your system
 - Detects new commits automatically
 - Updates XP, streak, and Pokemon state
@@ -105,7 +105,7 @@ Example:
 4. User can minimize to compact mode by double-clicking
 
 ### When Making Commits:
-1. Commit is detected within 5 minutes (or immediately with 'F')
+1. Commit is detected within 10 seconds (or immediately with 'F')
 2. XP increases based on commit quality
 3. Streak updates if it's a new day
 4. Pokemon state may change based on activity
