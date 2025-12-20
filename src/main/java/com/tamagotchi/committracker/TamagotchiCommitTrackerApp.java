@@ -197,8 +197,8 @@ public class TamagotchiCommitTrackerApp extends Application {
                 
                 // IMPORTANT: Update the widget's commit history with the latest data
                 // This ensures real-time updates of streak and commit list
+                // NOTE: setCommitHistory() already includes all commits, so no need for addCommits()
                 widgetWindow.setCommitHistory(commitService.getCommitHistory());
-                widgetWindow.addCommits(newCommits);
             }
         });
     }
