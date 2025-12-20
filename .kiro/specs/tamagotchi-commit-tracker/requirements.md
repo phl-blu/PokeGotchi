@@ -127,7 +127,7 @@ A Tamagotchi-themed desktop widget application that tracks Git commits across al
 
 #### Acceptance Criteria
 
-1. WHEN the egg reaches 50 XP OR maintains a 4-day commit streak, THE egg SHALL hatch into the chosen starter Pokemon
+1. WHEN the egg reaches 60 XP OR maintains a 4-day commit streak, THE egg SHALL hatch into the chosen starter Pokemon
 2. WHEN a Pokemon maintains an 11-day commit streak, THE Pokemon SHALL evolve to its second stage
 3. WHEN a Pokemon maintains a 22-day commit streak, THE Pokemon SHALL evolve to its final stage
 4. WHERE evolution requirements are met, THE Pokemon SHALL display an evolution animation sequence

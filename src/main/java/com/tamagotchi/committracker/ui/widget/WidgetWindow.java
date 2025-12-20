@@ -1,22 +1,33 @@
 package com.tamagotchi.committracker.ui.widget;
 
 import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import com.tamagotchi.committracker.config.AppConfig;
+import com.tamagotchi.committracker.domain.Commit;
+import com.tamagotchi.committracker.domain.CommitHistory;
 import com.tamagotchi.committracker.util.FileUtils;
+import com.tamagotchi.committracker.ui.components.HistoryTab;
 import com.tamagotchi.committracker.ui.components.PokemonDisplayComponent;
 import com.tamagotchi.committracker.ui.components.PokemonSelectionScreen;
 import com.tamagotchi.committracker.pokemon.PokemonSelectionData;
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonState;
 import com.tamagotchi.committracker.pokemon.EvolutionStage;
+import com.tamagotchi.committracker.pokemon.XPSystem;
+import com.tamagotchi.committracker.pokemon.PokemonStateManager;
+import com.tamagotchi.committracker.ui.theme.UITheme;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Properties;
 import java.util.function.Consumer;
 
@@ -32,6 +43,18 @@ public class WidgetWindow {
     
     // Pokemon display component
     private PokemonDisplayComponent pokemonDisplay;
+    
+    // Expanded mode components
+    private BorderPane expandedLayout;
+    private HistoryTab historyTab;
+    private VBox pokemonStatusBox;
+    
+    // Commit history data
+    private CommitHistory commitHistory;
+    
+    // Real Pokemon state management (not testing)
+    private XPSystem xpSystem;
+    private PokemonStateManager pokemonStateManager;
     
     // For dragging functionality
     private double xOffset = 0;
@@ -49,6 +72,8 @@ public class WidgetWindow {
     public WidgetWindow(Stage primaryStage) {
         this.stage = primaryStage;
         this.selectionData = new PokemonSelectionData();
+        this.xpSystem = new XPSystem();
+        this.pokemonStateManager = new PokemonStateManager();
         initialize();
     }
     
@@ -62,6 +87,27 @@ public class WidgetWindow {
         this.stage = primaryStage;
         this.selectionData = new PokemonSelectionData();
         this.onPokemonSelected = onPokemonSelected;
+        this.xpSystem = new XPSystem();
+        this.pokemonStateManager = new PokemonStateManager();
+        initialize();
+    }
+    
+    /**
+     * Creates a WidgetWindow with external XP and state management systems.
+     * This constructor allows the main application to provide shared instances.
+     * 
+     * @param primaryStage The primary stage
+     * @param onPokemonSelected Callback when Pokemon is selected
+     * @param xpSystem The XP system instance
+     * @param pokemonStateManager The Pokemon state manager instance
+     */
+    public WidgetWindow(Stage primaryStage, Consumer<PokemonSpecies> onPokemonSelected, 
+                       XPSystem xpSystem, PokemonStateManager pokemonStateManager) {
+        this.stage = primaryStage;
+        this.selectionData = new PokemonSelectionData();
+        this.onPokemonSelected = onPokemonSelected;
+        this.xpSystem = xpSystem != null ? xpSystem : new XPSystem();
+        this.pokemonStateManager = pokemonStateManager != null ? pokemonStateManager : new PokemonStateManager();
         initialize();
     }
     
@@ -76,7 +122,13 @@ public class WidgetWindow {
         
         // Create root container
         root = new StackPane();
-        root.setStyle("-fx-background-color: transparent;");
+        root.setStyle(UITheme.getTransparentStyle());
+        
+        // Initialize commit history
+        commitHistory = new CommitHistory();
+        
+        // Initialize expanded mode components
+        initializeExpandedModeComponents();
         
         // Only create Pokemon display if user has already selected a starter
         // For first-time users, the display will be created after selection
@@ -190,22 +242,109 @@ public class WidgetWindow {
     }
     
     /**
-     * Switch between compact and expanded modes
+     * Initializes the expanded mode UI components.
+     * Creates the history tab and Pokemon status display for expanded view.
+     */
+    private void initializeExpandedModeComponents() {
+        // Create history tab
+        historyTab = new HistoryTab();
+        
+        // Create expanded layout (BorderPane for better organization)
+        expandedLayout = new BorderPane();
+        expandedLayout.setStyle(UITheme.getExpandedLayoutStyle());
+        expandedLayout.setPadding(new Insets(UITheme.LARGE_PADDING));
+        
+        // Pokemon display area at top
+        pokemonStatusBox = new VBox(UITheme.MEDIUM_SPACING);
+        pokemonStatusBox.setAlignment(Pos.CENTER);
+        pokemonStatusBox.setPadding(new Insets(UITheme.MEDIUM_SPACING));
+        pokemonStatusBox.setMinHeight(100);
+        pokemonStatusBox.setMaxHeight(100);
+        
+        // History tab in center
+        expandedLayout.setTop(pokemonStatusBox);
+        expandedLayout.setCenter(historyTab);
+    }
+    
+    /**
+     * Switch between compact and expanded modes.
+     * Compact mode shows only the Pokemon animation.
+     * Expanded mode shows Pokemon status and commit history.
      */
     public void toggleMode() {
         if (isCompactMode) {
             // Switch to expanded mode
-            root.setPrefSize(AppConfig.EXPANDED_WIDTH, AppConfig.EXPANDED_HEIGHT);
-            stage.setWidth(AppConfig.EXPANDED_WIDTH);
-            stage.setHeight(AppConfig.EXPANDED_HEIGHT);
-            isCompactMode = false;
+            switchToExpandedMode();
         } else {
             // Switch to compact mode
-            root.setPrefSize(AppConfig.COMPACT_WIDTH, AppConfig.COMPACT_HEIGHT);
-            stage.setWidth(AppConfig.COMPACT_WIDTH);
-            stage.setHeight(AppConfig.COMPACT_HEIGHT);
-            isCompactMode = true;
+            switchToCompactMode();
         }
+    }
+    
+    /**
+     * Switches to expanded mode (320x450px) showing commit history.
+     */
+    private void switchToExpandedMode() {
+        // Update Pokemon status in history tab with real data
+        if (pokemonDisplay != null && historyTab != null) {
+            int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+            int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+            
+            historyTab.updatePokemonStatus(
+                pokemonDisplay.getCurrentSpecies(),
+                pokemonDisplay.getCurrentStage(),
+                realXP,
+                realStreak
+            );
+        }
+        
+        // Update commit history display
+        if (historyTab != null) {
+            historyTab.updateCommitHistory(commitHistory);
+        }
+        
+        // Move Pokemon display to expanded layout
+        if (pokemonDisplay != null) {
+            root.getChildren().remove(pokemonDisplay);
+            pokemonStatusBox.getChildren().clear();
+            pokemonStatusBox.getChildren().add(pokemonDisplay);
+        }
+        
+        // Add expanded layout to root
+        root.getChildren().clear();
+        root.getChildren().add(expandedLayout);
+        
+        // Resize window
+        root.setPrefSize(AppConfig.EXPANDED_WIDTH, AppConfig.EXPANDED_HEIGHT);
+        stage.setWidth(AppConfig.EXPANDED_WIDTH);
+        stage.setHeight(AppConfig.EXPANDED_HEIGHT);
+        
+        isCompactMode = false;
+        System.out.println("📖 Switched to expanded mode - XP: " + 
+            (xpSystem != null ? xpSystem.getCurrentXP() : 0) + 
+            ", Streak: " + (commitHistory != null ? commitHistory.getCurrentStreak() : 0) + " days");
+    }
+    
+    /**
+     * Switches to compact mode (80x80px) showing only Pokemon.
+     */
+    private void switchToCompactMode() {
+        // Move Pokemon display back to root
+        if (pokemonDisplay != null) {
+            pokemonStatusBox.getChildren().remove(pokemonDisplay);
+            root.getChildren().clear();
+            root.getChildren().add(pokemonDisplay);
+        } else {
+            root.getChildren().clear();
+        }
+        
+        // Resize window
+        root.setPrefSize(AppConfig.COMPACT_WIDTH, AppConfig.COMPACT_HEIGHT);
+        stage.setWidth(AppConfig.COMPACT_WIDTH);
+        stage.setHeight(AppConfig.COMPACT_HEIGHT);
+        
+        isCompactMode = true;
+        System.out.println("📦 Switched to compact mode");
     }
     
     /**
@@ -320,6 +459,125 @@ public class WidgetWindow {
      */
     public PokemonDisplayComponent getPokemonDisplay() {
         return pokemonDisplay;
+    }
+    
+    /**
+     * Gets the history tab component for external access.
+     * 
+     * @return The HistoryTab component
+     */
+    public HistoryTab getHistoryTab() {
+        return historyTab;
+    }
+    
+    /**
+     * Gets the current commit history.
+     * 
+     * @return The CommitHistory object
+     */
+    public CommitHistory getCommitHistory() {
+        return commitHistory;
+    }
+    
+    /**
+     * Updates the commit history with new commits.
+     * 
+     * @param newCommits List of new commits to add
+     */
+    public void addCommits(List<Commit> newCommits) {
+        if (newCommits != null) {
+            for (Commit commit : newCommits) {
+                commitHistory.addCommit(commit);
+            }
+            commitHistory.calculateCurrentStreak();
+            commitHistory.calculateAverageCommitsPerDay();
+            
+            // Update history tab if in expanded mode
+            if (!isCompactMode && historyTab != null) {
+                historyTab.updateCommitHistory(commitHistory);
+                if (pokemonDisplay != null) {
+                    int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+                    int realStreak = commitHistory.getCurrentStreak();
+                    
+                    historyTab.updatePokemonStatus(
+                        pokemonDisplay.getCurrentSpecies(),
+                        pokemonDisplay.getCurrentStage(),
+                        realXP,
+                        realStreak
+                    );
+                }
+            }
+        }
+    }
+    
+    /**
+     * Sets the commit history directly.
+     * 
+     * @param history The CommitHistory to set
+     */
+    public void setCommitHistory(CommitHistory history) {
+        if (history != null) {
+            this.commitHistory = history;
+            
+            // Update history tab if in expanded mode
+            if (!isCompactMode && historyTab != null) {
+                historyTab.updateCommitHistory(commitHistory);
+            }
+        }
+    }
+    
+    /**
+     * Updates the Pokemon status display with current real data.
+     * Call this method when XP or streak changes to refresh the UI.
+     */
+    public void updatePokemonStatusDisplay() {
+        if (!isCompactMode && historyTab != null && pokemonDisplay != null) {
+            int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+            int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+            
+            historyTab.updatePokemonStatus(
+                pokemonDisplay.getCurrentSpecies(),
+                pokemonDisplay.getCurrentStage(),
+                realXP,
+                realStreak
+            );
+        }
+    }
+    
+    /**
+     * Gets the XP system for external access.
+     * 
+     * @return The XPSystem instance
+     */
+    public XPSystem getXpSystem() {
+        return xpSystem;
+    }
+    
+    /**
+     * Gets the Pokemon state manager for external access.
+     * 
+     * @return The PokemonStateManager instance
+     */
+    public PokemonStateManager getPokemonStateManager() {
+        return pokemonStateManager;
+    }
+    
+    /**
+     * Sets the XP system (used by main application to provide shared instance).
+     * 
+     * @param xpSystem The XPSystem to use
+     */
+    public void setXpSystem(XPSystem xpSystem) {
+        this.xpSystem = xpSystem;
+    }
+    
+    /**
+     * Sets the Pokemon state manager (used by main application to provide shared instance).
+     * 
+     * @param pokemonStateManager The PokemonStateManager to use
+     */
+    public void setPokemonStateManager(PokemonStateManager pokemonStateManager) {
+        this.pokemonStateManager = pokemonStateManager;
     }
     
     // FOR TESTING ONLY: Accumulated XP for testing commit simulation

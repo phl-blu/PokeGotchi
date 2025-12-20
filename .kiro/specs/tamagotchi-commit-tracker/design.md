@@ -158,7 +158,7 @@ graph TB
   - `updateHealthMetrics()`: Track long-term Pokemon wellness
 - **State Factors**: Commit frequency, XP level, evolution stage, streak duration
 - **Evolution Criteria**: 
-  - Hatch from Egg: Maintain 4-day commit streak OR reach 50 XP
+  - Hatch from Egg: Maintain 4-day commit streak OR reach 60 XP
   - Stage 1: Maintain 11-day commit streak (XP not required)
   - Stage 2: Maintain 22-day commit streak (XP not required)
 

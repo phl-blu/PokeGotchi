@@ -195,7 +195,7 @@ public class AnimationUtils {
     
     /**
      * Gets the egg stage based on total accumulated XP.
-     * Updated XP thresholds for more granular progression:
+     * XP thresholds for egg stage progression:
      * Stage 1: 0-10 XP, Stage 2: 11-25 XP, Stage 3: 26-40 XP, Stage 4: 41-60 XP
      * 
      * @param totalXP Total accumulated XP

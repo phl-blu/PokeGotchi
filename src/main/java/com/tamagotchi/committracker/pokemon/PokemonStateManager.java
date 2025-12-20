@@ -189,18 +189,18 @@ public class PokemonStateManager {
     
     /**
      * Checks if evolution criteria are met based on XP and streak requirements.
-     * Updated XP thresholds: Egg evolves at 60 XP.
+     * Egg evolves at 60 XP OR 4-day streak.
      */
     public boolean checkEvolutionCriteria(int xp, int streakDays, EvolutionStage currentStage) {
         if (currentStage == null) {
             return false;
         }
         
-        // Evolution requirements with updated XP thresholds
+        // Evolution requirements
         switch (currentStage) {
             case EGG:
                 // Hatch from egg: EITHER 4+ day streak OR 60+ XP
-                // XP stages: 0-10=stage1, 11-20=stage2, 21-35=stage3, 36-59=stage4, 60+=evolve
+                // XP stages: 0-10=stage1, 11-25=stage2, 26-40=stage3, 41-59=stage4, 60+=evolve
                 return streakDays >= 4 || xp >= 60;
                 
             case BASIC:
@@ -352,6 +352,7 @@ public class PokemonStateManager {
     /**
      * Gets the current egg stage based on accumulated XP.
      * Returns the visual stage of the egg (1-4) based on XP thresholds.
+     * Stage 1: 0-10 XP, Stage 2: 11-25 XP, Stage 3: 26-40 XP, Stage 4: 41-60 XP
      * 
      * @return Egg stage (1-4), or 0 if not in egg stage
      */
@@ -374,6 +375,7 @@ public class PokemonStateManager {
     
     /**
      * Checks if the egg is ready to hatch based on XP.
+     * Egg hatches at 60 XP.
      * 
      * @return true if XP >= 60 and still in egg stage
      */

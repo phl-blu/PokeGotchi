@@ -30,20 +30,20 @@ class XPSystemTest {
     void testCalculateXPFromCommit() {
         XPSystem xpSystem = new XPSystem();
         
-        // Test basic commit (short message, no bonuses)
+        // Test basic commit (short message, no bonuses) - 6 base XP
         Commit basicCommit = new Commit("hash1", "fix", "author", 
                                         LocalDateTime.now(), "repo", "/path");
-        assertEquals(10, xpSystem.calculateXPFromCommit(basicCommit));
+        assertEquals(6, xpSystem.calculateXPFromCommit(basicCommit));
         
-        // Test longer basic commit (gets length bonus)
+        // Test longer basic commit (gets length bonus) - 6 base + 1 length = 7
         Commit longerCommit = new Commit("hash1", "basic commit", "author", 
                                         LocalDateTime.now(), "repo", "/path");
-        assertEquals(15, xpSystem.calculateXPFromCommit(longerCommit)); // 10 base + 5 length
+        assertEquals(7, xpSystem.calculateXPFromCommit(longerCommit));
         
-        // Test feature commit
+        // Test feature commit - 6 base + 1 length + 2 feat + 1 add = 10 (capped)
         Commit featureCommit = new Commit("hash2", "feat: add new feature with detailed description", 
                                           "author", LocalDateTime.now(), "repo", "/path");
-        assertEquals(33, xpSystem.calculateXPFromCommit(featureCommit)); // 10 base + 5 length + 15 feat + 3 add
+        assertEquals(10, xpSystem.calculateXPFromCommit(featureCommit));
         
         // Test null commit
         assertEquals(0, xpSystem.calculateXPFromCommit(null));

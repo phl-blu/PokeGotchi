@@ -132,21 +132,35 @@ This implementation plan converts the Pokemon Commit Tracker design into a serie
   - Store selected Pokemon preference persistently
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
 
-- [ ] 9. Checkpoint - Ensure all core functionality works
+- [x] 9. Checkpoint - Ensure all core functionality works
+
+
+
+
+
+
   - Ensure all tests pass, ask the user if questions arise.
   - Verify egg animation triggers correctly on commits
   - Test egg stage progression based on XP accumulation
 
-- [ ] 10. Build expanded mode with commit history display
+- [x] 10. Build expanded mode with commit history display
+
+
+
+
+
   - Create expandable UI (320x450px) triggered by widget click
   - Implement History Tab with scrollable commit list
   - Display commit information (message, timestamp, repository, author, XP gained)
   - Add Pokemon status display (level, XP progress, streak counter)
   - _Requirements: 1.3, 5.1, 5.2, 5.3, 5.4_
 
-- [ ]* 10.1 Write property test for commit display completeness
-  - **Property 4: Commit Display Completeness**
-  - **Validates: Requirements 5.1, 5.2, 5.3**
+- [x] 10.1 Write property test for commit display completeness
+
+
+
+  - Property 4: Commit Display Completeness**
+  - Validates: Requirements 5.1, 5.2, 5.3**
 
 - [ ] 11. Add statistics and productivity metrics
   - Implement commit frequency graphs and productivity charts
@@ -169,6 +183,7 @@ This implementation plan converts the Pokemon Commit Tracker design into a serie
   - _Requirements: 2.5, 8.3_
 
 - [ ]* 11.1 Write property test for error resilience
+
   - **Property 6: Error Resilience**
   - **Validates: Requirements 2.5, 7.3**
 

@@ -96,41 +96,43 @@ class AnimationUtilsTest {
     
     @Test
     void testEggStageFromXPDays() {
-        // Test the new XP-based egg stage calculation
+        // Test the XP-based egg stage calculation
+        // Stage 1: 0-10 XP, Stage 2: 11-25 XP, Stage 3: 26-40 XP, Stage 4: 41-60+ XP
         
         // Stage 1: 0-10 XP
         assertEquals(1, AnimationUtils.getEggStageFromXPDays(0));
         assertEquals(1, AnimationUtils.getEggStageFromXPDays(5));
         assertEquals(1, AnimationUtils.getEggStageFromXPDays(10));
         
-        // Stage 2: 11-20 XP
+        // Stage 2: 11-25 XP
         assertEquals(2, AnimationUtils.getEggStageFromXPDays(11));
         assertEquals(2, AnimationUtils.getEggStageFromXPDays(15));
-        assertEquals(2, AnimationUtils.getEggStageFromXPDays(20));
+        assertEquals(2, AnimationUtils.getEggStageFromXPDays(25));
         
-        // Stage 3: 21-35 XP
-        assertEquals(3, AnimationUtils.getEggStageFromXPDays(21));
-        assertEquals(3, AnimationUtils.getEggStageFromXPDays(28));
-        assertEquals(3, AnimationUtils.getEggStageFromXPDays(35));
+        // Stage 3: 26-40 XP
+        assertEquals(3, AnimationUtils.getEggStageFromXPDays(26));
+        assertEquals(3, AnimationUtils.getEggStageFromXPDays(33));
+        assertEquals(3, AnimationUtils.getEggStageFromXPDays(40));
         
-        // Stage 4: 36-50+ XP
-        assertEquals(4, AnimationUtils.getEggStageFromXPDays(36));
-        assertEquals(4, AnimationUtils.getEggStageFromXPDays(45));
+        // Stage 4: 41-60+ XP
+        assertEquals(4, AnimationUtils.getEggStageFromXPDays(41));
         assertEquals(4, AnimationUtils.getEggStageFromXPDays(50));
+        assertEquals(4, AnimationUtils.getEggStageFromXPDays(60));
         assertEquals(4, AnimationUtils.getEggStageFromXPDays(100)); // Still stage 4 even with high XP
     }
     
     @Test
     void testEggStageThresholds() {
         // Test boundary conditions for egg stages
+        // Stage 1: 0-10 XP, Stage 2: 11-25 XP, Stage 3: 26-40 XP, Stage 4: 41-60+ XP
         
         // Test exact boundaries
         assertEquals(1, AnimationUtils.getEggStageFromXPDays(10)); // Upper bound of stage 1
         assertEquals(2, AnimationUtils.getEggStageFromXPDays(11)); // Lower bound of stage 2
-        assertEquals(2, AnimationUtils.getEggStageFromXPDays(20)); // Upper bound of stage 2
-        assertEquals(3, AnimationUtils.getEggStageFromXPDays(21)); // Lower bound of stage 3
-        assertEquals(3, AnimationUtils.getEggStageFromXPDays(35)); // Upper bound of stage 3
-        assertEquals(4, AnimationUtils.getEggStageFromXPDays(36)); // Lower bound of stage 4
+        assertEquals(2, AnimationUtils.getEggStageFromXPDays(25)); // Upper bound of stage 2
+        assertEquals(3, AnimationUtils.getEggStageFromXPDays(26)); // Lower bound of stage 3
+        assertEquals(3, AnimationUtils.getEggStageFromXPDays(40)); // Upper bound of stage 3
+        assertEquals(4, AnimationUtils.getEggStageFromXPDays(41)); // Lower bound of stage 4
         
         // Test negative XP (should still return stage 1)
         assertEquals(1, AnimationUtils.getEggStageFromXPDays(-5));

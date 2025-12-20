@@ -52,14 +52,14 @@ class PokemonStateManagerTest {
     void testCheckEvolutionCriteriaEggToBasic() {
         PokemonStateManager manager = new PokemonStateManager();
         
-        // Should evolve: 4+ day streak OR 50+ XP (either condition works)
+        // Should evolve: 4+ day streak OR 60+ XP (either condition works)
         assertTrue(manager.checkEvolutionCriteria(250, 5, EvolutionStage.EGG));
-        assertTrue(manager.checkEvolutionCriteria(50, 2, EvolutionStage.EGG)); // Exactly 50 XP, low streak
-        assertTrue(manager.checkEvolutionCriteria(60, 2, EvolutionStage.EGG)); // High XP, low streak
-        assertTrue(manager.checkEvolutionCriteria(30, 5, EvolutionStage.EGG)); // Low XP, high streak
+        assertTrue(manager.checkEvolutionCriteria(60, 2, EvolutionStage.EGG)); // Exactly 60 XP, low streak
+        assertTrue(manager.checkEvolutionCriteria(70, 2, EvolutionStage.EGG)); // High XP, low streak
+        assertTrue(manager.checkEvolutionCriteria(30, 5, EvolutionStage.EGG)); // Low XP, high streak (4+ days)
         
         // Should not evolve: insufficient streak AND insufficient XP
-        assertFalse(manager.checkEvolutionCriteria(49, 3, EvolutionStage.EGG)); // Just under 50 XP and under 4 days
+        assertFalse(manager.checkEvolutionCriteria(59, 3, EvolutionStage.EGG)); // Just under 60 XP and under 4 days
         assertFalse(manager.checkEvolutionCriteria(40, 3, EvolutionStage.EGG));
     }
     
@@ -224,6 +224,7 @@ class PokemonStateManagerTest {
         PokemonStateManager manager = new PokemonStateManager(PokemonSpecies.CHARMANDER, EvolutionStage.EGG, 0);
         
         // Test egg stage progression based on XP
+        // Stage 1: 0-10 XP, Stage 2: 11-25 XP, Stage 3: 26-40 XP, Stage 4: 41-60 XP
         assertEquals(1, manager.getCurrentEggStage()); // 0 XP = Stage 1
         
         manager.getXpSystem().setCurrentXP(5);
@@ -233,29 +234,29 @@ class PokemonStateManagerTest {
         assertEquals(1, manager.getCurrentEggStage()); // 10 XP = Stage 1 (0-10)
         
         manager.getXpSystem().setCurrentXP(15);
-        assertEquals(2, manager.getCurrentEggStage()); // 15 XP = Stage 2 (11-20)
+        assertEquals(2, manager.getCurrentEggStage()); // 15 XP = Stage 2 (11-25)
         
-        manager.getXpSystem().setCurrentXP(25);
-        assertEquals(3, manager.getCurrentEggStage()); // 25 XP = Stage 3 (21-35)
+        manager.getXpSystem().setCurrentXP(30);
+        assertEquals(3, manager.getCurrentEggStage()); // 30 XP = Stage 3 (26-40)
         
-        manager.getXpSystem().setCurrentXP(40);
-        assertEquals(4, manager.getCurrentEggStage()); // 40 XP = Stage 4 (36-49)
+        manager.getXpSystem().setCurrentXP(45);
+        assertEquals(4, manager.getCurrentEggStage()); // 45 XP = Stage 4 (41-60)
         
-        manager.getXpSystem().setCurrentXP(50);
-        assertEquals(4, manager.getCurrentEggStage()); // 50 XP = Still Stage 4 until evolution
-        assertTrue(manager.isEggReadyToHatch()); // But ready to hatch
+        manager.getXpSystem().setCurrentXP(60);
+        assertEquals(4, manager.getCurrentEggStage()); // 60 XP = Still Stage 4 until evolution
+        assertTrue(manager.isEggReadyToHatch()); // But ready to hatch at 60 XP
     }
     
     @Test
     void testEggReadyToHatch() {
-        PokemonStateManager manager = new PokemonStateManager(PokemonSpecies.MUDKIP, EvolutionStage.EGG, 49);
+        PokemonStateManager manager = new PokemonStateManager(PokemonSpecies.MUDKIP, EvolutionStage.EGG, 59);
         
-        // Not ready to hatch at 49 XP
+        // Not ready to hatch at 59 XP
         assertFalse(manager.isEggReadyToHatch());
         assertEquals(4, manager.getCurrentEggStage());
         
-        // Ready to hatch at 50 XP
-        manager.getXpSystem().setCurrentXP(50);
+        // Ready to hatch at 60 XP
+        manager.getXpSystem().setCurrentXP(60);
         assertTrue(manager.isEggReadyToHatch());
         assertEquals(4, manager.getCurrentEggStage());
         
@@ -269,9 +270,9 @@ class PokemonStateManagerTest {
     void testXPBasedEvolutionThresholds() {
         PokemonStateManager manager = new PokemonStateManager(PokemonSpecies.PIPLUP, EvolutionStage.EGG, 0);
         
-        // Test XP thresholds for evolution
-        assertFalse(manager.checkEvolutionCriteria(49, 0, EvolutionStage.EGG)); // 49 XP, no streak - should not evolve
-        assertTrue(manager.checkEvolutionCriteria(50, 0, EvolutionStage.EGG)); // 50 XP, no streak - should evolve
+        // Test XP thresholds for evolution (60 XP required)
+        assertFalse(manager.checkEvolutionCriteria(59, 0, EvolutionStage.EGG)); // 59 XP, no streak - should not evolve
+        assertTrue(manager.checkEvolutionCriteria(60, 0, EvolutionStage.EGG)); // 60 XP, no streak - should evolve
         assertTrue(manager.checkEvolutionCriteria(100, 0, EvolutionStage.EGG)); // 100 XP, no streak - should evolve
         
         // Test streak-based evolution still works

@@ -32,6 +32,7 @@ public class TamagotchiCommitTrackerApp extends Application {
         
         // Initialize the widget window with transparency and dragging
         // Pass callback for when Pokemon is selected (to update state manager)
+        // Also pass shared XP system and state manager instances
         widgetWindow = new WidgetWindow(primaryStage, selectedSpecies -> {
             // Update the Pokemon state manager with the selected species
             pokemonStateManager.setCurrentSpecies(selectedSpecies);
@@ -39,7 +40,7 @@ public class TamagotchiCommitTrackerApp extends Application {
             
             // Re-setup reset listener for the new Pokemon display
             setupResetListener();
-        });
+        }, xpSystem, pokemonStateManager);
         
         // Check if this is a first-time user
         if (widgetWindow.isFirstTimeUser()) {
@@ -175,6 +176,9 @@ public class TamagotchiCommitTrackerApp extends Application {
                         System.out.println("🥚 Evolution requirements not met yet. Need more streak days.");
                     }
                 }
+                
+                // Update the Pokemon status display in expanded mode (if open)
+                widgetWindow.updatePokemonStatusDisplay();
             }
         });
     }
