@@ -56,6 +56,9 @@ public class WidgetWindow {
     private XPSystem xpSystem;
     private PokemonStateManager pokemonStateManager;
     
+    // Reference to commit service for manual scanning
+    private com.tamagotchi.committracker.git.CommitService commitService;
+    
     // For dragging functionality
     private double xOffset = 0;
     private double yOffset = 0;
@@ -221,6 +224,10 @@ public class WidgetWindow {
                 case I: // Press 'I' to show Pokemon info
                     System.out.println("🧪 TESTING: 'I' pressed - Showing Pokemon info");
                     showPokemonInfo();
+                    break;
+                case F: // Press 'F' to force repository scan for testing
+                    System.out.println("🧪 TESTING: 'F' pressed - Forcing repository scan");
+                    forceRepositoryScan();
                     break;
             }
         });
@@ -440,6 +447,18 @@ public class WidgetWindow {
             System.out.println("   Stage: " + pokemonDisplay.getCurrentStage());
             System.out.println("   State: " + pokemonDisplay.getCurrentState());
             System.out.println("   Evolution in progress: " + pokemonDisplay.isEvolutionInProgress());
+            
+            // Debug: Show current XP and streak data
+            int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+            int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+            System.out.println("   Real XP: " + realXP);
+            System.out.println("   Real Streak: " + realStreak + " days");
+            
+            if (commitHistory != null) {
+                System.out.println("   Total commits in history: " + commitHistory.getRecentCommits().size());
+                System.out.println("   Last commit time: " + commitHistory.getLastCommitTime());
+                System.out.println("   Daily commit counts: " + commitHistory.getDailyCommitCounts().size() + " days");
+            }
         }
     }
     
@@ -522,6 +541,19 @@ public class WidgetWindow {
             // Update history tab if in expanded mode
             if (!isCompactMode && historyTab != null) {
                 historyTab.updateCommitHistory(commitHistory);
+                
+                // Also update Pokemon status with current data
+                if (pokemonDisplay != null) {
+                    int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+                    int realStreak = commitHistory.getCurrentStreak();
+                    
+                    historyTab.updatePokemonStatus(
+                        pokemonDisplay.getCurrentSpecies(),
+                        pokemonDisplay.getCurrentStage(),
+                        realXP,
+                        realStreak
+                    );
+                }
             }
         }
     }
@@ -541,6 +573,11 @@ public class WidgetWindow {
                 realXP,
                 realStreak
             );
+            
+            // Also refresh the commit history display
+            if (commitHistory != null) {
+                historyTab.updateCommitHistory(commitHistory);
+            }
         }
     }
     
@@ -572,12 +609,31 @@ public class WidgetWindow {
     }
     
     /**
-     * Sets the Pokemon state manager (used by main application to provide shared instance).
+     * Sets the commit service for manual repository scanning.
      * 
-     * @param pokemonStateManager The PokemonStateManager to use
+     * @param commitService The CommitService to use
      */
-    public void setPokemonStateManager(PokemonStateManager pokemonStateManager) {
-        this.pokemonStateManager = pokemonStateManager;
+    public void setCommitService(com.tamagotchi.committracker.git.CommitService commitService) {
+        this.commitService = commitService;
+    }
+    
+    /**
+     * FOR TESTING ONLY: Forces a manual repository scan to refresh commit data.
+     * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
+     */
+    private void forceRepositoryScan() {
+        if (commitService != null) {
+            System.out.println("🔍 Forcing manual repository scan...");
+            commitService.scanAllRepositories();
+            
+            // Update the widget with the latest commit history
+            setCommitHistory(commitService.getCommitHistory());
+            updatePokemonStatusDisplay();
+            
+            System.out.println("✅ Manual scan complete. Updated commit history.");
+        } else {
+            System.out.println("❌ No commit service available for manual scan.");
+        }
     }
     
     // FOR TESTING ONLY: Accumulated XP for testing commit simulation
@@ -612,6 +668,7 @@ public class WidgetWindow {
     /**
      * Shows the Pokemon selection screen.
      * The screen blocks until a selection is made.
+     * After selection, the widget starts in expanded mode.
      * 
      * TODO: FOR PRODUCTION - This should only show on first GitHub sign-up.
      * Currently shows every time for testing purposes.
@@ -634,6 +691,13 @@ public class WidgetWindow {
             
             System.out.println("🎉 Pokemon selection complete! Starting with " + 
                 PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
+            
+            // IMPORTANT: Start in expanded mode after Pokemon selection
+            // This shows the user the commit history and Pokemon status immediately
+            if (isCompactMode) {
+                switchToExpandedMode();
+                System.out.println("📖 Starting in expanded mode to show Pokemon status and commit history");
+            }
         });
         
         selectionScreen.show();

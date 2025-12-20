@@ -67,8 +67,23 @@ public class TamagotchiCommitTrackerApp extends Application {
         // Connect commit monitoring to Pokemon updates
         setupCommitMonitoring();
         
+        // Pass the commit service to the widget for manual scanning
+        widgetWindow.setCommitService(commitService);
+        
         // Start monitoring Git repositories
         commitService.startMonitoring();
+        
+        // IMPORTANT: Pass the commit service's commit history to the widget
+        // This ensures the widget displays real streak and commit data
+        widgetWindow.setCommitHistory(commitService.getCommitHistory());
+        
+        // Debug: Log initial commit history state
+        var initialHistory = commitService.getCommitHistory();
+        System.out.println("🔍 Initial commit history state:");
+        System.out.println("   Total commits: " + initialHistory.getRecentCommits().size());
+        System.out.println("   Current streak: " + initialHistory.getCurrentStreak() + " days");
+        System.out.println("   Daily commit counts: " + initialHistory.getDailyCommitCounts().size() + " days");
+        System.out.println("   Last commit time: " + initialHistory.getLastCommitTime());
         
         System.out.println("🚀 Tamagotchi Commit Tracker started!");
         System.out.println("📊 Monitoring Git repositories every 5 minutes...");
@@ -179,6 +194,11 @@ public class TamagotchiCommitTrackerApp extends Application {
                 
                 // Update the Pokemon status display in expanded mode (if open)
                 widgetWindow.updatePokemonStatusDisplay();
+                
+                // IMPORTANT: Update the widget's commit history with the latest data
+                // This ensures real-time updates of streak and commit list
+                widgetWindow.setCommitHistory(commitService.getCommitHistory());
+                widgetWindow.addCommits(newCommits);
             }
         });
     }
