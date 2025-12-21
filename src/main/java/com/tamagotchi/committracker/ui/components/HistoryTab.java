@@ -147,17 +147,18 @@ public class HistoryTab extends VBox {
         
         // Update XP system
         xpSystem.setCurrentXP(xp);
-        this.currentLevel = xpSystem.getLevel() + 1; // Level is 0-indexed
+        this.currentLevel = xpSystem.getLevel(); // Keep 0-indexed level for internal use
         
         // Update labels
         String speciesName = species != null ? formatSpeciesName(species) : "Unknown";
         String stageName = stage != null ? formatStageName(stage) : "Unknown";
         statusLabel.setText(speciesName + " (" + stageName + ")");
         
-        levelLabel.setText("Level: " + currentLevel);
+        // Show evolution stage instead of numeric level
+        levelLabel.setText("Stage: " + stageName);
         
         int[] thresholds = XPSystem.getEvolutionXPThresholds();
-        int nextThreshold = currentLevel < thresholds.length ? thresholds[currentLevel] : thresholds[thresholds.length - 1];
+        int nextThreshold = currentLevel < thresholds.length - 1 ? thresholds[currentLevel + 1] : thresholds[thresholds.length - 1];
         xpProgressLabel.setText("XP: " + xp + " / " + nextThreshold);
         
         streakLabel.setText("Streak: " + streak + " days");

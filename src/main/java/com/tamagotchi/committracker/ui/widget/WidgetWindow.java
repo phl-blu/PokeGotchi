@@ -170,7 +170,8 @@ public class WidgetWindow {
             // Add expanded layout to root (start in expanded mode)
             root.getChildren().add(expandedLayout);
         } else {
-            // For first-time users, still start in expanded mode but without Pokemon
+            // For first-time users, start in expanded mode but without Pokemon
+            // The Pokemon will be added after selection
             root.getChildren().add(expandedLayout);
         }
         
@@ -194,11 +195,13 @@ public class WidgetWindow {
         stage.xProperty().addListener((obs, oldVal, newVal) -> savePosition());
         stage.yProperty().addListener((obs, oldVal, newVal) -> savePosition());
         
-        // Handle window closing to save position and state
+        // Handle window closing to save position and state - ENABLE CLOSE BUTTON
         stage.setOnCloseRequest(e -> {
+            System.out.println("🚪 Close button pressed - saving state and exiting");
             savePosition();
             saveWindowState();
             Platform.exit();
+            System.exit(0); // Force exit to ensure clean shutdown
         });
         
         // Add click handler to toggle mode
@@ -255,6 +258,13 @@ public class WidgetWindow {
                 case F: // Press 'F' to force repository scan for testing
                     System.out.println("🧪 TESTING: 'F' pressed - Forcing repository scan");
                     forceRepositoryScan();
+                    break;
+                case ESCAPE: // Press 'ESC' to close the application
+                    System.out.println("🚪 ESC pressed - closing application");
+                    savePosition();
+                    saveWindowState();
+                    Platform.exit();
+                    System.exit(0);
                     break;
             }
         });
@@ -872,34 +882,30 @@ public class WidgetWindow {
     /**
      * Checks if this is a first-time user who needs to select a Pokemon.
      * 
-     * TODO: FOR PRODUCTION - This should check if user has selected a Pokemon via GitHub auth.
-     * Currently always returns true for testing purposes.
-     * See TODO.md for details on GitHub authentication integration.
-     * 
-     * @return true if no Pokemon has been selected yet (always true for testing)
+     * @return true if no Pokemon has been selected yet
      */
     public boolean isFirstTimeUser() {
-        // TODO: TESTING MODE - Always show selection screen for testing
-        // For production: return selectionData.isFirstTimeUser();
-        return true;
+        return !selectionData.hasSelectedStarter();
     }
     
     /**
      * Shows the Pokemon selection screen.
      * The screen blocks until a selection is made.
      * After selection, the widget starts in expanded mode.
-     * 
-     * TODO: FOR PRODUCTION - This should only show on first GitHub sign-up.
-     * Currently shows every time for testing purposes.
-     * See TODO.md for details on GitHub authentication integration.
      */
     public void showPokemonSelectionScreen() {
-        // TODO: TESTING MODE - Always show selection screen
-        // For production: check if (!selectionData.isFirstTimeUser()) and return early
+        // Only show if user hasn't selected a Pokemon yet
+        if (!isFirstTimeUser()) {
+            System.out.println("🎮 Pokemon already selected, skipping selection screen");
+            return;
+        }
         
-        System.out.println("🎮 Showing Pokemon selection screen (TESTING MODE - always shows)");
+        System.out.println("🎮 Showing Pokemon selection screen for first-time user");
         
         PokemonSelectionScreen selectionScreen = new PokemonSelectionScreen(stage, selectedSpecies -> {
+            // Save the selection
+            selectionData.saveSelection(selectedSpecies);
+            
             // Update the Pokemon display with the selected species
             changePokemonSpecies(selectedSpecies);
             
@@ -1055,6 +1061,11 @@ public class WidgetWindow {
                 // Update history tab theme
                 if (historyTab != null) {
                     historyTab.refreshTheme();
+                }
+                
+                // Update statistics tab theme
+                if (statisticsTab != null) {
+                    statisticsTab.refreshTheme();
                 }
                 
                 System.out.println("🔄 UI theme refreshed for all components");

@@ -27,6 +27,7 @@ import com.tamagotchi.committracker.service.StatisticsService.EvolutionEntry;
 import com.tamagotchi.committracker.ui.theme.UITheme;
 
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -192,9 +193,15 @@ public class StatisticsTab extends VBox {
      * @param commits List of commits to analyze
      */
     private void updateCharts(List<Commit> commits) {
+        // If no commits, create sample data for demonstration
+        if (commits == null || commits.isEmpty()) {
+            commits = createSampleCommits();
+        }
+        
         // Update daily chart
         List<DailyStats> dailyStats = statisticsService.calculateDailyStats(commits, 30);
         XYChart.Series<String, Number> dailySeries = new XYChart.Series<>();
+        dailySeries.setName("Daily Commits");
         
         for (DailyStats stats : dailyStats) {
             String dateStr = stats.getDate().format(DATE_FORMATTER);
@@ -207,6 +214,7 @@ public class StatisticsTab extends VBox {
         // Update weekly chart
         List<WeeklyStats> weeklyStats = statisticsService.calculateWeeklyStats(commits, 12);
         XYChart.Series<String, Number> weeklySeries = new XYChart.Series<>();
+        weeklySeries.setName("Weekly Commits");
         
         for (WeeklyStats stats : weeklyStats) {
             String weekStr = stats.getWeekStart().format(WEEK_FORMATTER);
@@ -218,6 +226,7 @@ public class StatisticsTab extends VBox {
         
         // Update XP chart
         XYChart.Series<String, Number> xpSeries = new XYChart.Series<>();
+        xpSeries.setName("Daily XP");
         
         for (DailyStats stats : dailyStats) {
             String dateStr = stats.getDate().format(DATE_FORMATTER);
@@ -226,6 +235,51 @@ public class StatisticsTab extends VBox {
         
         xpProgressChart.getData().clear();
         xpProgressChart.getData().add(xpSeries);
+    }
+    
+    /**
+     * Creates sample commits for demonstration when no real commits exist.
+     * 
+     * @return List of sample commits
+     */
+    private List<Commit> createSampleCommits() {
+        List<Commit> sampleCommits = new ArrayList<>();
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        
+        // Create sample commits over the last 14 days
+        for (int i = 0; i < 14; i++) {
+            java.time.LocalDateTime commitTime = now.minusDays(i);
+            
+            // Create 1-4 commits per day with varying patterns
+            int commitsPerDay = 1 + (i % 4);
+            for (int j = 0; j < commitsPerDay; j++) {
+                Commit commit = new Commit();
+                commit.setMessage("Sample commit " + i + "-" + j + ": " + getSampleCommitMessage(i, j));
+                commit.setAuthor("Developer " + (j % 3 == 0 ? "Alice" : j % 3 == 1 ? "Bob" : "Charlie"));
+                commit.setRepositoryName("sample-project-" + (i % 3 == 0 ? "frontend" : i % 3 == 1 ? "backend" : "mobile"));
+                commit.setTimestamp(commitTime.minusHours(j * 2));
+                sampleCommits.add(commit);
+            }
+        }
+        
+        return sampleCommits;
+    }
+    
+    /**
+     * Gets a sample commit message for demonstration.
+     * 
+     * @param day Day index
+     * @param commitIndex Commit index for the day
+     * @return Sample commit message
+     */
+    private String getSampleCommitMessage(int day, int commitIndex) {
+        String[] messages = {
+            "Add new feature", "Fix bug in authentication", "Update documentation",
+            "Refactor code structure", "Improve performance", "Add unit tests",
+            "Update dependencies", "Fix styling issues", "Add error handling",
+            "Optimize database queries", "Add logging", "Update README"
+        };
+        return messages[(day * 3 + commitIndex) % messages.length];
     }
     
     /**
@@ -362,7 +416,7 @@ public class StatisticsTab extends VBox {
         
         // Evolution icon/indicator
         Label iconLabel = new Label("🎉");
-        iconLabel.setFont(Font.font(UITheme.LARGE_FONT_SIZE));
+        iconLabel.setFont(Font.font(UITheme.HEADER_FONT_SIZE));
         
         entryBox.getChildren().addAll(iconLabel, infoBox);
         return entryBox;
