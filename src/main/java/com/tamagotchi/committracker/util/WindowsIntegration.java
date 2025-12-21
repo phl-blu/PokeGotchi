@@ -318,12 +318,16 @@ public class WindowsIntegration {
      * Uses Java Preferences API as fallback for credential storage.
      * 
      * @param key The credential key
-     * @param value The credential value
+     * @param value The credential value (null to remove)
      */
     public static void storeCredentialFallback(String key, String value) {
         try {
             Preferences prefs = Preferences.userRoot().node(PREFS_NODE);
-            prefs.put(key, value);
+            if (value != null) {
+                prefs.put(key, value);
+            } else {
+                prefs.remove(key);
+            }
             prefs.flush();
             logger.fine("Stored credential using fallback method: " + key);
         } catch (Exception e) {

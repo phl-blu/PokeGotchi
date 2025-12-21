@@ -41,7 +41,7 @@ public class WidgetWindow {
     private Stage stage;
     private Scene scene;
     private StackPane root;
-    private boolean isCompactMode = true;
+    private boolean isCompactMode = false; // Start in expanded mode by default
     
     // Pokemon display component
     private PokemonDisplayComponent pokemonDisplay;
@@ -151,13 +151,19 @@ public class WidgetWindow {
                 selectedSpecies, EvolutionStage.EGG, PokemonState.CONTENT
             );
             
-            // Add Pokemon to the root container
-            root.getChildren().add(pokemonDisplay);
+            // Start in expanded mode by default - add Pokemon to status box
+            pokemonStatusBox.getChildren().clear();
+            pokemonStatusBox.getChildren().add(pokemonDisplay);
+            
+            // Add expanded layout to root (start in expanded mode)
+            root.getChildren().add(expandedLayout);
+        } else {
+            // For first-time users, still start in expanded mode but without Pokemon
+            root.getChildren().add(expandedLayout);
         }
-        // For first-time users, pokemonDisplay remains null until selection is made
         
-        // Create scene with transparent background
-        scene = new Scene(root, AppConfig.COMPACT_WIDTH, AppConfig.COMPACT_HEIGHT);
+        // Create scene with transparent background - start in expanded mode
+        scene = new Scene(root, AppConfig.EXPANDED_WIDTH, AppConfig.EXPANDED_HEIGHT);
         scene.setFill(Color.TRANSPARENT);
         
         stage.setScene(scene);
@@ -354,13 +360,21 @@ public class WidgetWindow {
             root.getChildren().clear();
         }
         
+        // Ensure completely transparent background in compact mode
+        root.setStyle("-fx-background-color: transparent;");
+        
+        // Also ensure the scene background is transparent
+        if (scene != null) {
+            scene.setFill(Color.TRANSPARENT);
+        }
+        
         // Resize window
         root.setPrefSize(AppConfig.COMPACT_WIDTH, AppConfig.COMPACT_HEIGHT);
         stage.setWidth(AppConfig.COMPACT_WIDTH);
         stage.setHeight(AppConfig.COMPACT_HEIGHT);
         
         isCompactMode = true;
-        System.out.println("📦 Switched to compact mode");
+        System.out.println("📦 Switched to compact mode with fully transparent background");
     }
     
     /**
@@ -732,6 +746,7 @@ public class WidgetWindow {
         // Remove old Pokemon display if it exists
         if (pokemonDisplay != null) {
             pokemonDisplay.cleanup();
+            pokemonStatusBox.getChildren().remove(pokemonDisplay);
             root.getChildren().remove(pokemonDisplay);
         }
         
@@ -740,8 +755,14 @@ public class WidgetWindow {
             newSpecies, EvolutionStage.EGG, PokemonState.CONTENT
         );
         
-        // Add to root container at index 0 to keep it behind other UI elements
-        root.getChildren().add(0, pokemonDisplay);
+        // Since we start in expanded mode, add to status box
+        if (!isCompactMode) {
+            pokemonStatusBox.getChildren().clear();
+            pokemonStatusBox.getChildren().add(pokemonDisplay);
+        } else {
+            // If in compact mode, add directly to root
+            root.getChildren().add(0, pokemonDisplay);
+        }
         
         // Reset testing XP when changing Pokemon
         testingAccumulatedXP = 0;
