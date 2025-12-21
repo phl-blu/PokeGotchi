@@ -8,11 +8,14 @@ import com.tamagotchi.committracker.pokemon.PokemonSelectionData;
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonStateManager;
 import com.tamagotchi.committracker.pokemon.XPSystem;
+import com.tamagotchi.committracker.util.SpriteCache;
+import com.tamagotchi.committracker.config.AppConfig;
 
 /**
  * Main JavaFX Application class for the Tamagotchi Commit Tracker.
  * This desktop widget monitors Git repositories and displays a Pokemon
  * whose evolution and state reflect the user's coding activity.
+ * Optimized with sprite caching and configurable performance settings.
  */
 public class TamagotchiCommitTrackerApp extends Application {
 
@@ -25,10 +28,20 @@ public class TamagotchiCommitTrackerApp extends Application {
     public void start(Stage primaryStage) throws Exception {
         primaryStage.setTitle("Tamagotchi Commit Tracker");
         
+        // Initialize sprite cache and preload common sprites for better performance
+        if (AppConfig.isSpriteCachingEnabled()) {
+            System.out.println("🖼️ Initializing sprite cache...");
+            SpriteCache.getInstance().preloadCommonSprites();
+            System.out.println("✅ Sprite cache initialized: " + SpriteCache.getInstance().getCacheStats());
+        }
+        
         // Initialize core services
         commitService = new CommitService();
         xpSystem = new XPSystem();
         pokemonStateManager = new PokemonStateManager();
+        
+        // Log performance configuration
+        logPerformanceSettings();
         
         // Initialize the widget window with transparency and dragging
         // Pass callback for when Pokemon is selected (to update state manager)
@@ -84,6 +97,7 @@ public class TamagotchiCommitTrackerApp extends Application {
         System.out.println("   Current streak: " + initialHistory.getCurrentStreak() + " days");
         System.out.println("   Daily commit counts: " + initialHistory.getDailyCommitCounts().size() + " days");
         System.out.println("   Last commit time: " + initialHistory.getLastCommitTime());
+        System.out.println("   Memory usage: " + initialHistory.getMemoryUsageStats());
         
         // Log Windows integration status
         if (widgetWindow.isWindowsIntegrationEnabled()) {
@@ -93,7 +107,27 @@ public class TamagotchiCommitTrackerApp extends Application {
         }
         
         System.out.println("🚀 Tamagotchi Commit Tracker started!");
-        System.out.println("📊 Monitoring Git repositories every 10 seconds for real-time updates!");
+        System.out.println("📊 Monitoring Git repositories every " + AppConfig.getPollingIntervalSeconds() + " seconds for real-time updates!");
+    }
+    
+    /**
+     * Logs the current performance configuration settings.
+     */
+    private void logPerformanceSettings() {
+        System.out.println("⚙️ Performance Configuration:");
+        System.out.println("   Polling interval: " + AppConfig.getPollingIntervalSeconds() + " seconds");
+        System.out.println("   Max commits per repo: " + AppConfig.getMaxCommitsPerRepo());
+        System.out.println("   Max repositories: " + AppConfig.getMaxRepositories());
+        System.out.println("   Commit history limit: " + AppConfig.getCommitHistoryLimit());
+        System.out.println("   Scan depth: " + AppConfig.getScanDepth());
+        System.out.println("   Scan timeout: " + AppConfig.getScanTimeoutSeconds() + " seconds");
+        System.out.println("   Sprite caching: " + (AppConfig.isSpriteCachingEnabled() ? "enabled" : "disabled"));
+        System.out.println("   Lazy loading: " + (AppConfig.isLazyLoadingEnabled() ? "enabled" : "disabled"));
+        System.out.println("   Smooth transitions: " + (AppConfig.areSmoothTransitionsEnabled() ? "enabled" : "disabled"));
+        
+        if (AppConfig.isSpriteCachingEnabled()) {
+            System.out.println("   Max cached sprites: " + AppConfig.getMaxCachedSprites());
+        }
     }
     
     /**
@@ -243,10 +277,25 @@ public class TamagotchiCommitTrackerApp extends Application {
 
     @Override
     public void stop() throws Exception {
+        System.out.println("🛑 Shutting down Tamagotchi Commit Tracker...");
+        
         // Clean shutdown
         if (commitService != null) {
             commitService.stopMonitoring();
         }
+        
+        // Clear sprite cache to free memory
+        if (AppConfig.isSpriteCachingEnabled()) {
+            SpriteCache.getInstance().clearCache();
+            System.out.println("🖼️ Sprite cache cleared");
+        }
+        
+        // Cleanup Pokemon display
+        if (widgetWindow != null && widgetWindow.getPokemonDisplay() != null) {
+            widgetWindow.getPokemonDisplay().cleanup();
+        }
+        
+        System.out.println("✅ Shutdown complete");
         super.stop();
     }
 

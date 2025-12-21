@@ -27,7 +27,6 @@ import java.util.logging.Logger;
  */
 public class CommitService {
     private static final Logger logger = Logger.getLogger(CommitService.class.getName());
-    private static final int MAX_COMMITS_PER_REPO = 100;
     
     private final RepositoryScanner repositoryScanner;
     private final ScheduledExecutorService scheduler;
@@ -55,7 +54,7 @@ public class CommitService {
     }
     
     /**
-     * Starts the monitoring service with 5-minute polling.
+     * Starts the monitoring service with configurable polling interval.
      */
     public void startMonitoring() {
         if (isMonitoring) {
@@ -69,15 +68,16 @@ public class CommitService {
         // Perform initial scan
         performInitialScan();
         
-        // Schedule periodic polling
+        // Schedule periodic polling with configurable interval
+        int pollingInterval = AppConfig.getPollingIntervalSeconds();
         pollingTask = scheduler.scheduleAtFixedRate(
             this::scanAllRepositories,
-            AppConfig.POLLING_INTERVAL_SECONDS,
-            AppConfig.POLLING_INTERVAL_SECONDS,
+            pollingInterval,
+            pollingInterval,
             TimeUnit.SECONDS
         );
         
-        logger.info("Commit monitoring started with " + AppConfig.POLLING_INTERVAL_SECONDS + "-second intervals");
+        logger.info("Commit monitoring started with " + pollingInterval + "-second intervals");
     }
     
     /**
@@ -115,19 +115,28 @@ public class CommitService {
     }
     
     /**
-     * Performs initial repository discovery and commit scanning.
+     * Performs initial repository discovery and commit scanning with timeout.
      */
     private void performInitialScan() {
         logger.info("Performing initial repository scan");
         
         try {
-            // Use a timeout for repository discovery to avoid hanging
+            // Use configurable timeout for repository discovery
+            int timeoutSeconds = AppConfig.getScanTimeoutSeconds();
             CompletableFuture<List<Repository>> discoveryFuture = CompletableFuture.supplyAsync(
                 () -> repositoryScanner.discoverRepositories(),
                 scanExecutor
             );
             
-            List<Repository> repositories = discoveryFuture.get(60, TimeUnit.SECONDS);
+            List<Repository> repositories = discoveryFuture.get(timeoutSeconds, TimeUnit.SECONDS);
+            
+            // Limit repositories to prevent performance issues
+            int maxRepos = AppConfig.getMaxRepositories();
+            if (repositories.size() > maxRepos) {
+                logger.info("Found " + repositories.size() + " repositories, limiting to " + maxRepos + " for performance");
+                repositories = repositories.subList(0, maxRepos);
+            }
+            
             logger.info("Discovered " + repositories.size() + " repositories");
             
             List<Commit> allCommits = new ArrayList<>();
@@ -148,7 +157,7 @@ public class CommitService {
             logger.info("Initial scan completed. Found " + allCommits.size() + " commits");
             
         } catch (TimeoutException e) {
-            logger.log(Level.WARNING, "Initial repository discovery timed out after 60 seconds", e);
+            logger.log(Level.WARNING, "Initial repository discovery timed out after " + AppConfig.getScanTimeoutSeconds() + " seconds", e);
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Initial scan failed", e);
         }
@@ -230,7 +239,7 @@ public class CommitService {
                     credentialsProvider = createCredentialsProvider(repository.getRemoteUrl());
                 }
                 
-                LogCommand logCommand = git.log().setMaxCount(MAX_COMMITS_PER_REPO);
+                LogCommand logCommand = git.log().setMaxCount(AppConfig.getMaxCommitsPerRepo());
                 
                 Iterable<RevCommit> revCommits = logCommand.call();
                 

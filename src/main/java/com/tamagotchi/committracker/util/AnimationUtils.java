@@ -12,10 +12,12 @@ import java.util.function.Consumer;
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonState;
 import com.tamagotchi.committracker.pokemon.EvolutionStage;
+import com.tamagotchi.committracker.config.AppConfig;
 
 /**
  * Utility class for animation and sprite management.
  * Handles loading and cycling through Pokemon sprite frames for smooth animation.
+ * Optimized with sprite caching and lazy loading for better performance.
  */
 public class AnimationUtils {
     
@@ -25,6 +27,7 @@ public class AnimationUtils {
     
     /**
      * Loads sprite frames for a specific Pokemon species, evolution stage, and animation state.
+     * Uses sprite cache for improved performance when enabled.
      * 
      * @param species The Pokemon species
      * @param stage The evolution stage
@@ -32,11 +35,25 @@ public class AnimationUtils {
      * @return List of Image objects representing animation frames
      */
     public static List<Image> loadSpriteFrames(PokemonSpecies species, EvolutionStage stage, PokemonState state) {
+        // Use sprite cache if enabled
+        if (AppConfig.isSpriteCachingEnabled()) {
+            return SpriteCache.getInstance().getSpriteFrames(species, stage, state);
+        }
+        
+        // Fallback to direct loading if caching is disabled
+        return loadSpriteFramesDirect(species, stage, state);
+    }
+    
+    /**
+     * Directly loads sprite frames without caching.
+     * Used as fallback when caching is disabled or for cache population.
+     */
+    public static List<Image> loadSpriteFramesDirect(PokemonSpecies species, EvolutionStage stage, PokemonState state) {
         List<Image> frames = new ArrayList<>();
         
         // Special handling for EGG stage - use universal egg sprites
         if (stage == EvolutionStage.EGG) {
-            return loadEggSpriteFrames(species, state);
+            return loadEggSpriteFramesDirect(species, state);
         }
         
         // Get the base species folder name (e.g., charmander for all Charmander evolutions)
@@ -102,23 +119,39 @@ public class AnimationUtils {
     
     /**
      * Loads Pokemon-specific egg sprite frames based on commit streak days and animation state.
+     * Uses sprite cache for improved performance when enabled.
      * 
      * @param species The Pokemon species (determines which egg sprites to load)
      * @param state The animation state (determines if animating or static)
      * @return List of Image objects representing egg animation frames
      */
     public static List<Image> loadEggSpriteFrames(PokemonSpecies species, PokemonState state) {
+        // Use sprite cache if enabled
+        if (AppConfig.isSpriteCachingEnabled()) {
+            // Default to stage 1 egg when no XP specified
+            return SpriteCache.getInstance().getEggSpriteFrames(species, 0, state);
+        }
+        
+        // Fallback to direct loading
+        return loadEggSpriteFramesDirect(species, state);
+    }
+    
+    /**
+     * Directly loads Pokemon-specific egg sprite frames without caching.
+     */
+    public static List<Image> loadEggSpriteFramesDirect(PokemonSpecies species, PokemonState state) {
         List<Image> frames = new ArrayList<>();
         
         // Determine egg stage based on commit streak (this will be passed from the component)
         // For now, default to stage1, but this will be updated by loadEggSpriteFramesForStreak
         int eggStage = 1; // This will be overridden by loadEggSpriteFramesForStreak
         
-        return loadPokemonEggSpriteFramesForStage(species, eggStage, state);
+        return loadPokemonEggSpriteFramesForStageDirect(species, eggStage, state);
     }
     
     /**
      * Loads Pokemon-specific egg sprite frames for a specific stage and animation state.
+     * Uses sprite cache for improved performance when enabled.
      * 
      * @param species The Pokemon species (determines which egg folder to use)
      * @param eggStage The egg stage (1-4 based on XP days)
@@ -126,6 +159,20 @@ public class AnimationUtils {
      * @return List of Image objects representing egg animation frames
      */
     public static List<Image> loadPokemonEggSpriteFramesForStage(PokemonSpecies species, int eggStage, PokemonState state) {
+        // Use sprite cache if enabled
+        if (AppConfig.isSpriteCachingEnabled()) {
+            int xp = (eggStage - 1) * 15; // Convert stage to approximate XP
+            return SpriteCache.getInstance().getEggSpriteFrames(species, xp, state);
+        }
+        
+        // Fallback to direct loading
+        return loadPokemonEggSpriteFramesForStageDirect(species, eggStage, state);
+    }
+    
+    /**
+     * Directly loads Pokemon-specific egg sprite frames for a specific stage without caching.
+     */
+    public static List<Image> loadPokemonEggSpriteFramesForStageDirect(PokemonSpecies species, int eggStage, PokemonState state) {
         List<Image> frames = new ArrayList<>();
         
         // Clamp egg stage to valid range
@@ -236,6 +283,7 @@ public class AnimationUtils {
     /**
      * Loads Pokemon-specific egg sprite frames based on XP and animation state.
      * This is the main method to be called by components for XP-based progression.
+     * Uses sprite cache for improved performance when enabled.
      * 
      * XP Progression: Stage 1 (0-10 XP) -> Stage 2 (11-25 XP) -> Stage 3 (26-40 XP) -> Stage 4 (41-60 XP) -> Evolution
      * 
@@ -245,8 +293,14 @@ public class AnimationUtils {
      * @return List of Image objects representing egg animation frames
      */
     public static List<Image> loadEggSpriteFramesForXP(PokemonSpecies species, int totalXP, PokemonState state) {
+        // Use sprite cache if enabled
+        if (AppConfig.isSpriteCachingEnabled()) {
+            return SpriteCache.getInstance().getEggSpriteFrames(species, totalXP, state);
+        }
+        
+        // Fallback to direct loading
         int eggStage = getEggStageFromXPDays(totalXP);
-        return loadPokemonEggSpriteFramesForStage(species, eggStage, state);
+        return loadPokemonEggSpriteFramesForStageDirect(species, eggStage, state);
     }
     
     /**
@@ -261,7 +315,7 @@ public class AnimationUtils {
     @Deprecated
     public static List<Image> loadEggSpriteFramesForStreak(PokemonSpecies species, int streakDays, PokemonState state) {
         int eggStage = getEggStageFromStreak(streakDays);
-        return loadPokemonEggSpriteFramesForStage(species, eggStage, state);
+        return loadPokemonEggSpriteFramesForStageDirect(species, eggStage, state);
     }
     
     /**

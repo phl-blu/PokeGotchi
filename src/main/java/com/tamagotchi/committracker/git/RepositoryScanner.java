@@ -2,6 +2,7 @@ package com.tamagotchi.committracker.git;
 
 import com.tamagotchi.committracker.domain.AuthenticationType;
 import com.tamagotchi.committracker.domain.Repository;
+import com.tamagotchi.committracker.config.AppConfig;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Config;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
@@ -52,17 +53,19 @@ public class RepositoryScanner {
     }
     
     /**
-     * Discovers all Git repositories on the system.
+     * Discovers all Git repositories on the system with configurable limits.
      * @return List of discovered repositories
      */
     public List<Repository> discoverRepositories() {
         logger.info("Starting repository discovery scan");
         discoveredRepositories.clear();
         
+        int maxDepth = AppConfig.getScanDepth();
+        
         for (Path searchPath : searchPaths) {
             if (Files.exists(searchPath) && Files.isDirectory(searchPath)) {
                 try {
-                    scanDirectory(searchPath, 0, 3); // Reduced max depth to 3 to avoid deep recursion
+                    scanDirectory(searchPath, 0, maxDepth);
                 } catch (Exception e) {
                     logger.log(Level.WARNING, "Failed to scan search path: " + searchPath, e);
                 }
@@ -74,7 +77,7 @@ public class RepositoryScanner {
     }
     
     /**
-     * Recursively scans a directory for Git repositories.
+     * Recursively scans a directory for Git repositories with configurable depth.
      */
     private void scanDirectory(Path directory, int currentDepth, int maxDepth) {
         if (currentDepth > maxDepth) {
@@ -92,7 +95,7 @@ public class RepositoryScanner {
                 }
             }
             
-            // Scan subdirectories with limited parallelism to avoid overwhelming the system
+            // Scan subdirectories with configurable limits to avoid overwhelming the system
             try (Stream<Path> paths = Files.list(directory)) {
                 paths.filter(Files::isDirectory)
                      .filter(path -> !isHiddenOrIgnored(path))

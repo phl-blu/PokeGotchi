@@ -1,21 +1,23 @@
 package com.tamagotchi.committracker.domain;
 
+import com.tamagotchi.committracker.config.AppConfig;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 
 /**
  * Domain model that stores and manages commit history data for Pokemon state calculations.
+ * Optimized for memory usage with configurable limits and automatic pruning.
  */
 public class CommitHistory {
-    private List<Commit> recentCommits;
-    private Map<LocalDate, Integer> dailyCommitCounts;
+    private final LinkedList<Commit> recentCommits; // Use LinkedList for efficient removal from head
+    private final Map<LocalDate, Integer> dailyCommitCounts;
     private LocalDateTime lastCommitTime;
     private int currentStreak;
     private double averageCommitsPerDay;
     
     public CommitHistory() {
-        this.recentCommits = new ArrayList<>();
+        this.recentCommits = new LinkedList<>();
         this.dailyCommitCounts = new HashMap<>();
         this.currentStreak = 0;
         this.averageCommitsPerDay = 0.0;
@@ -23,11 +25,14 @@ public class CommitHistory {
     
     public CommitHistory(List<Commit> recentCommits, Map<LocalDate, Integer> dailyCommitCounts,
                          LocalDateTime lastCommitTime, int currentStreak, double averageCommitsPerDay) {
-        this.recentCommits = recentCommits != null ? new ArrayList<>(recentCommits) : new ArrayList<>();
+        this.recentCommits = recentCommits != null ? new LinkedList<>(recentCommits) : new LinkedList<>();
         this.dailyCommitCounts = dailyCommitCounts != null ? new HashMap<>(dailyCommitCounts) : new HashMap<>();
         this.lastCommitTime = lastCommitTime;
         this.currentStreak = currentStreak;
         this.averageCommitsPerDay = averageCommitsPerDay;
+        
+        // Ensure we don't exceed memory limits on construction
+        pruneOldCommits();
     }
     
     public List<Commit> getRecentCommits() {
@@ -35,15 +40,58 @@ public class CommitHistory {
     }
     
     public void setRecentCommits(List<Commit> recentCommits) {
-        this.recentCommits = recentCommits != null ? new ArrayList<>(recentCommits) : new ArrayList<>();
+        this.recentCommits.clear();
+        if (recentCommits != null) {
+            this.recentCommits.addAll(recentCommits);
+            pruneOldCommits();
+        }
     }
     
     public void addCommit(Commit commit) {
         if (commit != null) {
-            recentCommits.add(commit);
+            recentCommits.addLast(commit);
             updateDailyCommitCounts(commit);
             updateLastCommitTime(commit);
+            
+            // Prune old commits to prevent memory leaks
+            pruneOldCommits();
         }
+    }
+    
+    /**
+     * Prunes old commits to keep memory usage under control.
+     * Removes commits beyond the configured limit, keeping the most recent ones.
+     */
+    private void pruneOldCommits() {
+        int limit = AppConfig.getCommitHistoryLimit();
+        while (recentCommits.size() > limit) {
+            recentCommits.removeFirst(); // Remove oldest commits
+        }
+        
+        // Also prune daily commit counts older than 90 days to prevent unbounded growth
+        LocalDate cutoffDate = LocalDate.now().minusDays(90);
+        dailyCommitCounts.entrySet().removeIf(entry -> entry.getKey().isBefore(cutoffDate));
+    }
+    
+    /**
+     * Gets recent commits with optional limit for UI display.
+     * @param limit Maximum number of commits to return (0 for all)
+     * @return List of recent commits, limited if specified
+     */
+    public List<Commit> getRecentCommits(int limit) {
+        if (limit <= 0 || limit >= recentCommits.size()) {
+            return new ArrayList<>(recentCommits);
+        }
+        
+        // Return the most recent commits up to the limit
+        List<Commit> limited = new ArrayList<>();
+        Iterator<Commit> iterator = recentCommits.descendingIterator();
+        int count = 0;
+        while (iterator.hasNext() && count < limit) {
+            limited.add(iterator.next());
+            count++;
+        }
+        return limited;
     }
     
     public Map<LocalDate, Integer> getDailyCommitCounts() {
@@ -51,7 +99,10 @@ public class CommitHistory {
     }
     
     public void setDailyCommitCounts(Map<LocalDate, Integer> dailyCommitCounts) {
-        this.dailyCommitCounts = dailyCommitCounts != null ? new HashMap<>(dailyCommitCounts) : new HashMap<>();
+        this.dailyCommitCounts.clear();
+        if (dailyCommitCounts != null) {
+            this.dailyCommitCounts.putAll(dailyCommitCounts);
+        }
     }
     
     public LocalDateTime getLastCommitTime() {
@@ -76,6 +127,18 @@ public class CommitHistory {
     
     public void setAverageCommitsPerDay(double averageCommitsPerDay) {
         this.averageCommitsPerDay = Math.max(0.0, averageCommitsPerDay);
+    }
+    
+    /**
+     * Gets the current memory usage statistics for monitoring.
+     * @return Map containing memory usage information
+     */
+    public Map<String, Integer> getMemoryUsageStats() {
+        Map<String, Integer> stats = new HashMap<>();
+        stats.put("recentCommitsCount", recentCommits.size());
+        stats.put("dailyCommitCountsSize", dailyCommitCounts.size());
+        stats.put("memoryLimit", AppConfig.getCommitHistoryLimit());
+        return stats;
     }
     
     /**
@@ -147,6 +210,7 @@ public class CommitHistory {
                ", lastCommitTime=" + lastCommitTime +
                ", currentStreak=" + currentStreak +
                ", averageCommitsPerDay=" + averageCommitsPerDay +
+               ", memoryLimit=" + AppConfig.getCommitHistoryLimit() +
                '}';
     }
 }

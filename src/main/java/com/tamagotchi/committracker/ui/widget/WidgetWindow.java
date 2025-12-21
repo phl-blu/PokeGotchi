@@ -11,14 +11,24 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.animation.Timeline;
+import javafx.animation.KeyFrame;
+import javafx.animation.Interpolator;
+import javafx.animation.ScaleTransition;
+import javafx.animation.FadeTransition;
+import javafx.animation.ParallelTransition;
+import javafx.util.Duration;
 import com.tamagotchi.committracker.config.AppConfig;
 import com.tamagotchi.committracker.domain.Commit;
 import com.tamagotchi.committracker.domain.CommitHistory;
 import com.tamagotchi.committracker.util.FileUtils;
 import com.tamagotchi.committracker.util.WindowsIntegration;
 import com.tamagotchi.committracker.ui.components.HistoryTab;
+import com.tamagotchi.committracker.ui.components.StatisticsTab;
 import com.tamagotchi.committracker.ui.components.PokemonDisplayComponent;
 import com.tamagotchi.committracker.ui.components.PokemonSelectionScreen;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.Tab;
 import com.tamagotchi.committracker.pokemon.PokemonSelectionData;
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonState;
@@ -49,6 +59,8 @@ public class WidgetWindow {
     // Expanded mode components
     private BorderPane expandedLayout;
     private HistoryTab historyTab;
+    private StatisticsTab statisticsTab;
+    private TabPane contentTabPane;
     private VBox pokemonStatusBox;
     
     // Commit history data
@@ -271,6 +283,19 @@ public class WidgetWindow {
         // Create history tab
         historyTab = new HistoryTab();
         
+        // Create statistics tab
+        statisticsTab = new StatisticsTab();
+        
+        // Create tab pane for content
+        contentTabPane = new TabPane();
+        contentTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        
+        // Create tabs
+        Tab historyTabNode = new Tab("History", historyTab);
+        Tab statisticsTabNode = new Tab("Statistics", statisticsTab);
+        
+        contentTabPane.getTabs().addAll(historyTabNode, statisticsTabNode);
+        
         // Create expanded layout (BorderPane for better organization)
         expandedLayout = new BorderPane();
         expandedLayout.setStyle(UITheme.getExpandedLayoutStyle());
@@ -283,9 +308,9 @@ public class WidgetWindow {
         pokemonStatusBox.setMinHeight(100);
         pokemonStatusBox.setMaxHeight(100);
         
-        // History tab in center
+        // Tab pane in center
         expandedLayout.setTop(pokemonStatusBox);
-        expandedLayout.setCenter(historyTab);
+        expandedLayout.setCenter(contentTabPane);
     }
     
     /**
@@ -304,9 +329,93 @@ public class WidgetWindow {
     }
     
     /**
-     * Switches to expanded mode (320x450px) showing commit history.
+     * Switches to expanded mode (320x450px) showing commit history with smooth transition.
      */
     private void switchToExpandedMode() {
+        if (!AppConfig.areSmoothTransitionsEnabled()) {
+            switchToExpandedModeImmediate();
+            return;
+        }
+        
+        // Create transition animation
+        Timeline expandTransition = new Timeline();
+        
+        // Animate window size change
+        KeyFrame sizeFrame = new KeyFrame(
+            Duration.millis(AppConfig.getTransitionDurationMs()),
+            e -> {
+                // Update Pokemon status in history tab with real data
+                if (pokemonDisplay != null && historyTab != null) {
+                    int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+                    int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+                    
+                    historyTab.updatePokemonStatus(
+                        pokemonDisplay.getCurrentSpecies(),
+                        pokemonDisplay.getCurrentStage(),
+                        realXP,
+                        realStreak
+                    );
+                    
+                    // Update statistics tab with commit data
+                    if (statisticsTab != null) {
+                        List<Commit> commits = commitHistory != null ? commitHistory.getRecentCommits() : List.of();
+                        statisticsTab.updateStatistics(
+                            commits,
+                            pokemonDisplay.getCurrentSpecies(),
+                            pokemonDisplay.getCurrentStage(),
+                            realStreak
+                        );
+                    }
+                }
+                
+                // Update commit history display
+                if (historyTab != null) {
+                    historyTab.updateCommitHistory(commitHistory);
+                }
+                
+                // Move Pokemon display to expanded layout
+                if (pokemonDisplay != null) {
+                    root.getChildren().remove(pokemonDisplay);
+                    pokemonStatusBox.getChildren().clear();
+                    pokemonStatusBox.getChildren().add(pokemonDisplay);
+                }
+                
+                // Add expanded layout to root with fade-in effect
+                root.getChildren().clear();
+                root.getChildren().add(expandedLayout);
+                
+                // Animate window resize
+                stage.setWidth(AppConfig.EXPANDED_WIDTH);
+                stage.setHeight(AppConfig.EXPANDED_HEIGHT);
+                root.setPrefSize(AppConfig.EXPANDED_WIDTH, AppConfig.EXPANDED_HEIGHT);
+                
+                isCompactMode = false;
+            }
+        );
+        
+        expandTransition.getKeyFrames().add(sizeFrame);
+        
+        // Add fade-in effect for expanded content
+        if (expandedLayout != null) {
+            FadeTransition fadeIn = new FadeTransition(Duration.millis(AppConfig.getTransitionDurationMs()), expandedLayout);
+            fadeIn.setFromValue(0.0);
+            fadeIn.setToValue(1.0);
+            fadeIn.setInterpolator(Interpolator.EASE_OUT);
+            
+            expandTransition.setOnFinished(e -> fadeIn.play());
+        }
+        
+        expandTransition.play();
+        
+        System.out.println("📖 Switched to expanded mode with smooth transition - XP: " + 
+            (xpSystem != null ? xpSystem.getCurrentXP() : 0) + 
+            ", Streak: " + (commitHistory != null ? commitHistory.getCurrentStreak() : 0) + " days");
+    }
+    
+    /**
+     * Switches to expanded mode immediately without animation (fallback).
+     */
+    private void switchToExpandedModeImmediate() {
         // Update Pokemon status in history tab with real data
         if (pokemonDisplay != null && historyTab != null) {
             int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
@@ -318,6 +427,17 @@ public class WidgetWindow {
                 realXP,
                 realStreak
             );
+            
+            // Update statistics tab with commit data
+            if (statisticsTab != null) {
+                List<Commit> commits = commitHistory != null ? commitHistory.getRecentCommits() : List.of();
+                statisticsTab.updateStatistics(
+                    commits,
+                    pokemonDisplay.getCurrentSpecies(),
+                    pokemonDisplay.getCurrentStage(),
+                    realStreak
+                );
+            }
         }
         
         // Update commit history display
@@ -348,9 +468,71 @@ public class WidgetWindow {
     }
     
     /**
-     * Switches to compact mode (80x80px) showing only Pokemon.
+     * Switches to compact mode (80x80px) showing only Pokemon with smooth transition.
      */
     private void switchToCompactMode() {
+        if (!AppConfig.areSmoothTransitionsEnabled()) {
+            switchToCompactModeImmediate();
+            return;
+        }
+        
+        // Create fade-out transition for expanded content
+        FadeTransition fadeOut = new FadeTransition(Duration.millis(AppConfig.getTransitionDurationMs() / 2), expandedLayout);
+        fadeOut.setFromValue(1.0);
+        fadeOut.setToValue(0.0);
+        fadeOut.setInterpolator(Interpolator.EASE_IN);
+        
+        fadeOut.setOnFinished(e -> {
+            // Move Pokemon display back to root
+            if (pokemonDisplay != null) {
+                pokemonStatusBox.getChildren().remove(pokemonDisplay);
+                root.getChildren().clear();
+                root.getChildren().add(pokemonDisplay);
+                
+                // Add scale-in effect for Pokemon
+                ScaleTransition scaleIn = new ScaleTransition(Duration.millis(AppConfig.getTransitionDurationMs() / 2), pokemonDisplay);
+                scaleIn.setFromX(0.8);
+                scaleIn.setFromY(0.8);
+                scaleIn.setToX(1.0);
+                scaleIn.setToY(1.0);
+                scaleIn.setInterpolator(Interpolator.EASE_OUT);
+                scaleIn.play();
+            } else {
+                root.getChildren().clear();
+            }
+            
+            // Ensure completely transparent background in compact mode
+            root.setStyle("-fx-background-color: transparent;");
+            
+            // Also ensure the scene background is transparent
+            if (scene != null) {
+                scene.setFill(Color.TRANSPARENT);
+            }
+            
+            // Animate window resize
+            Timeline resizeTransition = new Timeline();
+            KeyFrame resizeFrame = new KeyFrame(
+                Duration.millis(AppConfig.getTransitionDurationMs() / 2),
+                resizeEvent -> {
+                    root.setPrefSize(AppConfig.COMPACT_WIDTH, AppConfig.COMPACT_HEIGHT);
+                    stage.setWidth(AppConfig.COMPACT_WIDTH);
+                    stage.setHeight(AppConfig.COMPACT_HEIGHT);
+                }
+            );
+            resizeTransition.getKeyFrames().add(resizeFrame);
+            resizeTransition.play();
+            
+            isCompactMode = true;
+            System.out.println("📦 Switched to compact mode with smooth transition");
+        });
+        
+        fadeOut.play();
+    }
+    
+    /**
+     * Switches to compact mode immediately without animation (fallback).
+     */
+    private void switchToCompactModeImmediate() {
         // Move Pokemon display back to root
         if (pokemonDisplay != null) {
             pokemonStatusBox.getChildren().remove(pokemonDisplay);
@@ -550,6 +732,17 @@ public class WidgetWindow {
                         realXP,
                         realStreak
                     );
+                    
+                    // Update statistics tab with commit data
+                    if (statisticsTab != null) {
+                        List<Commit> commits = commitHistory.getRecentCommits();
+                        statisticsTab.updateStatistics(
+                            commits,
+                            pokemonDisplay.getCurrentSpecies(),
+                            pokemonDisplay.getCurrentStage(),
+                            realStreak
+                        );
+                    }
                 }
             }
         }
