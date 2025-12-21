@@ -85,6 +85,13 @@ public class TamagotchiCommitTrackerApp extends Application {
         System.out.println("   Daily commit counts: " + initialHistory.getDailyCommitCounts().size() + " days");
         System.out.println("   Last commit time: " + initialHistory.getLastCommitTime());
         
+        // Log Windows integration status
+        if (widgetWindow.isWindowsIntegrationEnabled()) {
+            System.out.println("🪟 Windows system integration enabled successfully");
+        } else {
+            System.out.println("⚠️ Windows system integration not available or failed");
+        }
+        
         System.out.println("🚀 Tamagotchi Commit Tracker started!");
         System.out.println("📊 Monitoring Git repositories every 10 seconds for real-time updates!");
     }

@@ -453,4 +453,94 @@ public class HistoryTab extends VBox {
     public int getCurrentLevel() {
         return currentLevel;
     }
+    
+    /**
+     * Refreshes the UI theme for all components when Windows theme changes.
+     * Updates colors, backgrounds, and text styling to match the current Windows theme.
+     */
+    public void refreshTheme() {
+        try {
+            // Update main container style
+            this.setStyle(UITheme.getTransparentStyle());
+            
+            // Update status section styling
+            VBox statusSection = (VBox) this.getChildren().get(0);
+            if (statusSection != null) {
+                statusSection.setStyle(UITheme.getStatusSectionStyle());
+            }
+            
+            // Update all labels with current theme colors
+            if (statusLabel != null) {
+                statusLabel.setTextFill(Color.web(UITheme.PRIMARY_TEXT_COLOR));
+            }
+            if (levelLabel != null) {
+                levelLabel.setTextFill(Color.web(UITheme.SECONDARY_TEXT_COLOR));
+            }
+            if (xpProgressLabel != null) {
+                xpProgressLabel.setTextFill(Color.web(UITheme.SECONDARY_TEXT_COLOR));
+            }
+            if (streakLabel != null) {
+                streakLabel.setTextFill(Color.web(UITheme.SECONDARY_TEXT_COLOR));
+            }
+            
+            // Update commit entries
+            if (commitListContainer != null) {
+                for (var node : commitListContainer.getChildren()) {
+                    if (node instanceof HBox) {
+                        HBox commitEntry = (HBox) node;
+                        commitEntry.setStyle(UITheme.getCommitEntryStyle());
+                        
+                        // Update text colors in commit entry
+                        updateCommitEntryColors(commitEntry);
+                    }
+                }
+            }
+            
+            System.out.println("🎨 HistoryTab theme refreshed");
+            
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to refresh HistoryTab theme: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Updates text colors in a commit entry to match current theme.
+     * 
+     * @param commitEntry The commit entry HBox to update
+     */
+    private void updateCommitEntryColors(HBox commitEntry) {
+        try {
+            // Find the info VBox (first child)
+            if (commitEntry.getChildren().size() > 0 && commitEntry.getChildren().get(0) instanceof VBox) {
+                VBox infoBox = (VBox) commitEntry.getChildren().get(0);
+                
+                // Update message label (first child)
+                if (infoBox.getChildren().size() > 0 && infoBox.getChildren().get(0) instanceof Label) {
+                    Label messageLabel = (Label) infoBox.getChildren().get(0);
+                    messageLabel.setTextFill(Color.web(UITheme.PRIMARY_TEXT_COLOR));
+                }
+                
+                // Update details label (second child)
+                if (infoBox.getChildren().size() > 1 && infoBox.getChildren().get(1) instanceof Label) {
+                    Label detailsLabel = (Label) infoBox.getChildren().get(1);
+                    detailsLabel.setTextFill(Color.web(UITheme.SECONDARY_TEXT_COLOR));
+                }
+                
+                // Update author label (third child)
+                if (infoBox.getChildren().size() > 2 && infoBox.getChildren().get(2) instanceof Label) {
+                    Label authorLabel = (Label) infoBox.getChildren().get(2);
+                    authorLabel.setTextFill(Color.web(UITheme.TERTIARY_TEXT_COLOR));
+                }
+            }
+            
+            // Update XP label (second child of commit entry)
+            if (commitEntry.getChildren().size() > 1 && commitEntry.getChildren().get(1) instanceof Label) {
+                Label xpLabel = (Label) commitEntry.getChildren().get(1);
+                xpLabel.setTextFill(Color.web(UITheme.XP_COLOR));
+            }
+            
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to update commit entry colors: " + e.getMessage());
+        }
+    }
 }

@@ -4,11 +4,14 @@ import com.tamagotchi.committracker.domain.Commit;
 import com.tamagotchi.committracker.domain.CommitHistory;
 import com.tamagotchi.committracker.domain.Repository;
 import com.tamagotchi.committracker.config.AppConfig;
+import com.tamagotchi.committracker.util.WindowsIntegration;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.LogCommand;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.transport.CredentialsProvider;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -207,6 +210,7 @@ public class CommitService {
     
     /**
      * Gets commits from a repository since a specific date.
+     * Uses Windows credential storage for authentication when available.
      */
     public List<Commit> getCommitsSince(Repository repository, LocalDateTime since) {
         List<Commit> commits = new ArrayList<>();
@@ -220,6 +224,12 @@ public class CommitService {
                 .build();
             
             try (Git git = new Git(jgitRepo)) {
+                // Set up credentials provider if available
+                CredentialsProvider credentialsProvider = null;
+                if (repository.getRemoteUrl() != null) {
+                    credentialsProvider = createCredentialsProvider(repository.getRemoteUrl());
+                }
+                
                 LogCommand logCommand = git.log().setMaxCount(MAX_COMMITS_PER_REPO);
                 
                 Iterable<RevCommit> revCommits = logCommand.call();
@@ -251,6 +261,16 @@ public class CommitService {
             
         } catch (Exception e) {
             logger.log(Level.WARNING, "Failed to get commits from repository: " + repository.getName(), e);
+            
+            // Try to handle authentication failure
+            if (e.getMessage() != null && e.getMessage().toLowerCase().contains("auth")) {
+                if (handleAuthenticationFailure(repository)) {
+                    logger.info("Authentication credentials found, repository may be accessible on retry");
+                } else {
+                    logger.warning("No authentication credentials available for repository: " + repository.getName());
+                }
+            }
+            
             throw new RuntimeException("Failed to read commits from repository", e);
         }
         
@@ -329,6 +349,97 @@ public class CommitService {
      */
     public RepositoryScanner getRepositoryScanner() {
         return repositoryScanner;
+    }
+    
+    /**
+     * Creates a credentials provider for Git operations using Windows credential storage.
+     * Attempts to retrieve stored credentials for the repository URL.
+     * 
+     * @param repositoryUrl The Git repository URL
+     * @return CredentialsProvider if credentials are found, null otherwise
+     */
+    private CredentialsProvider createCredentialsProvider(String repositoryUrl) {
+        if (!WindowsIntegration.isWindows()) {
+            return null;
+        }
+        
+        try {
+            String[] credentials = WindowsIntegration.retrieveGitCredentials(repositoryUrl);
+            if (credentials != null && credentials.length >= 2) {
+                String username = credentials[0];
+                String token = credentials.length > 1 ? credentials[1] : "";
+                
+                if (username != null && !username.isEmpty()) {
+                    logger.fine("Using stored credentials for repository: " + repositoryUrl);
+                    return new UsernamePasswordCredentialsProvider(username, token);
+                }
+            }
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to retrieve credentials for: " + repositoryUrl, e);
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Stores Git credentials securely using Windows credential storage.
+     * This method can be called when authentication is required for a repository.
+     * 
+     * @param repositoryUrl The Git repository URL
+     * @param username The username for authentication
+     * @param token The access token or password
+     * @return true if credentials were stored successfully
+     */
+    public boolean storeGitCredentials(String repositoryUrl, String username, String token) {
+        if (!WindowsIntegration.isWindows()) {
+            logger.warning("Windows credential storage not available on this platform");
+            return false;
+        }
+        
+        try {
+            boolean success = WindowsIntegration.storeGitCredentials(repositoryUrl, username, token);
+            if (success) {
+                logger.info("Git credentials stored successfully for: " + repositoryUrl);
+            } else {
+                logger.warning("Failed to store Git credentials for: " + repositoryUrl);
+            }
+            return success;
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Error storing Git credentials for: " + repositoryUrl, e);
+            return false;
+        }
+    }
+    
+    /**
+     * Handles authentication failures by attempting to use Windows credential storage.
+     * This method is called when Git operations fail due to authentication issues.
+     * 
+     * @param repository The repository that failed authentication
+     * @return true if credentials were found and can be retried
+     */
+    private boolean handleAuthenticationFailure(Repository repository) {
+        if (!WindowsIntegration.isWindows()) {
+            return false;
+        }
+        
+        try {
+            String repositoryUrl = repository.getRemoteUrl();
+            if (repositoryUrl == null || repositoryUrl.isEmpty()) {
+                return false;
+            }
+            
+            String[] credentials = WindowsIntegration.retrieveGitCredentials(repositoryUrl);
+            if (credentials != null && credentials.length >= 1) {
+                logger.info("Found stored credentials for repository: " + repository.getName());
+                return true;
+            } else {
+                logger.warning("No stored credentials found for repository: " + repository.getName());
+                return false;
+            }
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Failed to handle authentication for: " + repository.getName(), e);
+            return false;
+        }
     }
     
     /**

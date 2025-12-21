@@ -15,6 +15,7 @@ import com.tamagotchi.committracker.config.AppConfig;
 import com.tamagotchi.committracker.domain.Commit;
 import com.tamagotchi.committracker.domain.CommitHistory;
 import com.tamagotchi.committracker.util.FileUtils;
+import com.tamagotchi.committracker.util.WindowsIntegration;
 import com.tamagotchi.committracker.ui.components.HistoryTab;
 import com.tamagotchi.committracker.ui.components.PokemonDisplayComponent;
 import com.tamagotchi.committracker.ui.components.PokemonSelectionScreen;
@@ -34,6 +35,7 @@ import java.util.function.Consumer;
 /**
  * Main UI container with transparent background and drag functionality.
  * Handles switching between compact and expanded modes.
+ * Enhanced with Windows system integration for native behavior.
  */
 public class WidgetWindow {
     private Stage stage;
@@ -71,6 +73,9 @@ public class WidgetWindow {
     // Pokemon selection
     private PokemonSelectionData selectionData;
     private Consumer<PokemonSpecies> onPokemonSelected;
+    
+    // Windows integration
+    private boolean windowsIntegrationEnabled = false;
     
     public WidgetWindow(Stage primaryStage) {
         this.stage = primaryStage;
@@ -115,13 +120,16 @@ public class WidgetWindow {
     }
     
     /**
-     * Set up transparent stage and initial pet display
+     * Set up transparent stage and initial pet display with Windows integration
      */
     public void initialize() {
         // Configure stage properties
         stage.initStyle(StageStyle.TRANSPARENT);
         stage.setAlwaysOnTop(true);
         stage.setResizable(false);
+        
+        // Enable Windows system integration
+        enableWindowsIntegration();
         
         // Create root container
         root = new StackPane();
@@ -168,9 +176,10 @@ public class WidgetWindow {
         stage.xProperty().addListener((obs, oldVal, newVal) -> savePosition());
         stage.yProperty().addListener((obs, oldVal, newVal) -> savePosition());
         
-        // Handle window closing to save position
+        // Handle window closing to save position and state
         stage.setOnCloseRequest(e -> {
             savePosition();
+            saveWindowState();
             Platform.exit();
         });
         
@@ -389,6 +398,9 @@ public class WidgetWindow {
                     y < screenBounds.getHeight() - 50) {
                     stage.setX(x);
                     stage.setY(y);
+                    
+                    // Also restore other window state
+                    restoreWindowState();
                     return;
                 }
             }
@@ -753,6 +765,216 @@ public class WidgetWindow {
      */
     public PokemonSelectionData getSelectionData() {
         return selectionData;
+    }
+    
+    /**
+     * Enables Windows system integration features.
+     * Configures theme adaptation, z-order behavior, taskbar integration, and credential storage.
+     */
+    private void enableWindowsIntegration() {
+        if (!WindowsIntegration.isWindows()) {
+            System.out.println("🖥️ Not running on Windows - skipping Windows integration");
+            return;
+        }
+        
+        try {
+            // Detect and apply current Windows theme
+            WindowsIntegration.WindowsTheme currentTheme = WindowsIntegration.detectWindowsTheme();
+            UITheme.updateWindowsTheme(currentTheme);
+            System.out.println("🎨 Applied Windows " + currentTheme + " theme");
+            
+            // Configure Windows-specific behavior after stage is shown
+            Platform.runLater(() -> {
+                // Apply Windows theme to stage
+                WindowsIntegration.applyWindowsTheme(stage, currentTheme);
+                
+                // Configure proper z-order and focus behavior
+                WindowsIntegration.configureWindowsBehavior(stage);
+                
+                // Configure taskbar minimization behavior
+                WindowsIntegration.configureTaskbarBehavior(stage);
+                
+                System.out.println("🪟 Windows system integration enabled");
+            });
+            
+            // Start monitoring theme changes
+            WindowsIntegration.monitorThemeChanges(() -> {
+                WindowsIntegration.WindowsTheme newTheme = WindowsIntegration.getCurrentTheme();
+                UITheme.updateWindowsTheme(newTheme);
+                WindowsIntegration.applyWindowsTheme(stage, newTheme);
+                
+                // Refresh UI components with new theme
+                refreshUITheme();
+                
+                System.out.println("🎨 Windows theme changed to " + newTheme + " - UI updated");
+            });
+            
+            windowsIntegrationEnabled = true;
+            
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to enable Windows integration: " + e.getMessage());
+            windowsIntegrationEnabled = false;
+        }
+    }
+    
+    /**
+     * Refreshes the UI theme for all components when Windows theme changes.
+     */
+    private void refreshUITheme() {
+        Platform.runLater(() -> {
+            try {
+                // Update root container style
+                if (root != null) {
+                    root.setStyle(UITheme.getTransparentStyle());
+                }
+                
+                // Update expanded layout style
+                if (expandedLayout != null) {
+                    expandedLayout.setStyle(UITheme.getExpandedLayoutStyle());
+                }
+                
+                // Update Pokemon status box style
+                if (pokemonStatusBox != null) {
+                    pokemonStatusBox.setStyle(UITheme.getStatusSectionStyle());
+                }
+                
+                // Update history tab theme
+                if (historyTab != null) {
+                    historyTab.refreshTheme();
+                }
+                
+                System.out.println("🔄 UI theme refreshed for all components");
+                
+            } catch (Exception e) {
+                System.err.println("⚠️ Failed to refresh UI theme: " + e.getMessage());
+            }
+        });
+    }
+    
+    /**
+     * Saves the current window state for restoration on next startup.
+     * Includes position, mode, and Pokemon selection data.
+     */
+    private void saveWindowState() {
+        try {
+            Properties props = new Properties();
+            
+            // Save window position
+            props.setProperty(X_KEY, String.valueOf(stage.getX()));
+            props.setProperty(Y_KEY, String.valueOf(stage.getY()));
+            
+            // Save window mode
+            props.setProperty("widget.mode", isCompactMode ? "compact" : "expanded");
+            
+            // Save Pokemon selection if available
+            if (pokemonDisplay != null) {
+                props.setProperty("pokemon.species", pokemonDisplay.getCurrentSpecies().name());
+                props.setProperty("pokemon.stage", pokemonDisplay.getCurrentStage().name());
+                props.setProperty("pokemon.state", pokemonDisplay.getCurrentState().name());
+            }
+            
+            // Save XP and streak data
+            if (xpSystem != null) {
+                props.setProperty("xp.current", String.valueOf(xpSystem.getCurrentXP()));
+            }
+            
+            if (commitHistory != null) {
+                props.setProperty("streak.current", String.valueOf(commitHistory.getCurrentStreak()));
+            }
+            
+            FileUtils.saveProperties(props, POSITION_FILE);
+            System.out.println("💾 Window state saved successfully");
+            
+        } catch (IOException e) {
+            System.err.println("⚠️ Failed to save window state: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Restores the window state from saved properties.
+     * Called during initialization to restore previous session.
+     */
+    private void restoreWindowState() {
+        try {
+            Properties props = FileUtils.loadProperties(POSITION_FILE);
+            
+            // Restore window mode if saved
+            String savedMode = props.getProperty("widget.mode");
+            if ("expanded".equals(savedMode) && isCompactMode) {
+                Platform.runLater(() -> switchToExpandedMode());
+            }
+            
+            System.out.println("🔄 Window state restored successfully");
+            
+        } catch (IOException e) {
+            // No saved state found - use defaults
+            System.out.println("📝 No saved window state found - using defaults");
+        }
+    }
+    
+    /**
+     * Integrates with Windows credential storage for Git authentication.
+     * Stores and retrieves Git credentials securely using Windows Credential Manager.
+     * 
+     * @param repositoryUrl The Git repository URL
+     * @param username The username for authentication
+     * @param token The access token or password
+     * @return true if credentials were stored successfully
+     */
+    public boolean storeGitCredentials(String repositoryUrl, String username, String token) {
+        if (!windowsIntegrationEnabled) {
+            return false;
+        }
+        
+        boolean success = WindowsIntegration.storeGitCredentials(repositoryUrl, username, token);
+        if (success) {
+            System.out.println("🔐 Git credentials stored securely for: " + repositoryUrl);
+        } else {
+            System.err.println("⚠️ Failed to store Git credentials for: " + repositoryUrl);
+            // Try fallback storage
+            WindowsIntegration.storeCredentialFallback(repositoryUrl + "_user", username);
+            WindowsIntegration.storeCredentialFallback(repositoryUrl + "_token", token);
+        }
+        
+        return success;
+    }
+    
+    /**
+     * Retrieves Git credentials from Windows credential storage.
+     * 
+     * @param repositoryUrl The Git repository URL
+     * @return Array containing [username, token], or null if not found
+     */
+    public String[] retrieveGitCredentials(String repositoryUrl) {
+        if (!windowsIntegrationEnabled) {
+            return null;
+        }
+        
+        String[] credentials = WindowsIntegration.retrieveGitCredentials(repositoryUrl);
+        if (credentials == null) {
+            // Try fallback storage
+            String username = WindowsIntegration.retrieveCredentialFallback(repositoryUrl + "_user");
+            String token = WindowsIntegration.retrieveCredentialFallback(repositoryUrl + "_token");
+            
+            if (username != null && token != null) {
+                credentials = new String[]{username, token};
+            }
+        }
+        
+        if (credentials != null) {
+            System.out.println("🔐 Retrieved Git credentials for: " + repositoryUrl);
+        }
+        
+        return credentials;
+    }
+    
+    /**
+     * Checks if Windows integration is enabled and working.
+     * 
+     * @return true if Windows integration is active
+     */
+    public boolean isWindowsIntegrationEnabled() {
+        return windowsIntegrationEnabled;
     }
     
     /**

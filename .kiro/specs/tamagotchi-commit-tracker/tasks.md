@@ -169,11 +169,11 @@ This implementation plan converts the Pokemon Commit Tracker design into a serie
   - Include XP breakdown and evolution progress tracking
   - _Requirements: 5.5_
 
-- [ ] 12. Create remaining Pokemon egg sprite folders
+<!-- - [ ] 12. Create remaining Pokemon egg sprite folders
   - Create egg folders for remaining 7 Pokemon lines (mudkip, piplup, snivy, froakie, rowlet, grookey, fuecoco)
   - Each Pokemon needs egg/stage{1-4} folders with 4 frames each
   - Document sprite requirements for each Pokemon's unique egg design
-  - _Requirements: Individual Pokemon egg sprites_
+  - _Requirements: Individual Pokemon egg sprites_ -->
 
 - [ ] 13. Implement error handling and resilience
   - Add graceful handling of Git authentication failures
@@ -187,7 +187,14 @@ This implementation plan converts the Pokemon Commit Tracker design into a serie
   - **Property 6: Error Resilience**
   - **Validates: Requirements 2.5, 7.3**
 
-- [ ] 12. Enhance Windows system integration
+- [-] 12. Enhance Windows system integration
+
+
+
+
+
+
+
   - Implement Windows theme adaptation for UI styling
   - Add proper z-order and focus behavior for window management
   - Integrate with Windows credential storage for Git authentication
