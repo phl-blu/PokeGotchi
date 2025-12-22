@@ -56,8 +56,9 @@ public class StatisticsTab extends VBox {
     public StatisticsTab() {
         this.statisticsService = new StatisticsService();
         initializeComponent();
-        // Initialize with sample data on startup so charts appear immediately
-        initializeWithSampleData();
+        // Don't initialize with sample data - wait for real user data
+        // Charts will be populated when updateStatistics() is called with real commits
+        System.out.println("📊 StatisticsTab initialized - waiting for real commit data");
     }
     
     /**
@@ -176,21 +177,6 @@ public class StatisticsTab extends VBox {
     }
     
     /**
-     * Initializes the statistics tab with sample data so charts appear on startup.
-     */
-    private void initializeWithSampleData() {
-        // Create sample data for initial display
-        List<Commit> sampleCommits = createSampleCommits();
-        
-        // Update all displays with sample data
-        updateCharts(sampleCommits);
-        updateMetrics(sampleCommits, 0);
-        updateEvolutionHistory(PokemonSpecies.CHARMANDER, EvolutionStage.EGG);
-        
-        System.out.println("📊 StatisticsTab initialized with sample data - charts ready to display");
-    }
-    
-    /**
      * Updates all statistics displays with new commit data.
      * 
      * @param commits List of commits to analyze
@@ -205,14 +191,14 @@ public class StatisticsTab extends VBox {
     }
     
     /**
-     * Updates the commit frequency charts.
+     * Updates the commit frequency charts with real user data.
      * 
      * @param commits List of commits to analyze
      */
     private void updateCharts(List<Commit> commits) {
-        // If no commits, create sample data for demonstration
-        if (commits == null || commits.isEmpty()) {
-            commits = createSampleCommits();
+        // Use real data only - no sample data fallback
+        if (commits == null) {
+            commits = new ArrayList<>();
         }
         
         // Update daily chart
@@ -255,52 +241,7 @@ public class StatisticsTab extends VBox {
     }
     
     /**
-     * Creates sample commits for demonstration when no real commits exist.
-     * 
-     * @return List of sample commits
-     */
-    private List<Commit> createSampleCommits() {
-        List<Commit> sampleCommits = new ArrayList<>();
-        java.time.LocalDateTime now = java.time.LocalDateTime.now();
-        
-        // Create sample commits over the last 14 days
-        for (int i = 0; i < 14; i++) {
-            java.time.LocalDateTime commitTime = now.minusDays(i);
-            
-            // Create 1-4 commits per day with varying patterns
-            int commitsPerDay = 1 + (i % 4);
-            for (int j = 0; j < commitsPerDay; j++) {
-                Commit commit = new Commit();
-                commit.setMessage("Sample commit " + i + "-" + j + ": " + getSampleCommitMessage(i, j));
-                commit.setAuthor("Developer " + (j % 3 == 0 ? "Alice" : j % 3 == 1 ? "Bob" : "Charlie"));
-                commit.setRepositoryName("sample-project-" + (i % 3 == 0 ? "frontend" : i % 3 == 1 ? "backend" : "mobile"));
-                commit.setTimestamp(commitTime.minusHours(j * 2));
-                sampleCommits.add(commit);
-            }
-        }
-        
-        return sampleCommits;
-    }
-    
-    /**
-     * Gets a sample commit message for demonstration.
-     * 
-     * @param day Day index
-     * @param commitIndex Commit index for the day
-     * @return Sample commit message
-     */
-    private String getSampleCommitMessage(int day, int commitIndex) {
-        String[] messages = {
-            "Add new feature", "Fix bug in authentication", "Update documentation",
-            "Refactor code structure", "Improve performance", "Add unit tests",
-            "Update dependencies", "Fix styling issues", "Add error handling",
-            "Optimize database queries", "Add logging", "Update README"
-        };
-        return messages[(day * 3 + commitIndex) % messages.length];
-    }
-    
-    /**
-     * Updates the productivity metrics display.
+     * Updates the productivity metrics display with real user data.
      * 
      * @param commits List of commits to analyze
      * @param currentStreak Current commit streak
