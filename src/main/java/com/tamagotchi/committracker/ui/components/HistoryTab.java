@@ -133,6 +133,7 @@ public class HistoryTab extends VBox {
     
     /**
      * Updates the Pokemon status display.
+     * Shows the actual evolution stage name (Egg, Basic, Stage 1, Stage 2).
      * 
      * @param species The current Pokemon species
      * @param stage The current evolution stage
@@ -154,14 +155,31 @@ public class HistoryTab extends VBox {
         String stageName = stage != null ? formatStageName(stage) : "Unknown";
         statusLabel.setText(speciesName + " (" + stageName + ")");
         
-        // Show evolution stage instead of numeric level
+        // Show evolution stage name (not numeric level)
         levelLabel.setText("Stage: " + stageName);
         
-        int[] thresholds = XPSystem.getEvolutionXPThresholds();
-        int nextThreshold = currentLevel < thresholds.length - 1 ? thresholds[currentLevel + 1] : thresholds[thresholds.length - 1];
+        // Show XP progress - use stage-based thresholds
+        int nextThreshold = getNextEvolutionThreshold(stage);
         xpProgressLabel.setText("XP: " + xp + " / " + nextThreshold);
         
         streakLabel.setText("Streak: " + streak + " days");
+    }
+    
+    /**
+     * Gets the XP threshold for the next evolution based on current stage.
+     * 
+     * @param stage Current evolution stage
+     * @return XP threshold for next evolution
+     */
+    private int getNextEvolutionThreshold(EvolutionStage stage) {
+        if (stage == null) return 200;
+        switch (stage) {
+            case EGG: return 60; // Egg hatches at 60 XP or 4+ day streak
+            case BASIC: return 200; // Basic evolves at 200 XP or 11+ day streak
+            case STAGE_1: return 800; // Stage 1 evolves at 800 XP or 22+ day streak
+            case STAGE_2: return 2000; // Final stage
+            default: return 200;
+        }
     }
     
     /**

@@ -28,6 +28,15 @@ public class PokemonDisplayComponent extends StackPane {
         void onReset();
     }
     
+    /**
+     * Listener interface for evolution completion events.
+     * Called when a Pokemon evolution animation completes and the stage changes.
+     */
+    @FunctionalInterface
+    public interface EvolutionListener {
+        void onEvolutionComplete(PokemonSpecies newSpecies, EvolutionStage newStage);
+    }
+    
     private ImageView pokemonImageView;
     private Timeline currentAnimation;
     
@@ -43,6 +52,9 @@ public class PokemonDisplayComponent extends StackPane {
     // Reset listener for notifying when Pokemon is reset
     // TODO: REMOVE THIS FIELD BEFORE PRODUCTION - See TODO.md
     private ResetListener resetListener;
+    
+    // Evolution listener for notifying when evolution completes
+    private EvolutionListener evolutionListener;
     
     /**
      * Creates a new Pokemon Display Component with default settings.
@@ -538,6 +550,14 @@ public class PokemonDisplayComponent extends StackPane {
         
         // Resume normal animation with new Pokemon
         loadAndStartAnimation();
+        
+        // Notify evolution listener that evolution is complete
+        if (evolutionListener != null) {
+            Platform.runLater(() -> {
+                evolutionListener.onEvolutionComplete(newSpecies, newStage);
+                System.out.println("🔔 Evolution listener notified: " + newSpecies + " -> " + newStage);
+            });
+        }
     }
     
     /**
@@ -664,6 +684,16 @@ public class PokemonDisplayComponent extends StackPane {
      */
     public void setResetListener(ResetListener listener) {
         this.resetListener = listener;
+    }
+    
+    /**
+     * Sets a listener to be notified when Pokemon evolution completes.
+     * This is called after the evolution animation finishes and the stage changes.
+     * 
+     * @param listener The listener to notify on evolution completion
+     */
+    public void setEvolutionListener(EvolutionListener listener) {
+        this.evolutionListener = listener;
     }
     
     /**

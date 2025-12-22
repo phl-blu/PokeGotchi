@@ -142,6 +142,15 @@ public class TamagotchiCommitTrackerApp extends Application {
                     xpSystem.resetForTesting();
                 }
             });
+            
+            // Set up evolution listener to update UI when evolution completes
+            widgetWindow.getPokemonDisplay().setEvolutionListener((newSpecies, newStage) -> {
+                System.out.println("🌟 Evolution complete! Updating UI with new stage: " + newStage);
+                // Update the UI with the new Pokemon stage
+                javafx.application.Platform.runLater(() -> {
+                    widgetWindow.updatePokemonStatusDisplay();
+                });
+            });
         }
     }
     
@@ -222,7 +231,7 @@ public class TamagotchiCommitTrackerApp extends Application {
                     if (isInitialScan) {
                         System.out.println("🥚 Evolution requirements not met. Current: " + currentXP + " XP, " + currentStreak + " day streak");
                         if (currentStage == com.tamagotchi.committracker.pokemon.EvolutionStage.EGG) {
-                            System.out.println("🥚 Need: 4+ day streak OR 50+ XP for hatching");
+                            System.out.println("🥚 Need: 4+ day streak OR 60+ XP for hatching");
                         } else if (currentStage == com.tamagotchi.committracker.pokemon.EvolutionStage.BASIC) {
                             System.out.println("🐣 Need: 11+ day streak for Stage1 evolution");
                         } else if (currentStage == com.tamagotchi.committracker.pokemon.EvolutionStage.STAGE_1) {
@@ -233,13 +242,18 @@ public class TamagotchiCommitTrackerApp extends Application {
                     }
                 }
                 
-                // Update the Pokemon status display in expanded mode (if open)
-                widgetWindow.updatePokemonStatusDisplay();
-                
-                // IMPORTANT: Update the widget's commit history with the latest data
+                // IMPORTANT: Update the widget's commit history with the latest data FIRST
                 // This ensures real-time updates of streak and commit list
-                // NOTE: setCommitHistory() already includes all commits, so no need for addCommits()
                 widgetWindow.setCommitHistory(commitService.getCommitHistory());
+                
+                // CRITICAL: Update the Pokemon status display AFTER evolution check completes
+                // This ensures the UI shows the correct evolved stage, not the old stage
+                // Use Platform.runLater to ensure this happens after any evolution animations
+                javafx.application.Platform.runLater(() -> {
+                    widgetWindow.updatePokemonStatusDisplay();
+                    System.out.println("🔄 UI updated with current Pokemon stage: " + 
+                        widgetWindow.getPokemonDisplay().getCurrentStage());
+                });
             }
         });
     }

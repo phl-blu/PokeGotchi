@@ -416,27 +416,20 @@ public class WidgetWindow {
         root.getChildren().clear();
         root.getChildren().add(expandedLayout);
         
-        // Update Pokemon status in history tab with real data
-        if (pokemonDisplay != null && historyTab != null) {
-            int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
-            int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
-            
-            historyTab.updatePokemonStatus(
-                pokemonDisplay.getCurrentSpecies(),
-                pokemonDisplay.getCurrentStage(),
-                realXP,
-                realStreak
-            );
+        // Get CURRENT Pokemon state directly from the display component
+        PokemonSpecies currentSpecies = pokemonDisplay != null ? pokemonDisplay.getCurrentSpecies() : PokemonSpecies.CHARMANDER;
+        EvolutionStage currentStage = pokemonDisplay != null ? pokemonDisplay.getCurrentStage() : EvolutionStage.EGG;
+        int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+        int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+        
+        // Update Pokemon status in history tab with CURRENT real data
+        if (historyTab != null) {
+            historyTab.updatePokemonStatus(currentSpecies, currentStage, realXP, realStreak);
             
             // Update statistics tab with commit data
             if (statisticsTab != null) {
                 List<Commit> commits = commitHistory != null ? commitHistory.getRecentCommits() : List.of();
-                statisticsTab.updateStatistics(
-                    commits,
-                    pokemonDisplay.getCurrentSpecies(),
-                    pokemonDisplay.getCurrentStage(),
-                    realStreak
-                );
+                statisticsTab.updateStatistics(commits, currentSpecies, currentStage, realStreak);
                 
                 System.out.println("📊 Statistics tab updated on mode switch with " + commits.size() + " commits");
             }
@@ -448,9 +441,7 @@ public class WidgetWindow {
         }
         
         isCompactMode = false;
-        System.out.println("📖 Switched to expanded mode - XP: " + 
-            (xpSystem != null ? xpSystem.getCurrentXP() : 0) + 
-            ", Streak: " + (commitHistory != null ? commitHistory.getCurrentStreak() : 0) + " days");
+        System.out.println("📖 Switched to expanded mode - Stage: " + currentStage + ", XP: " + realXP + ", Streak: " + realStreak + " days");
     }
     
     /**
@@ -667,47 +658,34 @@ public class WidgetWindow {
      * Updates all tabs (history and statistics) with the latest commit data.
      * This ensures real-time updates across the entire UI REGARDLESS of mode.
      * Updates happen even in compact mode so data is ready when user expands.
+     * Runs on JavaFX Application Thread to ensure UI updates work properly.
      */
     private void updateAllTabsWithLatestData() {
-        // ALWAYS update tabs regardless of mode - data should be ready when user expands
-        // Update history tab
-        if (historyTab != null && commitHistory != null) {
-            historyTab.updateCommitHistory(commitHistory);
-            
-            if (pokemonDisplay != null) {
-                int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
-                int realStreak = commitHistory.getCurrentStreak();
-                
-                historyTab.updatePokemonStatus(
-                    pokemonDisplay.getCurrentSpecies(),
-                    pokemonDisplay.getCurrentStage(),
-                    realXP,
-                    realStreak
-                );
-            }
+        // Ensure we run on JavaFX Application Thread for UI updates
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(this::updateAllTabsWithLatestData);
+            return;
         }
         
-        // Update statistics tab with latest commit data
+        // ALWAYS update tabs regardless of mode - data should be ready when user expands
+        // Get CURRENT Pokemon state directly from the display component
+        PokemonSpecies currentSpecies = pokemonDisplay != null ? pokemonDisplay.getCurrentSpecies() : PokemonSpecies.CHARMANDER;
+        EvolutionStage currentStage = pokemonDisplay != null ? pokemonDisplay.getCurrentStage() : EvolutionStage.EGG;
+        int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+        int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+        
+        System.out.println("🔄 Updating all tabs - Species: " + currentSpecies + ", Stage: " + currentStage + ", XP: " + realXP + ", Streak: " + realStreak);
+        
+        // Update history tab with CURRENT Pokemon state
+        if (historyTab != null && commitHistory != null) {
+            historyTab.updateCommitHistory(commitHistory);
+            historyTab.updatePokemonStatus(currentSpecies, currentStage, realXP, realStreak);
+        }
+        
+        // Update statistics tab with latest commit data (including evolution history)
         if (statisticsTab != null && commitHistory != null) {
             List<Commit> commits = commitHistory.getRecentCommits();
-            int realStreak = commitHistory.getCurrentStreak();
-            
-            if (pokemonDisplay != null) {
-                statisticsTab.updateStatistics(
-                    commits,
-                    pokemonDisplay.getCurrentSpecies(),
-                    pokemonDisplay.getCurrentStage(),
-                    realStreak
-                );
-            } else {
-                // Update with default values if no Pokemon display yet
-                statisticsTab.updateStatistics(
-                    commits,
-                    PokemonSpecies.CHARMANDER,
-                    EvolutionStage.EGG,
-                    realStreak
-                );
-            }
+            statisticsTab.updateStatistics(commits, currentSpecies, currentStage, realStreak);
             
             System.out.println("📊 Statistics tab updated with " + commits.size() + " commits (mode: " + (isCompactMode ? "compact" : "expanded") + ")");
         }
