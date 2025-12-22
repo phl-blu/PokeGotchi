@@ -394,6 +394,7 @@ public class StatisticsTab extends VBox {
     
     /**
      * Formats an evolution stage name for display.
+     * Returns "Starter", "Middle", or "Final" based on the stage.
      * 
      * @param stage The stage to format
      * @return Formatted stage name
@@ -402,9 +403,9 @@ public class StatisticsTab extends VBox {
         if (stage == null) return "Unknown";
         switch (stage) {
             case EGG: return "Egg";
-            case BASIC: return "Basic";
-            case STAGE_1: return "Stage 1";
-            case STAGE_2: return "Stage 2";
+            case BASIC: return "Starter";
+            case STAGE_1: return "Middle";
+            case STAGE_2: return "Final";
             default: return "Unknown";
         }
     }

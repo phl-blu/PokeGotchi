@@ -133,9 +133,11 @@ public class HistoryTab extends VBox {
     
     /**
      * Updates the Pokemon status display.
-     * Shows the actual evolution stage name (Egg, Basic, Stage 1, Stage 2).
+     * Shows the actual Pokemon name based on current species and evolution stage.
+     * For egg: "Charmander Egg"
+     * For evolved: "Charmander" / "Charmeleon" / "Charizard"
      * 
-     * @param species The current Pokemon species
+     * @param species The current Pokemon species (changes with evolution)
      * @param stage The current evolution stage
      * @param xp Current XP
      * @param streak Current commit streak in days
@@ -150,13 +152,19 @@ public class HistoryTab extends VBox {
         xpSystem.setCurrentXP(xp);
         this.currentLevel = xpSystem.getLevel(); // Keep 0-indexed level for internal use
         
-        // Update labels
+        // Update labels - show actual Pokemon name
         String speciesName = species != null ? formatSpeciesName(species) : "Unknown";
-        String stageName = stage != null ? formatStageName(stage) : "Unknown";
-        statusLabel.setText(speciesName + " (" + stageName + ")");
+        String evolutionLabel = stage != null ? formatEvolutionLabel(stage) : "Unknown";
         
-        // Show evolution stage name (not numeric level)
-        levelLabel.setText("Stage: " + stageName);
+        // For egg stage, show "Starter Egg", otherwise just show the Pokemon name
+        if (stage == EvolutionStage.EGG) {
+            statusLabel.setText(speciesName + " Egg");
+        } else {
+            statusLabel.setText(speciesName);
+        }
+        
+        // Show evolution label (Starter/Middle/Final)
+        levelLabel.setText("Evolution: " + evolutionLabel);
         
         // Show XP progress - use stage-based thresholds
         int nextThreshold = getNextEvolutionThreshold(stage);
@@ -345,6 +353,28 @@ public class HistoryTab extends VBox {
     }
     
     /**
+     * Formats an evolution stage as a label for display.
+     * Returns "Starter", "Middle", or "Final" based on the stage.
+     * 
+     * @param stage The stage to format
+     * @return Formatted evolution label
+     */
+    private String formatEvolutionLabel(EvolutionStage stage) {
+        switch (stage) {
+            case EGG:
+                return "Egg";
+            case BASIC:
+                return "Starter";
+            case STAGE_1:
+                return "Middle";
+            case STAGE_2:
+                return "Final";
+            default:
+                return "Unknown";
+        }
+    }
+    
+    /**
      * Formats an evolution stage name for display.
      * 
      * @param stage The stage to format
@@ -355,11 +385,11 @@ public class HistoryTab extends VBox {
             case EGG:
                 return "Egg";
             case BASIC:
-                return "Basic";
+                return "Starter";
             case STAGE_1:
-                return "Stage 1";
+                return "Middle";
             case STAGE_2:
-                return "Stage 2";
+                return "Final";
             default:
                 return "Unknown";
         }
