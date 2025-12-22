@@ -375,6 +375,8 @@ public class WidgetWindow {
                             pokemonDisplay.getCurrentStage(),
                             realStreak
                         );
+                        
+                        System.out.println("📊 Statistics tab updated on mode switch with " + commits.size() + " commits");
                     }
                 }
                 
@@ -447,6 +449,8 @@ public class WidgetWindow {
                     pokemonDisplay.getCurrentStage(),
                     realStreak
                 );
+                
+                System.out.println("📊 Statistics tab updated on immediate mode switch with " + commits.size() + " commits");
             }
         }
         
@@ -729,9 +733,23 @@ public class WidgetWindow {
             commitHistory.calculateCurrentStreak();
             commitHistory.calculateAverageCommitsPerDay();
             
-            // Update history tab if in expanded mode
-            if (!isCompactMode && historyTab != null) {
+            // REAL-TIME UPDATES: Update both history and statistics tabs immediately
+            updateAllTabsWithLatestData();
+            
+            System.out.println("🔄 Real-time update: Added " + newCommits.size() + " new commits, updated all tabs");
+        }
+    }
+    
+    /**
+     * Updates all tabs (history and statistics) with the latest commit data.
+     * This ensures real-time updates across the entire UI.
+     */
+    private void updateAllTabsWithLatestData() {
+        if (!isCompactMode) {
+            // Update history tab
+            if (historyTab != null) {
                 historyTab.updateCommitHistory(commitHistory);
+                
                 if (pokemonDisplay != null) {
                     int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
                     int realStreak = commitHistory.getCurrentStreak();
@@ -742,18 +760,22 @@ public class WidgetWindow {
                         realXP,
                         realStreak
                     );
-                    
-                    // Update statistics tab with commit data
-                    if (statisticsTab != null) {
-                        List<Commit> commits = commitHistory.getRecentCommits();
-                        statisticsTab.updateStatistics(
-                            commits,
-                            pokemonDisplay.getCurrentSpecies(),
-                            pokemonDisplay.getCurrentStage(),
-                            realStreak
-                        );
-                    }
                 }
+            }
+            
+            // Update statistics tab with latest commit data
+            if (statisticsTab != null && pokemonDisplay != null) {
+                List<Commit> commits = commitHistory.getRecentCommits();
+                int realStreak = commitHistory.getCurrentStreak();
+                
+                statisticsTab.updateStatistics(
+                    commits,
+                    pokemonDisplay.getCurrentSpecies(),
+                    pokemonDisplay.getCurrentStage(),
+                    realStreak
+                );
+                
+                System.out.println("📊 Statistics tab updated with " + commits.size() + " commits");
             }
         }
     }
@@ -767,23 +789,10 @@ public class WidgetWindow {
         if (history != null) {
             this.commitHistory = history;
             
-            // Update history tab if in expanded mode
-            if (!isCompactMode && historyTab != null) {
-                historyTab.updateCommitHistory(commitHistory);
-                
-                // Also update Pokemon status with current data
-                if (pokemonDisplay != null) {
-                    int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
-                    int realStreak = commitHistory.getCurrentStreak();
-                    
-                    historyTab.updatePokemonStatus(
-                        pokemonDisplay.getCurrentSpecies(),
-                        pokemonDisplay.getCurrentStage(),
-                        realXP,
-                        realStreak
-                    );
-                }
-            }
+            // REAL-TIME UPDATES: Update all tabs immediately when commit history is set
+            updateAllTabsWithLatestData();
+            
+            System.out.println("🔄 Commit history updated, all tabs refreshed with latest data");
         }
     }
     
@@ -792,22 +801,10 @@ public class WidgetWindow {
      * Call this method when XP or streak changes to refresh the UI.
      */
     public void updatePokemonStatusDisplay() {
-        if (!isCompactMode && historyTab != null && pokemonDisplay != null) {
-            int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
-            int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
-            
-            historyTab.updatePokemonStatus(
-                pokemonDisplay.getCurrentSpecies(),
-                pokemonDisplay.getCurrentStage(),
-                realXP,
-                realStreak
-            );
-            
-            // Also refresh the commit history display
-            if (commitHistory != null) {
-                historyTab.updateCommitHistory(commitHistory);
-            }
-        }
+        // REAL-TIME UPDATES: Update all tabs, not just history
+        updateAllTabsWithLatestData();
+        
+        System.out.println("🔄 Pokemon status display updated across all tabs");
     }
     
     /**

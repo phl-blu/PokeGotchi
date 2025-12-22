@@ -56,6 +56,8 @@ public class StatisticsTab extends VBox {
     public StatisticsTab() {
         this.statisticsService = new StatisticsService();
         initializeComponent();
+        // Initialize with sample data on startup so charts appear immediately
+        initializeWithSampleData();
     }
     
     /**
@@ -171,6 +173,21 @@ public class StatisticsTab extends VBox {
         
         tab.setContent(scrollPane);
         return tab;
+    }
+    
+    /**
+     * Initializes the statistics tab with sample data so charts appear on startup.
+     */
+    private void initializeWithSampleData() {
+        // Create sample data for initial display
+        List<Commit> sampleCommits = createSampleCommits();
+        
+        // Update all displays with sample data
+        updateCharts(sampleCommits);
+        updateMetrics(sampleCommits, 0);
+        updateEvolutionHistory(PokemonSpecies.CHARMANDER, EvolutionStage.EGG);
+        
+        System.out.println("📊 StatisticsTab initialized with sample data - charts ready to display");
     }
     
     /**
