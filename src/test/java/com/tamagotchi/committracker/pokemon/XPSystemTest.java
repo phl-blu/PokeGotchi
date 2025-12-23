@@ -22,8 +22,8 @@ class XPSystemTest {
     void testXPSystemWithInitialXP() {
         XPSystem xpSystem = new XPSystem(500);
         assertEquals(500, xpSystem.getCurrentXP());
-        assertEquals(1, xpSystem.getLevel()); // 500 XP is level 1 (BASIC stage)
-        assertEquals(EvolutionStage.BASIC, xpSystem.getEvolutionStage());
+        assertEquals(2, xpSystem.getLevel()); // 500 XP is level 2 (STAGE_1) with new thresholds
+        assertEquals(EvolutionStage.STAGE_1, xpSystem.getEvolutionStage());
     }
     
     @Test
@@ -53,35 +53,35 @@ class XPSystemTest {
     void testAddXP() {
         XPSystem xpSystem = new XPSystem();
         
-        xpSystem.addXP(150);
-        assertEquals(150, xpSystem.getCurrentXP());
-        assertEquals(0, xpSystem.getLevel()); // Still at EGG level (need 200 for BASIC)
+        xpSystem.addXP(50);
+        assertEquals(50, xpSystem.getCurrentXP());
+        assertEquals(0, xpSystem.getLevel()); // Still at EGG level (need 60 for BASIC)
         
-        xpSystem.addXP(100);
-        assertEquals(250, xpSystem.getCurrentXP());
-        assertEquals(1, xpSystem.getLevel()); // Should be at BASIC level (250 >= 200, but < 800)
+        xpSystem.addXP(20);
+        assertEquals(70, xpSystem.getCurrentXP());
+        assertEquals(1, xpSystem.getLevel()); // Should be at BASIC level (70 >= 60, but < 500)
     }
     
     @Test
     void testEvolutionThresholds() {
         XPSystem xpSystem = new XPSystem();
         
-        // Test EGG stage
+        // Test EGG stage (0 XP)
         assertEquals(EvolutionStage.EGG, xpSystem.getEvolutionStage());
         assertFalse(xpSystem.canEvolveToStage(EvolutionStage.BASIC));
         
-        // Test BASIC stage
-        xpSystem.setCurrentXP(200);
+        // Test BASIC stage (60 XP threshold)
+        xpSystem.setCurrentXP(60);
         assertEquals(EvolutionStage.BASIC, xpSystem.getEvolutionStage());
         assertTrue(xpSystem.canEvolveToStage(EvolutionStage.BASIC));
         
-        // Test STAGE_1
-        xpSystem.setCurrentXP(800);
+        // Test STAGE_1 (500 XP threshold)
+        xpSystem.setCurrentXP(500);
         assertEquals(EvolutionStage.STAGE_1, xpSystem.getEvolutionStage());
         assertTrue(xpSystem.canEvolveToStage(EvolutionStage.STAGE_1));
         
-        // Test STAGE_2
-        xpSystem.setCurrentXP(2000);
+        // Test STAGE_2 (1200 XP threshold)
+        xpSystem.setCurrentXP(1200);
         assertEquals(EvolutionStage.STAGE_2, xpSystem.getEvolutionStage());
         assertTrue(xpSystem.canEvolveToStage(EvolutionStage.STAGE_2));
     }
@@ -90,15 +90,53 @@ class XPSystemTest {
     void testEvolutionProgress() {
         XPSystem xpSystem = new XPSystem();
         
-        // At 0 XP, should be 0% progress to BASIC (200 XP)
+        // At 0 XP, should be 0% progress to BASIC (60 XP threshold)
         assertEquals(0.0, xpSystem.getEvolutionProgress(), 0.01);
         
-        // At 100 XP, should be 50% progress to BASIC
-        xpSystem.setCurrentXP(100);
+        // At 30 XP, should be 50% progress to BASIC (30/60 = 0.5)
+        xpSystem.setCurrentXP(30);
         assertEquals(0.5, xpSystem.getEvolutionProgress(), 0.01);
         
-        // At max level, should be 100%
-        xpSystem.setCurrentXP(2000);
+        // At max level (1200 XP), should be 100%
+        xpSystem.setCurrentXP(1200);
         assertEquals(1.0, xpSystem.getEvolutionProgress(), 0.01);
+    }
+    
+    @Test
+    void testEvolutionBoundaryConditions() {
+        XPSystem xpSystem = new XPSystem();
+        
+        // Test EGG -> BASIC boundary (59/60)
+        xpSystem.setCurrentXP(59);
+        assertEquals(EvolutionStage.EGG, xpSystem.getEvolutionStage());
+        assertEquals(0, xpSystem.getLevel());
+        assertFalse(xpSystem.canEvolveToStage(EvolutionStage.BASIC));
+        
+        xpSystem.setCurrentXP(60);
+        assertEquals(EvolutionStage.BASIC, xpSystem.getEvolutionStage());
+        assertEquals(1, xpSystem.getLevel());
+        assertTrue(xpSystem.canEvolveToStage(EvolutionStage.BASIC));
+        
+        // Test BASIC -> STAGE_1 boundary (499/500)
+        xpSystem.setCurrentXP(499);
+        assertEquals(EvolutionStage.BASIC, xpSystem.getEvolutionStage());
+        assertEquals(1, xpSystem.getLevel());
+        assertFalse(xpSystem.canEvolveToStage(EvolutionStage.STAGE_1));
+        
+        xpSystem.setCurrentXP(500);
+        assertEquals(EvolutionStage.STAGE_1, xpSystem.getEvolutionStage());
+        assertEquals(2, xpSystem.getLevel());
+        assertTrue(xpSystem.canEvolveToStage(EvolutionStage.STAGE_1));
+        
+        // Test STAGE_1 -> STAGE_2 boundary (1199/1200)
+        xpSystem.setCurrentXP(1199);
+        assertEquals(EvolutionStage.STAGE_1, xpSystem.getEvolutionStage());
+        assertEquals(2, xpSystem.getLevel());
+        assertFalse(xpSystem.canEvolveToStage(EvolutionStage.STAGE_2));
+        
+        xpSystem.setCurrentXP(1200);
+        assertEquals(EvolutionStage.STAGE_2, xpSystem.getEvolutionStage());
+        assertEquals(3, xpSystem.getLevel());
+        assertTrue(xpSystem.canEvolveToStage(EvolutionStage.STAGE_2));
     }
 }

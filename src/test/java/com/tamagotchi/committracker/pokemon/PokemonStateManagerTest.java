@@ -67,26 +67,30 @@ class PokemonStateManagerTest {
     void testCheckEvolutionCriteriaBasicToStage1() {
         PokemonStateManager manager = new PokemonStateManager();
         
-        // Should evolve: 11+ day streak (XP not required after hatching)
-        assertTrue(manager.checkEvolutionCriteria(100, 12, EvolutionStage.BASIC));
-        assertTrue(manager.checkEvolutionCriteria(900, 12, EvolutionStage.BASIC));
+        // Should evolve: 11+ day streak OR 500+ XP (either condition works)
+        assertTrue(manager.checkEvolutionCriteria(100, 12, EvolutionStage.BASIC)); // Low XP, high streak
+        assertTrue(manager.checkEvolutionCriteria(500, 5, EvolutionStage.BASIC)); // Exactly 500 XP, low streak
+        assertTrue(manager.checkEvolutionCriteria(600, 5, EvolutionStage.BASIC)); // High XP, low streak
+        assertTrue(manager.checkEvolutionCriteria(500, 12, EvolutionStage.BASIC)); // Both conditions met
         
-        // Should not evolve: insufficient streak
-        assertFalse(manager.checkEvolutionCriteria(900, 10, EvolutionStage.BASIC));
-        assertFalse(manager.checkEvolutionCriteria(100, 10, EvolutionStage.BASIC));
+        // Should not evolve: insufficient streak AND insufficient XP
+        assertFalse(manager.checkEvolutionCriteria(499, 10, EvolutionStage.BASIC)); // Just under 500 XP and under 11 days
+        assertFalse(manager.checkEvolutionCriteria(100, 10, EvolutionStage.BASIC)); // Low XP and low streak
     }
     
     @Test
     void testCheckEvolutionCriteriaStage1ToStage2() {
         PokemonStateManager manager = new PokemonStateManager();
         
-        // Should evolve: 22+ day streak (XP not required after hatching)
-        assertTrue(manager.checkEvolutionCriteria(500, 25, EvolutionStage.STAGE_1));
-        assertTrue(manager.checkEvolutionCriteria(2100, 25, EvolutionStage.STAGE_1));
+        // Should evolve: 22+ day streak OR 1200+ XP (either condition works)
+        assertTrue(manager.checkEvolutionCriteria(500, 25, EvolutionStage.STAGE_1)); // Low XP, high streak
+        assertTrue(manager.checkEvolutionCriteria(1200, 10, EvolutionStage.STAGE_1)); // Exactly 1200 XP, low streak
+        assertTrue(manager.checkEvolutionCriteria(1500, 10, EvolutionStage.STAGE_1)); // High XP, low streak
+        assertTrue(manager.checkEvolutionCriteria(1200, 25, EvolutionStage.STAGE_1)); // Both conditions met
         
-        // Should not evolve: insufficient streak
-        assertFalse(manager.checkEvolutionCriteria(2100, 20, EvolutionStage.STAGE_1));
-        assertFalse(manager.checkEvolutionCriteria(500, 20, EvolutionStage.STAGE_1));
+        // Should not evolve: insufficient streak AND insufficient XP
+        assertFalse(manager.checkEvolutionCriteria(1199, 21, EvolutionStage.STAGE_1)); // Just under 1200 XP and under 22 days
+        assertFalse(manager.checkEvolutionCriteria(500, 20, EvolutionStage.STAGE_1)); // Low XP and low streak
     }
     
     @Test
@@ -278,5 +282,47 @@ class PokemonStateManagerTest {
         // Test streak-based evolution still works
         assertTrue(manager.checkEvolutionCriteria(0, 4, EvolutionStage.EGG)); // 0 XP, 4+ day streak - should evolve
         assertTrue(manager.checkEvolutionCriteria(30, 4, EvolutionStage.EGG)); // 30 XP, 4+ day streak - should evolve
+    }
+    
+    @Test
+    void testXPOnlyEvolutionPath() {
+        // Test the "grinder" path: evolving purely through XP without any streak
+        PokemonStateManager manager = new PokemonStateManager(PokemonSpecies.CHARMANDER, EvolutionStage.EGG, 0);
+        
+        // EGG -> BASIC: XP-only evolution at 60 XP (0 streak)
+        assertFalse(manager.checkEvolutionCriteria(59, 0, EvolutionStage.EGG));
+        assertTrue(manager.checkEvolutionCriteria(60, 0, EvolutionStage.EGG));
+        
+        // BASIC -> STAGE_1: XP-only evolution at 500 XP (0 streak)
+        assertFalse(manager.checkEvolutionCriteria(499, 0, EvolutionStage.BASIC));
+        assertTrue(manager.checkEvolutionCriteria(500, 0, EvolutionStage.BASIC));
+        
+        // STAGE_1 -> STAGE_2: XP-only evolution at 1200 XP (0 streak)
+        assertFalse(manager.checkEvolutionCriteria(1199, 0, EvolutionStage.STAGE_1));
+        assertTrue(manager.checkEvolutionCriteria(1200, 0, EvolutionStage.STAGE_1));
+        
+        // STAGE_2: Cannot evolve further regardless of XP
+        assertFalse(manager.checkEvolutionCriteria(5000, 0, EvolutionStage.STAGE_2));
+    }
+    
+    @Test
+    void testStreakOnlyEvolutionPath() {
+        // Test the "consistency" path: evolving purely through streak without high XP
+        PokemonStateManager manager = new PokemonStateManager(PokemonSpecies.MUDKIP, EvolutionStage.EGG, 0);
+        
+        // EGG -> BASIC: Streak-only evolution at 4 days (0 XP)
+        assertFalse(manager.checkEvolutionCriteria(0, 3, EvolutionStage.EGG));
+        assertTrue(manager.checkEvolutionCriteria(0, 4, EvolutionStage.EGG));
+        
+        // BASIC -> STAGE_1: Streak-only evolution at 11 days (0 XP)
+        assertFalse(manager.checkEvolutionCriteria(0, 10, EvolutionStage.BASIC));
+        assertTrue(manager.checkEvolutionCriteria(0, 11, EvolutionStage.BASIC));
+        
+        // STAGE_1 -> STAGE_2: Streak-only evolution at 22 days (0 XP)
+        assertFalse(manager.checkEvolutionCriteria(0, 21, EvolutionStage.STAGE_1));
+        assertTrue(manager.checkEvolutionCriteria(0, 22, EvolutionStage.STAGE_1));
+        
+        // STAGE_2: Cannot evolve further regardless of streak
+        assertFalse(manager.checkEvolutionCriteria(0, 100, EvolutionStage.STAGE_2));
     }
 }
