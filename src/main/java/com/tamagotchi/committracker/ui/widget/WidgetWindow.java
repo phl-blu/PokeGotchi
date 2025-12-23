@@ -259,6 +259,10 @@ public class WidgetWindow {
                     System.out.println("🧪 TESTING: 'F' pressed - Forcing repository scan");
                     forceRepositoryScan();
                     break;
+                case P: // Press 'P' to pick a different Pokemon egg for testing
+                    System.out.println("🧪 TESTING: 'P' pressed - Opening Pokemon picker");
+                    showPokemonPickerForTesting();
+                    break;
                 case ESCAPE: // Press 'ESC' to close the application
                     System.out.println("🚪 ESC pressed - closing application");
                     savePosition();
@@ -626,6 +630,16 @@ public class WidgetWindow {
     }
     
     /**
+     * Gets the statistics service for external access.
+     * Returns the service from the statistics tab.
+     * 
+     * @return The StatisticsService instance, or null if not available
+     */
+    public com.tamagotchi.committracker.service.StatisticsService getStatisticsService() {
+        return statisticsTab != null ? statisticsTab.getStatisticsService() : null;
+    }
+    
+    /**
      * Gets the current commit history.
      * 
      * @return The CommitHistory object
@@ -676,15 +690,19 @@ public class WidgetWindow {
         
         System.out.println("🔄 Updating all tabs - Species: " + currentSpecies + ", Stage: " + currentStage + ", XP: " + realXP + ", Streak: " + realStreak);
         
-        // Update history tab with CURRENT Pokemon state
-        if (historyTab != null && commitHistory != null) {
-            historyTab.updateCommitHistory(commitHistory);
+        // Update history tab with CURRENT Pokemon state (always update, even if no commit history)
+        if (historyTab != null) {
             historyTab.updatePokemonStatus(currentSpecies, currentStage, realXP, realStreak);
+            System.out.println("📋 History tab Pokemon status updated: " + currentSpecies + " (" + currentStage + ")");
+            
+            if (commitHistory != null) {
+                historyTab.updateCommitHistory(commitHistory);
+            }
         }
         
         // Update statistics tab with latest commit data (including evolution history)
-        if (statisticsTab != null && commitHistory != null) {
-            List<Commit> commits = commitHistory.getRecentCommits();
+        if (statisticsTab != null) {
+            List<Commit> commits = commitHistory != null ? commitHistory.getRecentCommits() : List.of();
             statisticsTab.updateStatistics(commits, currentSpecies, currentStage, realStreak);
             
             System.out.println("📊 Statistics tab updated with " + commits.size() + " commits (mode: " + (isCompactMode ? "compact" : "expanded") + ")");
@@ -1172,5 +1190,36 @@ public class WidgetWindow {
                     break;
             }
         }
+    }
+    
+    /**
+     * FOR TESTING ONLY: Shows the Pokemon selection screen to pick a different Pokemon egg.
+     * This allows testing different Pokemon evolution lines without restarting the app.
+     * Uses the same selection screen as first-time users see.
+     * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
+     */
+    private void showPokemonPickerForTesting() {
+        System.out.println("🧪 TESTING: Opening Pokemon selection screen");
+        
+        // Use the actual Pokemon selection screen (same as first launch)
+        PokemonSelectionScreen selectionScreen = new PokemonSelectionScreen(stage, selectedSpecies -> {
+            System.out.println("🧪 TESTING: Switching to " + PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
+            
+            // Reset XP and change Pokemon
+            testingAccumulatedXP = 0;
+            if (xpSystem != null) {
+                xpSystem.resetForTesting();
+            }
+            
+            // Change the Pokemon species (this resets to egg stage)
+            changePokemonSpecies(selectedSpecies);
+            
+            // Update the UI
+            updatePokemonStatusDisplay();
+            
+            System.out.println("🥚 TESTING: Now testing " + PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
+        });
+        
+        selectionScreen.show();
     }
 }

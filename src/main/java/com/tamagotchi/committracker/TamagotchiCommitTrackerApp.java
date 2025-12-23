@@ -4,6 +4,7 @@ import javafx.application.Application;
 import javafx.stage.Stage;
 import com.tamagotchi.committracker.ui.widget.WidgetWindow;
 import com.tamagotchi.committracker.git.CommitService;
+import com.tamagotchi.committracker.pokemon.EvolutionStage;
 import com.tamagotchi.committracker.pokemon.PokemonSelectionData;
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonStateManager;
@@ -143,14 +144,41 @@ public class TamagotchiCommitTrackerApp extends Application {
                 }
             });
             
-            // Set up evolution listener to update UI when evolution completes
+            // Set up evolution listener to update UI and record evolution when it completes
             widgetWindow.getPokemonDisplay().setEvolutionListener((newSpecies, newStage) -> {
                 System.out.println("🌟 Evolution complete! Updating UI with new stage: " + newStage);
+                
+                // Record the evolution in statistics service
+                var statisticsService = widgetWindow.getStatisticsService();
+                if (statisticsService != null) {
+                    // Determine the previous stage
+                    EvolutionStage fromStage = getPreviousStage(newStage);
+                    int currentXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+                    int currentStreak = commitService != null ? commitService.getCommitHistory().getCurrentStreak() : 0;
+                    
+                    statisticsService.recordEvolution(newSpecies, fromStage, newStage, currentXP, currentStreak);
+                }
+                
                 // Update the UI with the new Pokemon stage
                 javafx.application.Platform.runLater(() -> {
                     widgetWindow.updatePokemonStatusDisplay();
                 });
             });
+        }
+    }
+    
+    /**
+     * Gets the previous evolution stage.
+     * 
+     * @param currentStage The current stage
+     * @return The previous stage
+     */
+    private EvolutionStage getPreviousStage(EvolutionStage currentStage) {
+        switch (currentStage) {
+            case BASIC: return EvolutionStage.EGG;
+            case STAGE_1: return EvolutionStage.BASIC;
+            case STAGE_2: return EvolutionStage.STAGE_1;
+            default: return EvolutionStage.EGG;
         }
     }
     

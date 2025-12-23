@@ -3,9 +3,12 @@ package com.tamagotchi.committracker.service;
 import com.tamagotchi.committracker.domain.Commit;
 import com.tamagotchi.committracker.pokemon.EvolutionStage;
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
+import com.tamagotchi.committracker.util.FileUtils;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -13,10 +16,21 @@ import java.util.stream.Collectors;
 /**
  * Service for calculating commit statistics and productivity metrics.
  * Provides data for charts and analytics displays.
+ * Also tracks and persists evolution history.
  * 
  * Requirements: 5.5
  */
 public class StatisticsService {
+    
+    private static final String EVOLUTION_HISTORY_FILE = "evolution-history.properties";
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+    
+    // In-memory evolution history (persisted to file)
+    private List<EvolutionEntry> evolutionHistory = new ArrayList<>();
+    
+    public StatisticsService() {
+        loadEvolutionHistory();
+    }
     
     /**
      * Represents daily commit statistics.
@@ -361,37 +375,131 @@ public class StatisticsService {
     }
     
     /**
-     * Creates a mock evolution history for demonstration.
-     * In a real implementation, this would be stored and tracked.
+     * Records an evolution event and persists it to storage.
+     * Call this when a Pokemon evolves.
      * 
-     * @param species Current Pokemon species
-     * @param currentStage Current evolution stage
+     * @param species The Pokemon species that evolved
+     * @param fromStage The stage before evolution
+     * @param toStage The stage after evolution
+     * @param xpAtEvolution XP at the time of evolution
+     * @param streakAtEvolution Streak days at the time of evolution
+     */
+    public void recordEvolution(PokemonSpecies species, EvolutionStage fromStage, 
+                               EvolutionStage toStage, int xpAtEvolution, int streakAtEvolution) {
+        EvolutionEntry entry = new EvolutionEntry(
+            LocalDateTime.now(), species, fromStage, toStage, xpAtEvolution, streakAtEvolution
+        );
+        evolutionHistory.add(entry);
+        saveEvolutionHistory();
+        System.out.println("📝 Evolution recorded: " + species + " " + fromStage + " -> " + toStage);
+    }
+    
+    /**
+     * Gets the evolution history for display.
+     * Returns actual recorded evolution events.
+     * 
+     * @param species Current Pokemon species (for filtering, can be null for all)
+     * @param currentStage Current evolution stage (unused, kept for API compatibility)
      * @return List of evolution entries
      */
     public List<EvolutionEntry> getEvolutionHistory(PokemonSpecies species, EvolutionStage currentStage) {
-        List<EvolutionEntry> history = new ArrayList<>();
-        
-        // Mock evolution history based on current stage
-        LocalDateTime now = LocalDateTime.now();
-        
-        if (currentStage.ordinal() >= EvolutionStage.BASIC.ordinal()) {
-            history.add(new EvolutionEntry(
-                now.minusDays(20), species, EvolutionStage.EGG, EvolutionStage.BASIC, 60, 4
-            ));
+        if (species == null) {
+            return new ArrayList<>(evolutionHistory);
         }
         
-        if (currentStage.ordinal() >= EvolutionStage.STAGE_1.ordinal()) {
-            history.add(new EvolutionEntry(
-                now.minusDays(10), species, EvolutionStage.BASIC, EvolutionStage.STAGE_1, 200, 11
-            ));
+        // Filter by species if specified
+        return evolutionHistory.stream()
+            .filter(e -> e.getSpecies() == species)
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Gets all evolution history regardless of species.
+     * 
+     * @return List of all evolution entries
+     */
+    public List<EvolutionEntry> getAllEvolutionHistory() {
+        return new ArrayList<>(evolutionHistory);
+    }
+    
+    /**
+     * Clears evolution history (for testing purposes).
+     * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
+     */
+    public void clearEvolutionHistory() {
+        evolutionHistory.clear();
+        saveEvolutionHistory();
+        System.out.println("🧪 TESTING: Evolution history cleared");
+    }
+    
+    /**
+     * Loads evolution history from persistent storage.
+     */
+    private void loadEvolutionHistory() {
+        try {
+            Properties props = FileUtils.loadProperties(EVOLUTION_HISTORY_FILE);
+            evolutionHistory.clear();
+            
+            int count = Integer.parseInt(props.getProperty("evolution.count", "0"));
+            
+            for (int i = 0; i < count; i++) {
+                String prefix = "evolution." + i + ".";
+                
+                String timestampStr = props.getProperty(prefix + "timestamp");
+                String speciesStr = props.getProperty(prefix + "species");
+                String fromStageStr = props.getProperty(prefix + "fromStage");
+                String toStageStr = props.getProperty(prefix + "toStage");
+                String xpStr = props.getProperty(prefix + "xp", "0");
+                String streakStr = props.getProperty(prefix + "streak", "0");
+                
+                if (timestampStr != null && speciesStr != null && fromStageStr != null && toStageStr != null) {
+                    try {
+                        LocalDateTime timestamp = LocalDateTime.parse(timestampStr, TIMESTAMP_FORMATTER);
+                        PokemonSpecies species = PokemonSpecies.valueOf(speciesStr);
+                        EvolutionStage fromStage = EvolutionStage.valueOf(fromStageStr);
+                        EvolutionStage toStage = EvolutionStage.valueOf(toStageStr);
+                        int xp = Integer.parseInt(xpStr);
+                        int streak = Integer.parseInt(streakStr);
+                        
+                        evolutionHistory.add(new EvolutionEntry(timestamp, species, fromStage, toStage, xp, streak));
+                    } catch (Exception e) {
+                        System.err.println("⚠️ Failed to parse evolution entry " + i + ": " + e.getMessage());
+                    }
+                }
+            }
+            
+            System.out.println("📖 Loaded " + evolutionHistory.size() + " evolution history entries");
+            
+        } catch (IOException e) {
+            // No history file yet - that's fine
+            System.out.println("📝 No evolution history file found - starting fresh");
         }
-        
-        if (currentStage.ordinal() >= EvolutionStage.STAGE_2.ordinal()) {
-            history.add(new EvolutionEntry(
-                now.minusDays(2), species, EvolutionStage.STAGE_1, EvolutionStage.STAGE_2, 800, 22
-            ));
+    }
+    
+    /**
+     * Saves evolution history to persistent storage.
+     */
+    private void saveEvolutionHistory() {
+        try {
+            Properties props = new Properties();
+            props.setProperty("evolution.count", String.valueOf(evolutionHistory.size()));
+            
+            for (int i = 0; i < evolutionHistory.size(); i++) {
+                EvolutionEntry entry = evolutionHistory.get(i);
+                String prefix = "evolution." + i + ".";
+                
+                props.setProperty(prefix + "timestamp", entry.getTimestamp().format(TIMESTAMP_FORMATTER));
+                props.setProperty(prefix + "species", entry.getSpecies().name());
+                props.setProperty(prefix + "fromStage", entry.getFromStage().name());
+                props.setProperty(prefix + "toStage", entry.getToStage().name());
+                props.setProperty(prefix + "xp", String.valueOf(entry.getXpAtEvolution()));
+                props.setProperty(prefix + "streak", String.valueOf(entry.getStreakAtEvolution()));
+            }
+            
+            FileUtils.saveProperties(props, EVOLUTION_HISTORY_FILE);
+            
+        } catch (IOException e) {
+            System.err.println("⚠️ Failed to save evolution history: " + e.getMessage());
         }
-        
-        return history;
     }
 }

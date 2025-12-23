@@ -19,6 +19,7 @@ import javafx.scene.text.FontWeight;
 import com.tamagotchi.committracker.domain.Commit;
 import com.tamagotchi.committracker.pokemon.EvolutionStage;
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
+import com.tamagotchi.committracker.pokemon.PokemonSelectionData;
 import com.tamagotchi.committracker.service.StatisticsService;
 import com.tamagotchi.committracker.service.StatisticsService.DailyStats;
 import com.tamagotchi.committracker.service.StatisticsService.WeeklyStats;
@@ -59,6 +60,26 @@ public class StatisticsTab extends VBox {
         // Don't initialize with sample data - wait for real user data
         // Charts will be populated when updateStatistics() is called with real commits
         System.out.println("📊 StatisticsTab initialized - waiting for real commit data");
+    }
+    
+    /**
+     * Sets the statistics service to use (for sharing with other components).
+     * 
+     * @param service The StatisticsService to use
+     */
+    public void setStatisticsService(StatisticsService service) {
+        if (service != null) {
+            this.statisticsService = service;
+        }
+    }
+    
+    /**
+     * Gets the statistics service for external access.
+     * 
+     * @return The StatisticsService instance
+     */
+    public StatisticsService getStatisticsService() {
+        return statisticsService;
     }
     
     /**
@@ -340,6 +361,7 @@ public class StatisticsTab extends VBox {
     
     /**
      * Creates a visual entry for an evolution event.
+     * Uses the format: "Egg evolved into Charmander", "Charmander evolved into Charmeleon", etc.
      * 
      * @param entry The evolution entry
      * @return HBox containing the evolution entry
@@ -355,12 +377,12 @@ public class StatisticsTab extends VBox {
         infoBox.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(infoBox, Priority.ALWAYS);
         
-        // Evolution description
-        String fromStage = formatStageName(entry.getFromStage());
-        String toStage = formatStageName(entry.getToStage());
-        String species = formatSpeciesName(entry.getSpecies());
+        // Get the actual Pokemon names for the evolution
+        String fromName = getPokemonNameForStage(entry.getSpecies(), entry.getFromStage());
+        String toName = getPokemonNameForStage(entry.getSpecies(), entry.getToStage());
         
-        Label evolutionLabel = new Label(species + " evolved from " + fromStage + " to " + toStage);
+        // Evolution description: "Egg evolved into Charmander" or "Charmander evolved into Charmeleon"
+        Label evolutionLabel = new Label(fromName + " evolved into " + toName);
         evolutionLabel.setFont(Font.font(UITheme.PRIMARY_FONT, FontWeight.MEDIUM, UITheme.NORMAL_FONT_SIZE));
         evolutionLabel.setTextFill(Color.web(UITheme.PRIMARY_TEXT_COLOR));
         
@@ -381,15 +403,173 @@ public class StatisticsTab extends VBox {
     }
     
     /**
-     * Formats a Pokemon species name for display.
+     * Gets the actual Pokemon name for a given species and evolution stage.
+     * For EGG stage, returns "Egg".
+     * For other stages, returns the actual Pokemon name (e.g., "Charmander", "Charmeleon", "Charizard").
      * 
-     * @param species The species to format
-     * @return Formatted species name
+     * @param baseSpecies The base Pokemon species (starter)
+     * @param stage The evolution stage
+     * @return The Pokemon name for that stage
      */
-    private String formatSpeciesName(PokemonSpecies species) {
-        if (species == null) return "Unknown";
-        String name = species.name();
-        return name.substring(0, 1).toUpperCase() + name.substring(1).toLowerCase();
+    private String getPokemonNameForStage(PokemonSpecies baseSpecies, EvolutionStage stage) {
+        if (stage == EvolutionStage.EGG) {
+            return "Egg";
+        }
+        
+        // Get the evolved species for the given stage
+        PokemonSpecies evolvedSpecies = getEvolvedSpecies(baseSpecies, stage);
+        return PokemonSelectionData.getDisplayName(evolvedSpecies);
+    }
+    
+    /**
+     * Gets the evolved species based on the base species and target stage.
+     * Maps each starter to its evolution line.
+     * Handles both base species and already-evolved species.
+     * 
+     * @param species The Pokemon species (can be any in the evolution line)
+     * @param targetStage The target evolution stage
+     * @return The Pokemon species at that evolution stage
+     */
+    private PokemonSpecies getEvolvedSpecies(PokemonSpecies species, EvolutionStage targetStage) {
+        // First, get the base species (starter) for this evolution line
+        PokemonSpecies baseSpecies = getBaseSpecies(species);
+        
+        // Map each starter to its evolution line
+        switch (baseSpecies) {
+            // 1. Charmander line (Kanto Fire)
+            case CHARMANDER:
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.CHARMANDER;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.CHARMELEON;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.CHARIZARD;
+                return baseSpecies;
+            
+            // 2. Cyndaquil line (Johto Fire)
+            case CYNDAQUIL:
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.CYNDAQUIL;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.QUILAVA;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.TYPHLOSION;
+                return baseSpecies;
+            
+            // 3. Mudkip line (Hoenn Water)
+            case MUDKIP:
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.MUDKIP;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.MARSHTOMP;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.SWAMPERT;
+                return baseSpecies;
+            
+            // 4. Piplup line (Sinnoh Water)
+            case PIPLUP:
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.PIPLUP;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.PRINPLUP;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.EMPOLEON;
+                return baseSpecies;
+            
+            // 5. Snivy line (Unova Grass)
+            case SNIVY:
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.SNIVY;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.SERVINE;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.SERPERIOR;
+                return baseSpecies;
+            
+            // 6. Froakie line (Kalos Water)
+            case FROAKIE:
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.FROAKIE;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.FROGADIER;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.GRENINJA;
+                return baseSpecies;
+            
+            // 7. Rowlet line (Alola Grass)
+            case ROWLET:
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.ROWLET;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.DARTRIX;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.DECIDUEYE;
+                return baseSpecies;
+            
+            // 8. Grookey line (Galar Grass)
+            case GROOKEY:
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.GROOKEY;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.THWACKEY;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.RILLABOOM;
+                return baseSpecies;
+            
+            // 9. Fuecoco line (Paldea Fire)
+            case FUECOCO:
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.FUECOCO;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.CROCALOR;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.SKELEDIRGE;
+                return baseSpecies;
+            
+            default:
+                return species; // Return same species if no evolution found
+        }
+    }
+    
+    /**
+     * Gets the base (starter) species for any Pokemon in an evolution line.
+     * For example, CHARMELEON and CHARIZARD both return CHARMANDER.
+     * 
+     * @param species Any Pokemon species
+     * @return The base starter species for that evolution line
+     */
+    private PokemonSpecies getBaseSpecies(PokemonSpecies species) {
+        switch (species) {
+            // Charmander line
+            case CHARMANDER:
+            case CHARMELEON:
+            case CHARIZARD:
+                return PokemonSpecies.CHARMANDER;
+            
+            // Cyndaquil line
+            case CYNDAQUIL:
+            case QUILAVA:
+            case TYPHLOSION:
+                return PokemonSpecies.CYNDAQUIL;
+            
+            // Mudkip line
+            case MUDKIP:
+            case MARSHTOMP:
+            case SWAMPERT:
+                return PokemonSpecies.MUDKIP;
+            
+            // Piplup line
+            case PIPLUP:
+            case PRINPLUP:
+            case EMPOLEON:
+                return PokemonSpecies.PIPLUP;
+            
+            // Snivy line
+            case SNIVY:
+            case SERVINE:
+            case SERPERIOR:
+                return PokemonSpecies.SNIVY;
+            
+            // Froakie line
+            case FROAKIE:
+            case FROGADIER:
+            case GRENINJA:
+                return PokemonSpecies.FROAKIE;
+            
+            // Rowlet line
+            case ROWLET:
+            case DARTRIX:
+            case DECIDUEYE:
+                return PokemonSpecies.ROWLET;
+            
+            // Grookey line
+            case GROOKEY:
+            case THWACKEY:
+            case RILLABOOM:
+                return PokemonSpecies.GROOKEY;
+            
+            // Fuecoco line
+            case FUECOCO:
+            case CROCALOR:
+            case SKELEDIRGE:
+                return PokemonSpecies.FUECOCO;
+            
+            default:
+                return species; // Return same species if unknown
+        }
     }
     
     /**

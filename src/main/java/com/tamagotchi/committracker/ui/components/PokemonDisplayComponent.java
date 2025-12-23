@@ -510,11 +510,18 @@ public class PokemonDisplayComponent extends StackPane {
      * @param newStage The evolution stage to evolve to
      */
     public void triggerEvolution(EvolutionStage newStage) {
-        if (isEvolutionInProgress || newStage == currentStage) {
+        if (newStage == currentStage) {
+            System.out.println("⚠️ Evolution skipped: already at stage " + currentStage);
+            return;
+        }
+        
+        if (isEvolutionInProgress) {
+            System.out.println("⚠️ Evolution skipped: evolution already in progress");
             return;
         }
         
         isEvolutionInProgress = true;
+        System.out.println("🌟 Starting evolution: " + currentStage + " -> " + newStage);
         
         // Stop current animation
         if (currentAnimation != null) {
@@ -523,6 +530,7 @@ public class PokemonDisplayComponent extends StackPane {
         
         // Get the evolved Pokemon species
         PokemonSpecies evolvedSpecies = getEvolvedSpecies(currentSpecies, newStage);
+        System.out.println("🌟 Evolving species: " + currentSpecies + " -> " + evolvedSpecies);
         
         // Create evolution animation
         Timeline evolutionAnimation = AnimationUtils.createEvolutionAnimation(
@@ -543,10 +551,14 @@ public class PokemonDisplayComponent extends StackPane {
      * Completes the evolution process and resumes normal animation.
      */
     private void completeEvolution(PokemonSpecies newSpecies, EvolutionStage newStage) {
+        System.out.println("✅ Evolution complete: " + currentSpecies + " -> " + newSpecies + ", Stage: " + currentStage + " -> " + newStage);
+        
         this.currentSpecies = newSpecies;
         this.currentStage = newStage;
         this.currentState = PokemonState.HAPPY; // Happy after evolution
         this.isEvolutionInProgress = false;
+        
+        System.out.println("✅ Updated state - Species: " + currentSpecies + ", Stage: " + currentStage);
         
         // Resume normal animation with new Pokemon
         loadAndStartAnimation();
@@ -563,57 +575,147 @@ public class PokemonDisplayComponent extends StackPane {
     /**
      * Gets the evolved species based on the current species and target stage.
      * This maps the evolution lines correctly for the updated Pokemon list.
+     * Handles both base species and already-evolved species.
      */
-    private PokemonSpecies getEvolvedSpecies(PokemonSpecies baseSpecies, EvolutionStage targetStage) {
+    private PokemonSpecies getEvolvedSpecies(PokemonSpecies species, EvolutionStage targetStage) {
+        // First, get the base species (starter) for this evolution line
+        PokemonSpecies baseSpecies = getBaseSpecies(species);
+        
         // Map each starter to its evolution line
         switch (baseSpecies) {
             // 1. Charmander line (Kanto Fire)
             case CHARMANDER:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.CHARMELEON : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.CHARIZARD : baseSpecies;
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.CHARMANDER;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.CHARMELEON;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.CHARIZARD;
+                return baseSpecies;
             
             // 2. Cyndaquil line (Johto Fire)
             case CYNDAQUIL:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.QUILAVA : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.TYPHLOSION : baseSpecies;
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.CYNDAQUIL;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.QUILAVA;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.TYPHLOSION;
+                return baseSpecies;
             
             // 3. Mudkip line (Hoenn Water)
             case MUDKIP:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.MARSHTOMP : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.SWAMPERT : baseSpecies;
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.MUDKIP;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.MARSHTOMP;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.SWAMPERT;
+                return baseSpecies;
             
             // 4. Piplup line (Sinnoh Water)
             case PIPLUP:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.PRINPLUP : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.EMPOLEON : baseSpecies;
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.PIPLUP;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.PRINPLUP;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.EMPOLEON;
+                return baseSpecies;
             
             // 5. Snivy line (Unova Grass)
             case SNIVY:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.SERVINE : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.SERPERIOR : baseSpecies;
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.SNIVY;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.SERVINE;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.SERPERIOR;
+                return baseSpecies;
             
             // 6. Froakie line (Kalos Water)
             case FROAKIE:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.FROGADIER : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.GRENINJA : baseSpecies;
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.FROAKIE;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.FROGADIER;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.GRENINJA;
+                return baseSpecies;
             
             // 7. Rowlet line (Alola Grass)
             case ROWLET:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.DARTRIX : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.DECIDUEYE : baseSpecies;
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.ROWLET;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.DARTRIX;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.DECIDUEYE;
+                return baseSpecies;
             
             // 8. Grookey line (Galar Grass)
             case GROOKEY:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.THWACKEY : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.RILLABOOM : baseSpecies;
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.GROOKEY;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.THWACKEY;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.RILLABOOM;
+                return baseSpecies;
             
             // 9. Fuecoco line (Paldea Fire)
             case FUECOCO:
-                return targetStage == EvolutionStage.STAGE_1 ? PokemonSpecies.CROCALOR : 
-                       targetStage == EvolutionStage.STAGE_2 ? PokemonSpecies.SKELEDIRGE : baseSpecies;
+                if (targetStage == EvolutionStage.BASIC) return PokemonSpecies.FUECOCO;
+                if (targetStage == EvolutionStage.STAGE_1) return PokemonSpecies.CROCALOR;
+                if (targetStage == EvolutionStage.STAGE_2) return PokemonSpecies.SKELEDIRGE;
+                return baseSpecies;
             
             default:
-                return baseSpecies; // Return same species if no evolution found
+                return species; // Return same species if no evolution found
+        }
+    }
+    
+    /**
+     * Gets the base (starter) species for any Pokemon in an evolution line.
+     * For example, CHARMELEON and CHARIZARD both return CHARMANDER.
+     * 
+     * @param species Any Pokemon species
+     * @return The base starter species for that evolution line
+     */
+    private PokemonSpecies getBaseSpecies(PokemonSpecies species) {
+        switch (species) {
+            // Charmander line
+            case CHARMANDER:
+            case CHARMELEON:
+            case CHARIZARD:
+                return PokemonSpecies.CHARMANDER;
+            
+            // Cyndaquil line
+            case CYNDAQUIL:
+            case QUILAVA:
+            case TYPHLOSION:
+                return PokemonSpecies.CYNDAQUIL;
+            
+            // Mudkip line
+            case MUDKIP:
+            case MARSHTOMP:
+            case SWAMPERT:
+                return PokemonSpecies.MUDKIP;
+            
+            // Piplup line
+            case PIPLUP:
+            case PRINPLUP:
+            case EMPOLEON:
+                return PokemonSpecies.PIPLUP;
+            
+            // Snivy line
+            case SNIVY:
+            case SERVINE:
+            case SERPERIOR:
+                return PokemonSpecies.SNIVY;
+            
+            // Froakie line
+            case FROAKIE:
+            case FROGADIER:
+            case GRENINJA:
+                return PokemonSpecies.FROAKIE;
+            
+            // Rowlet line
+            case ROWLET:
+            case DARTRIX:
+            case DECIDUEYE:
+                return PokemonSpecies.ROWLET;
+            
+            // Grookey line
+            case GROOKEY:
+            case THWACKEY:
+            case RILLABOOM:
+                return PokemonSpecies.GROOKEY;
+            
+            // Fuecoco line
+            case FUECOCO:
+            case CROCALOR:
+            case SKELEDIRGE:
+                return PokemonSpecies.FUECOCO;
+            
+            default:
+                return species; // Return same species if unknown
         }
     }
     
@@ -669,9 +771,17 @@ public class PokemonDisplayComponent extends StackPane {
      * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
      */
     public void forceEvolutionForTesting() {
+        // Reset evolution in progress flag to allow forced evolution
+        // This is needed because the animation might not have completed properly
+        if (isEvolutionInProgress) {
+            System.out.println("🧪 TESTING: Resetting evolution in progress flag");
+            isEvolutionInProgress = false;
+        }
+        
         EvolutionStage nextStage = getNextEvolutionStage();
         if (nextStage != null) {
             System.out.println("🧪 TESTING: Forcing evolution from " + currentStage + " to " + nextStage);
+            System.out.println("🧪 TESTING: Current species: " + currentSpecies);
             triggerEvolution(nextStage);
         } else {
             System.out.println("🧪 TESTING: Already at max evolution stage: " + currentStage);

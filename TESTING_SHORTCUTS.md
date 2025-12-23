@@ -18,6 +18,12 @@ When the application is running, you can use these keyboard shortcuts for testin
 - **S** - Change Pokemon state to SAD
 - **T** - Change Pokemon state to THRIVING (temporary animation)
 
+### Pokemon Selection
+- **P** - Open Pokemon picker dialog to switch to a different Pokemon egg
+
+### Repository Testing
+- **F** - Force repository scan to refresh commit data
+
 ### Information
 - **I** - Show current Pokemon info in console (species, stage, state, evolution status)
 

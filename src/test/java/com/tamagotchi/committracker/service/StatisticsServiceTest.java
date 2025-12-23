@@ -138,16 +138,28 @@ public class StatisticsServiceTest {
     
     @Test
     void testGetEvolutionHistory() {
-        // Test with different evolution stages
+        // Clear any existing history first
+        statisticsService.clearEvolutionHistory();
+        
+        // Record some evolutions
+        statisticsService.recordEvolution(PokemonSpecies.CHARMANDER, EvolutionStage.EGG, EvolutionStage.BASIC, 60, 4);
+        
+        // Test with BASIC stage - should have 1 evolution
         List<EvolutionEntry> basicHistory = statisticsService.getEvolutionHistory(
             PokemonSpecies.CHARMANDER, EvolutionStage.BASIC
         );
         assertEquals(1, basicHistory.size()); // Should have egg -> basic evolution
         
+        // Record more evolutions
+        statisticsService.recordEvolution(PokemonSpecies.CHARMANDER, EvolutionStage.BASIC, EvolutionStage.STAGE_1, 200, 11);
+        
         List<EvolutionEntry> stage1History = statisticsService.getEvolutionHistory(
             PokemonSpecies.CHARMANDER, EvolutionStage.STAGE_1
         );
         assertEquals(2, stage1History.size()); // Should have egg -> basic -> stage1
+        
+        // Record final evolution
+        statisticsService.recordEvolution(PokemonSpecies.CHARMANDER, EvolutionStage.STAGE_1, EvolutionStage.STAGE_2, 800, 22);
         
         List<EvolutionEntry> stage2History = statisticsService.getEvolutionHistory(
             PokemonSpecies.CHARMANDER, EvolutionStage.STAGE_2
