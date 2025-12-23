@@ -4,11 +4,27 @@ import com.tamagotchi.committracker.domain.Commit;
 
 /**
  * Manages XP calculation and evolution thresholds for Pokemon.
+ * 
+ * Evolution XP Thresholds (alternative to streak-based evolution):
+ * - EGG → BASIC: 60 XP (~8 commits)
+ * - BASIC → STAGE_1: 500 XP (~63 commits total)
+ * - STAGE_1 → STAGE_2: 1200 XP (~150 commits total)
+ * 
+ * These thresholds provide a "grinder" path for high-volume committers,
+ * complementing the streak-based "consistency" path.
  */
 public class XPSystem {
     private int currentXP;
     private int level;
-    private static final int[] EVOLUTION_XP_THRESHOLDS = {0, 200, 800, 2000}; // Egg, Basic, Stage1, Stage2
+    
+    /**
+     * XP thresholds for each evolution stage.
+     * Index 0 = EGG (0 XP to start)
+     * Index 1 = BASIC (60 XP to evolve from EGG)
+     * Index 2 = STAGE_1 (500 XP to evolve from BASIC)
+     * Index 3 = STAGE_2 (1200 XP to evolve from STAGE_1)
+     */
+    private static final int[] EVOLUTION_XP_THRESHOLDS = {0, 60, 500, 1200};
     
     public XPSystem() {
         this.currentXP = 0;
@@ -97,6 +113,21 @@ public class XPSystem {
      */
     public boolean canEvolveToStage(EvolutionStage targetStage) {
         return currentXP >= EVOLUTION_XP_THRESHOLDS[targetStage.getLevel()];
+    }
+    
+    /**
+     * Checks if the Pokemon can evolve to the next stage based on current XP.
+     * This method is used for XP-based evolution eligibility checks.
+     * 
+     * @param currentStage the current evolution stage of the Pokemon
+     * @return true if XP meets or exceeds the threshold for the next stage
+     */
+    public boolean canEvolveViaXP(EvolutionStage currentStage) {
+        int nextStageIndex = currentStage.getLevel() + 1;
+        if (nextStageIndex >= EVOLUTION_XP_THRESHOLDS.length) {
+            return false; // Already at max stage
+        }
+        return currentXP >= EVOLUTION_XP_THRESHOLDS[nextStageIndex];
     }
     
     /**

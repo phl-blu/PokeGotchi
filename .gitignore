@@ -47,3 +47,5 @@ user-preferences.properties
 
 # TODO LIST
 TODO.md
+
+*.md

@@ -189,27 +189,29 @@ public class PokemonStateManager {
     
     /**
      * Checks if evolution criteria are met based on XP and streak requirements.
-     * Egg evolves at 60 XP OR 4-day streak.
+     * Evolution is triggered when EITHER the XP threshold OR the streak threshold is met.
+     * 
+     * XP Thresholds: EGG->BASIC: 60, BASIC->STAGE_1: 500, STAGE_1->STAGE_2: 1200
+     * Streak Thresholds: EGG->BASIC: 4 days, BASIC->STAGE_1: 11 days, STAGE_1->STAGE_2: 22 days
      */
     public boolean checkEvolutionCriteria(int xp, int streakDays, EvolutionStage currentStage) {
         if (currentStage == null) {
             return false;
         }
         
-        // Evolution requirements
+        // Evolution requirements - OR logic: either XP OR streak threshold triggers evolution
         switch (currentStage) {
             case EGG:
                 // Hatch from egg: EITHER 4+ day streak OR 60+ XP
-                // XP stages: 0-10=stage1, 11-25=stage2, 26-40=stage3, 41-59=stage4, 60+=evolve
                 return streakDays >= 4 || xp >= 60;
                 
             case BASIC:
-                // Evolve to Stage 1: 11+ day streak (XP not required after hatching)
-                return streakDays >= 11;
+                // Evolve to Stage 1: EITHER 11+ day streak OR 500+ XP
+                return streakDays >= 11 || xp >= 500;
                 
             case STAGE_1:
-                // Evolve to Stage 2: 22+ day streak (XP not required after hatching)
-                return streakDays >= 22;
+                // Evolve to Stage 2: EITHER 22+ day streak OR 1200+ XP
+                return streakDays >= 22 || xp >= 1200;
                 
             case STAGE_2:
                 // Already at final evolution
