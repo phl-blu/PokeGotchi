@@ -18,21 +18,25 @@ class PokemonDisplayComponentTest {
     @Test
     void testEvolutionRequirementsLogic() {
         // Test evolution requirements without actually triggering JavaFX animations
+        // Note: Evolution uses OR logic - either XP OR streak threshold triggers evolution
         
-        // Test egg to basic evolution requirements (4+ day streak, 200+ XP)
-        assertTrue(meetsEvolutionRequirements(EvolutionStage.EGG, EvolutionStage.BASIC, 250, 5));
-        assertFalse(meetsEvolutionRequirements(EvolutionStage.EGG, EvolutionStage.BASIC, 150, 5)); // Not enough XP
-        assertFalse(meetsEvolutionRequirements(EvolutionStage.EGG, EvolutionStage.BASIC, 250, 3)); // Not enough streak
+        // Test egg to basic evolution requirements (4+ day streak OR 60+ XP)
+        assertTrue(meetsEvolutionRequirements(EvolutionStage.EGG, EvolutionStage.BASIC, 60, 4));
+        assertTrue(meetsEvolutionRequirements(EvolutionStage.EGG, EvolutionStage.BASIC, 60, 2)); // XP only
+        assertTrue(meetsEvolutionRequirements(EvolutionStage.EGG, EvolutionStage.BASIC, 30, 4)); // Streak only
+        assertFalse(meetsEvolutionRequirements(EvolutionStage.EGG, EvolutionStage.BASIC, 59, 3)); // Neither threshold met
         
-        // Test basic to stage 1 evolution requirements (11+ day streak, 800+ XP)
-        assertTrue(meetsEvolutionRequirements(EvolutionStage.BASIC, EvolutionStage.STAGE_1, 850, 12));
-        assertFalse(meetsEvolutionRequirements(EvolutionStage.BASIC, EvolutionStage.STAGE_1, 750, 12)); // Not enough XP
-        assertFalse(meetsEvolutionRequirements(EvolutionStage.BASIC, EvolutionStage.STAGE_1, 850, 10)); // Not enough streak
+        // Test basic to stage 1 evolution requirements (11+ day streak OR 500+ XP)
+        assertTrue(meetsEvolutionRequirements(EvolutionStage.BASIC, EvolutionStage.STAGE_1, 500, 11));
+        assertTrue(meetsEvolutionRequirements(EvolutionStage.BASIC, EvolutionStage.STAGE_1, 500, 5)); // XP only
+        assertTrue(meetsEvolutionRequirements(EvolutionStage.BASIC, EvolutionStage.STAGE_1, 100, 11)); // Streak only
+        assertFalse(meetsEvolutionRequirements(EvolutionStage.BASIC, EvolutionStage.STAGE_1, 499, 10)); // Neither threshold met
         
-        // Test stage 1 to stage 2 evolution requirements (22+ day streak, 2000+ XP)
-        assertTrue(meetsEvolutionRequirements(EvolutionStage.STAGE_1, EvolutionStage.STAGE_2, 2100, 25));
-        assertFalse(meetsEvolutionRequirements(EvolutionStage.STAGE_1, EvolutionStage.STAGE_2, 1900, 25)); // Not enough XP
-        assertFalse(meetsEvolutionRequirements(EvolutionStage.STAGE_1, EvolutionStage.STAGE_2, 2100, 20)); // Not enough streak
+        // Test stage 1 to stage 2 evolution requirements (22+ day streak OR 1200+ XP)
+        assertTrue(meetsEvolutionRequirements(EvolutionStage.STAGE_1, EvolutionStage.STAGE_2, 1200, 22));
+        assertTrue(meetsEvolutionRequirements(EvolutionStage.STAGE_1, EvolutionStage.STAGE_2, 1200, 10)); // XP only
+        assertTrue(meetsEvolutionRequirements(EvolutionStage.STAGE_1, EvolutionStage.STAGE_2, 500, 22)); // Streak only
+        assertFalse(meetsEvolutionRequirements(EvolutionStage.STAGE_1, EvolutionStage.STAGE_2, 1199, 21)); // Neither threshold met
     }
     
     @Test
@@ -89,15 +93,16 @@ class PokemonDisplayComponentTest {
     
     // Helper methods that replicate the logic from PokemonDisplayComponent
     // without requiring JavaFX initialization
+    // Uses OR logic: either XP OR streak threshold triggers evolution
     
     private boolean meetsEvolutionRequirements(EvolutionStage currentStage, EvolutionStage targetStage, int xpLevel, int streakDays) {
         switch (targetStage) {
             case BASIC:
-                return currentStage == EvolutionStage.EGG && streakDays >= 4 && xpLevel >= 200;
+                return currentStage == EvolutionStage.EGG && (streakDays >= 4 || xpLevel >= 60);
             case STAGE_1:
-                return currentStage == EvolutionStage.BASIC && streakDays >= 11 && xpLevel >= 800;
+                return currentStage == EvolutionStage.BASIC && (streakDays >= 11 || xpLevel >= 500);
             case STAGE_2:
-                return currentStage == EvolutionStage.STAGE_1 && streakDays >= 22 && xpLevel >= 2000;
+                return currentStage == EvolutionStage.STAGE_1 && (streakDays >= 22 || xpLevel >= 1200);
             default:
                 return false;
         }

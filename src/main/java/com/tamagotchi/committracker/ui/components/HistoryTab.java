@@ -90,7 +90,7 @@ public class HistoryTab extends VBox {
         levelLabel.setTextFill(Color.web(UITheme.SECONDARY_TEXT_COLOR));
         
         // XP progress
-        xpProgressLabel = new Label("XP: 0 / 200");
+        xpProgressLabel = new Label("XP: 0 / 60");
         xpProgressLabel.setFont(Font.font(UITheme.PRIMARY_FONT, UITheme.NORMAL_FONT_SIZE));
         xpProgressLabel.setTextFill(Color.web(UITheme.SECONDARY_TEXT_COLOR));
         
@@ -175,18 +175,19 @@ public class HistoryTab extends VBox {
     
     /**
      * Gets the XP threshold for the next evolution based on current stage.
+     * Uses the rescaled XP thresholds: EGG->60, BASIC->500, STAGE_1->1200
      * 
      * @param stage Current evolution stage
      * @return XP threshold for next evolution
      */
     private int getNextEvolutionThreshold(EvolutionStage stage) {
-        if (stage == null) return 200;
+        if (stage == null) return 60;
         switch (stage) {
             case EGG: return 60; // Egg hatches at 60 XP or 4+ day streak
-            case BASIC: return 200; // Basic evolves at 200 XP or 11+ day streak
-            case STAGE_1: return 800; // Stage 1 evolves at 800 XP or 22+ day streak
-            case STAGE_2: return 2000; // Final stage
-            default: return 200;
+            case BASIC: return 500; // Basic evolves at 500 XP or 11+ day streak
+            case STAGE_1: return 1200; // Stage 1 evolves at 1200 XP or 22+ day streak
+            case STAGE_2: return 1200; // Final stage (display max threshold)
+            default: return 60;
         }
     }
     
