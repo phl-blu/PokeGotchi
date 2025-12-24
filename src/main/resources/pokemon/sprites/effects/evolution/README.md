@@ -1,32 +1,55 @@
 # Evolution Effect Sprites
 
-Place your evolution animation frames here.
+Generic evolution animation frames used for ALL Pokemon evolutions.
 
-## File Format:
-- **frame1.png** - Initial glow/sparkle
-- **frame2.png** - Brighter glow
-- **frame3.png** - White flash beginning
-- **frame4.png** - Peak brightness
-- **frame5.png** - Glow fading
-- **frame6.png** - Final sparkles
+## Frame Sequence (Classic Pokemon Style)
 
-## Specifications:
+| Frame | Duration | Pokemon Layer | Effect Layer | Description |
+|-------|----------|---------------|--------------|-------------|
+| **1** | 300ms | Old form visible | Small sparkles | Build-up begins |
+| **2** | 300ms | Old form visible | Glow intensifying | Energy gathering |
+| **3** | 200ms | White silhouette | Bright glow | Flash begins, form obscured |
+| **4** | 150ms | Hidden (pure white) | Peak brightness | Transformation moment |
+| **5** | 200ms | White silhouette | Glow fading | New form emerging |
+| **6** | 400ms | New form visible | Final sparkles | Evolution complete |
+
+**Total Duration:** ~1550ms
+
+## File Format
+- **frame1.png** - Small sparkles around Pokemon (overlay)
+- **frame2.png** - More sparkles, glow intensifying (overlay)
+- **frame3.png** - Bright glow effect (Pokemon becomes silhouette)
+- **frame4.png** - Peak white flash (Pokemon hidden completely)
+- **frame5.png** - Glow fading (new form as silhouette)
+- **frame6.png** - Final sparkles settling (overlay)
+
+## Specifications
 - Size: 64x64 pixels
 - Format: PNG with transparency
-- Animation Speed: 200ms per frame (5 FPS)
+- Background: Transparent (effects overlay on Pokemon)
 
-## Visual Sequence:
-```
-Frame 1: Small sparkles around Pokemon
-Frame 2: More sparkles, glow intensifying
-Frame 3: Bright glow, Pokemon silhouette
-Frame 4: White flash (peak)
-Frame 5: Glow fading, new form visible
-Frame 6: Sparkles settling, evolution complete
-```
+## Layering Guide (Important!)
 
-## Notes:
+To avoid the "hologram morphing" effect:
+
+1. **Frames 1-2:** Pokemon sprite visible at 100% opacity, effect frames overlay on top
+2. **Frame 3:** Apply white color tint to Pokemon sprite (~80% white overlay)
+3. **Frame 4:** Hide Pokemon sprite completely, show only white flash effect
+4. **Frame 5:** Show NEW Pokemon sprite with white tint (~80% white overlay)
+5. **Frame 6:** New Pokemon at 100% opacity, sparkle effects overlay
+
+The key is the **hard cut** at frame 4 - never morph between sprites!
+
+## Optional: Dramatic Pulse Effect
+
+For extra drama (like classic games), loop frames 2→3→2→3 before the final flash:
+```
+1 → 2 → 3 → 2 → 3 → 4 → 5 → 6
+```
+This creates the "pulsing glow" effect seen in Gen 3-5 games.
+
+## Notes
 - These are GENERIC effects used for ALL Pokemon evolutions
-- The Pokemon sprite itself is handled separately
-- Focus on sparkles, light effects, and glow
-- Transparent background required
+- The Pokemon sprite swap happens during frame 4 (peak flash)
+- Effect frames should be semi-transparent to overlay properly
+- The animation code handles sprite visibility/tinting automatically

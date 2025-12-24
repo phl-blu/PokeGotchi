@@ -626,11 +626,20 @@ public class AnimationUtils {
     
     /**
      * Creates a special evolution animation sequence that transitions between stages.
+     * Uses classic Pokemon-style animation with proper layering to avoid "hologram" effect.
+     * 
+     * Animation sequence:
+     * - Frames 1-2: Old Pokemon visible with sparkle overlay (300ms each)
+     * - Frame 3: Old Pokemon as white silhouette (200ms)
+     * - Frame 4: Pure white flash - sprite swap happens here (150ms)
+     * - Frame 5: New Pokemon as white silhouette (200ms)
+     * - Frame 6: New Pokemon fully visible with sparkles (400ms)
      * 
      * @param fromSpecies Starting Pokemon species
      * @param toSpecies Target Pokemon species after evolution
      * @param fromStage Starting evolution stage
      * @param toStage Target evolution stage
+     * @param frameUpdateCallback Callback to update the displayed frame
      * @param evolutionCompleteCallback Callback when evolution animation completes
      * @return Timeline for evolution animation
      */
@@ -641,33 +650,199 @@ public class AnimationUtils {
         
         Timeline evolutionTimeline = new Timeline();
         
-        // Load evolution effect frames (generic evolution animation)
-        List<Image> evolutionFrames = loadEvolutionEffectFrames();
-        
-        // Create evolution sequence: flash effect -> new Pokemon
-        for (int i = 0; i < evolutionFrames.size(); i++) {
-            final int frameIndex = i;
-            KeyFrame keyFrame = new KeyFrame(
-                Duration.millis(i * 200), // Faster frames for evolution effect
-                e -> frameUpdateCallback.accept(evolutionFrames.get(frameIndex))
-            );
-            evolutionTimeline.getKeyFrames().add(keyFrame);
-        }
-        
-        // Final keyframe shows the new evolved Pokemon
+        // Load sprites
+        List<Image> oldPokemonFrames = loadSpriteFrames(fromSpecies, fromStage, PokemonState.CONTENT);
         List<Image> newPokemonFrames = loadSpriteFrames(toSpecies, toStage, PokemonState.HAPPY);
-        if (!newPokemonFrames.isEmpty()) {
-            KeyFrame finalFrame = new KeyFrame(
-                Duration.millis(evolutionFrames.size() * 200),
-                e -> {
-                    frameUpdateCallback.accept(newPokemonFrames.get(0));
-                    evolutionCompleteCallback.run();
-                }
-            );
-            evolutionTimeline.getKeyFrames().add(finalFrame);
+        List<Image> evolutionEffects = loadEvolutionEffectFrames();
+        
+        Image oldPokemon = oldPokemonFrames.isEmpty() ? null : oldPokemonFrames.get(0);
+        Image newPokemon = newPokemonFrames.isEmpty() ? null : newPokemonFrames.get(0);
+        
+        // Frame timings (in ms) - classic Pokemon style
+        double[] frameDurations = {300, 300, 200, 150, 200, 400};
+        double currentTime = 0;
+        
+        // Frame 1: Old Pokemon with small sparkles (300ms)
+        if (oldPokemon != null && evolutionEffects.size() > 0) {
+            final Image pokemon = oldPokemon;
+            final Image effect = evolutionEffects.get(0);
+            evolutionTimeline.getKeyFrames().add(new KeyFrame(
+                Duration.millis(currentTime),
+                e -> frameUpdateCallback.accept(createCompositeFrame(pokemon, effect, 1.0))
+            ));
         }
+        currentTime += frameDurations[0];
+        
+        // Frame 2: Old Pokemon with intensifying glow (300ms)
+        if (oldPokemon != null && evolutionEffects.size() > 1) {
+            final Image pokemon = oldPokemon;
+            final Image effect = evolutionEffects.get(1);
+            evolutionTimeline.getKeyFrames().add(new KeyFrame(
+                Duration.millis(currentTime),
+                e -> frameUpdateCallback.accept(createCompositeFrame(pokemon, effect, 1.0))
+            ));
+        }
+        currentTime += frameDurations[1];
+        
+        // Frame 3: Old Pokemon as white silhouette (200ms)
+        if (oldPokemon != null && evolutionEffects.size() > 2) {
+            final Image pokemon = oldPokemon;
+            final Image effect = evolutionEffects.get(2);
+            evolutionTimeline.getKeyFrames().add(new KeyFrame(
+                Duration.millis(currentTime),
+                e -> frameUpdateCallback.accept(createCompositeFrame(createWhiteSilhouette(pokemon), effect, 1.0))
+            ));
+        }
+        currentTime += frameDurations[2];
+        
+        // Frame 4: Peak white flash - NO Pokemon visible (150ms) - THE SWAP MOMENT
+        if (evolutionEffects.size() > 3) {
+            final Image effect = evolutionEffects.get(3);
+            evolutionTimeline.getKeyFrames().add(new KeyFrame(
+                Duration.millis(currentTime),
+                e -> frameUpdateCallback.accept(effect) // Pure effect, no Pokemon
+            ));
+        }
+        currentTime += frameDurations[3];
+        
+        // Frame 5: New Pokemon as white silhouette (200ms)
+        if (newPokemon != null && evolutionEffects.size() > 4) {
+            final Image pokemon = newPokemon;
+            final Image effect = evolutionEffects.get(4);
+            evolutionTimeline.getKeyFrames().add(new KeyFrame(
+                Duration.millis(currentTime),
+                e -> frameUpdateCallback.accept(createCompositeFrame(createWhiteSilhouette(pokemon), effect, 1.0))
+            ));
+        }
+        currentTime += frameDurations[4];
+        
+        // Frame 6: New Pokemon fully visible with final sparkles (400ms)
+        if (newPokemon != null && evolutionEffects.size() > 5) {
+            final Image pokemon = newPokemon;
+            final Image effect = evolutionEffects.get(5);
+            evolutionTimeline.getKeyFrames().add(new KeyFrame(
+                Duration.millis(currentTime),
+                e -> frameUpdateCallback.accept(createCompositeFrame(pokemon, effect, 1.0))
+            ));
+        }
+        currentTime += frameDurations[5];
+        
+        // Final frame: Show new Pokemon without effects and trigger callback
+        if (newPokemon != null) {
+            final Image pokemon = newPokemon;
+            evolutionTimeline.getKeyFrames().add(new KeyFrame(
+                Duration.millis(currentTime),
+                e -> {
+                    frameUpdateCallback.accept(pokemon);
+                    if (evolutionCompleteCallback != null) {
+                        evolutionCompleteCallback.run();
+                    }
+                }
+            ));
+        }
+        
+        evolutionTimeline.setCycleCount(1);
+        System.out.println("✨ Created evolution animation: " + fromSpecies + " → " + toSpecies + " (duration: " + currentTime + "ms)");
         
         return evolutionTimeline;
+    }
+    
+    /**
+     * Creates a composite frame by overlaying an effect on top of a Pokemon sprite.
+     * 
+     * @param pokemonSprite The base Pokemon sprite
+     * @param effectSprite The effect overlay sprite
+     * @param pokemonOpacity Opacity of the Pokemon sprite (0.0 to 1.0)
+     * @return Combined image with effect overlaid on Pokemon
+     */
+    private static Image createCompositeFrame(Image pokemonSprite, Image effectSprite, double pokemonOpacity) {
+        if (pokemonSprite == null) return effectSprite;
+        if (effectSprite == null) return pokemonSprite;
+        
+        try {
+            int width = SPRITE_SIZE;
+            int height = SPRITE_SIZE;
+            
+            javafx.scene.image.WritableImage composite = new javafx.scene.image.WritableImage(width, height);
+            javafx.scene.image.PixelWriter writer = composite.getPixelWriter();
+            javafx.scene.image.PixelReader pokemonReader = pokemonSprite.getPixelReader();
+            javafx.scene.image.PixelReader effectReader = effectSprite.getPixelReader();
+            
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    javafx.scene.paint.Color pokemonColor = pokemonReader.getColor(x, y);
+                    javafx.scene.paint.Color effectColor = effectReader.getColor(x, y);
+                    
+                    // Apply opacity to Pokemon
+                    double pAlpha = pokemonColor.getOpacity() * pokemonOpacity;
+                    double eAlpha = effectColor.getOpacity();
+                    
+                    // Blend: effect on top of Pokemon (standard alpha compositing)
+                    double outAlpha = eAlpha + pAlpha * (1 - eAlpha);
+                    
+                    if (outAlpha > 0) {
+                        double r = (effectColor.getRed() * eAlpha + pokemonColor.getRed() * pAlpha * (1 - eAlpha)) / outAlpha;
+                        double g = (effectColor.getGreen() * eAlpha + pokemonColor.getGreen() * pAlpha * (1 - eAlpha)) / outAlpha;
+                        double b = (effectColor.getBlue() * eAlpha + pokemonColor.getBlue() * pAlpha * (1 - eAlpha)) / outAlpha;
+                        
+                        writer.setColor(x, y, javafx.scene.paint.Color.color(
+                            Math.min(1.0, r), Math.min(1.0, g), Math.min(1.0, b), outAlpha
+                        ));
+                    } else {
+                        writer.setColor(x, y, javafx.scene.paint.Color.TRANSPARENT);
+                    }
+                }
+            }
+            
+            return composite;
+        } catch (Exception e) {
+            System.err.println("Failed to create composite frame: " + e.getMessage());
+            return pokemonSprite; // Fallback to Pokemon sprite
+        }
+    }
+    
+    /**
+     * Creates a white silhouette version of a Pokemon sprite.
+     * Used during evolution transition frames (3 and 5).
+     * 
+     * @param sprite The original Pokemon sprite
+     * @return White silhouette version of the sprite
+     */
+    private static Image createWhiteSilhouette(Image sprite) {
+        if (sprite == null) return null;
+        
+        try {
+            int width = SPRITE_SIZE;
+            int height = SPRITE_SIZE;
+            
+            javafx.scene.image.WritableImage silhouette = new javafx.scene.image.WritableImage(width, height);
+            javafx.scene.image.PixelWriter writer = silhouette.getPixelWriter();
+            javafx.scene.image.PixelReader reader = sprite.getPixelReader();
+            
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    javafx.scene.paint.Color original = reader.getColor(x, y);
+                    
+                    if (original.getOpacity() > 0.1) {
+                        // Make it white but keep the alpha (silhouette effect)
+                        // Blend 80% white with 20% original color for slight form visibility
+                        double whiteness = 0.85;
+                        double r = original.getRed() * (1 - whiteness) + whiteness;
+                        double g = original.getGreen() * (1 - whiteness) + whiteness;
+                        double b = original.getBlue() * (1 - whiteness) + whiteness;
+                        
+                        writer.setColor(x, y, javafx.scene.paint.Color.color(r, g, b, original.getOpacity()));
+                    } else {
+                        writer.setColor(x, y, javafx.scene.paint.Color.TRANSPARENT);
+                    }
+                }
+            }
+            
+            return silhouette;
+        } catch (Exception e) {
+            System.err.println("Failed to create white silhouette: " + e.getMessage());
+            return sprite; // Fallback to original
+        }
     }
     
     /**
