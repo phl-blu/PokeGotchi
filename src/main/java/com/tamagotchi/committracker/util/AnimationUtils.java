@@ -26,6 +26,76 @@ public class AnimationUtils {
     private static final int SPRITE_SIZE = 64; // 64x64 pixel sprites
     
     /**
+     * Extended frame durations for evolution animation (~3500ms total).
+     * Implements Requirements 3.1, 3.2 for longer, smoother evolution animations.
+     * 
+     * Animation sequence with glow pulse loop (frames 2→3→2→3):
+     * - Frame 1: Old Pokemon with sparkles (400ms)
+     * - Frame 2: Glow intensifying (350ms) - first pulse
+     * - Frame 3: Silhouette (300ms) - first pulse
+     * - Frame 2: Glow intensifying (350ms) - second pulse (loop back)
+     * - Frame 3: Silhouette (300ms) - second pulse (loop back)
+     * - Frame 4: Peak white flash (200ms) - extended from 150ms
+     * - Frame 5: New form silhouette (300ms)
+     * - Frame 6: New form fade-in (500ms)
+     * - Frame 7: Celebratory sparkles (600ms)
+     * Total: ~3300ms + transition overhead ≈ 3500ms
+     */
+    public static final double[] EXTENDED_FRAME_DURATIONS = {
+        400,  // Frame 1: Old form with sparkles
+        350,  // Frame 2: Glow intensifying (first pulse)
+        300,  // Frame 3: Silhouette (first pulse)
+        350,  // Frame 2: Glow (second pulse - loop back)
+        300,  // Frame 3: Silhouette (second pulse - loop back)
+        200,  // Frame 4: Peak white flash (extended from 150ms)
+        300,  // Frame 5: New form silhouette
+        500,  // Frame 6: New form fade-in
+        600   // Frame 7: Celebratory sparkles
+    };
+    
+    /**
+     * Glow pulse loop configuration.
+     * Defines which frame indices to use for the pulsing effect (frames 2→3→2→3).
+     * Index refers to the evolution effect frame (0-based).
+     */
+    public static final int[] GLOW_PULSE_FRAME_INDICES = {1, 2, 1, 2}; // Effect frames 2 and 3 (0-indexed)
+    
+    /**
+     * Number of glow pulse loops before the flash.
+     */
+    public static final int GLOW_PULSE_COUNT = 2;
+    
+    /**
+     * Flash duration in milliseconds (extended from 150ms to 200ms).
+     * Requirement 3.4
+     */
+    public static final double FLASH_DURATION_MS = 200.0;
+    
+    /**
+     * Fade-in duration for new Pokemon reveal in milliseconds.
+     * Requirement 3.5
+     */
+    public static final double FADE_IN_DURATION_MS = 500.0;
+    
+    /**
+     * Celebratory sparkles duration in milliseconds.
+     * Requirement 3.6
+     */
+    public static final double SPARKLES_DURATION_MS = 600.0;
+    
+    /**
+     * Gets the total duration of the extended evolution animation.
+     * @return Total duration in milliseconds (~3500ms)
+     */
+    public static double getExtendedEvolutionDuration() {
+        double total = 0;
+        for (double duration : EXTENDED_FRAME_DURATIONS) {
+            total += duration;
+        }
+        return total;
+    }
+    
+    /**
      * Loads sprite frames for a specific Pokemon species, evolution stage, and animation state.
      * Uses sprite cache for improved performance when enabled.
      * 
@@ -625,15 +695,203 @@ public class AnimationUtils {
     }
     
     /**
-     * Creates a special evolution animation sequence that transitions between stages.
-     * Uses classic Pokemon-style animation with proper layering to avoid "hologram" effect.
+     * Smooth frame rate for evolution animation (60 FPS equivalent).
+     * Higher frame rate = smoother transitions.
+     */
+    private static final double SMOOTH_FRAME_INTERVAL_MS = 33.0; // ~30 FPS for smooth animation
+    
+    /**
+     * Applies ease-in-out interpolation for smoother transitions.
+     * Uses cubic easing: slow start, fast middle, slow end.
      * 
-     * Animation sequence:
-     * - Frames 1-2: Old Pokemon visible with sparkle overlay (300ms each)
-     * - Frame 3: Old Pokemon as white silhouette (200ms)
-     * - Frame 4: Pure white flash - sprite swap happens here (150ms)
-     * - Frame 5: New Pokemon as white silhouette (200ms)
-     * - Frame 6: New Pokemon fully visible with sparkles (400ms)
+     * @param t Progress value from 0.0 to 1.0
+     * @return Eased value from 0.0 to 1.0
+     */
+    private static double easeInOutCubic(double t) {
+        return t < 0.5 
+            ? 4 * t * t * t 
+            : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+    
+    /**
+     * Applies ease-out interpolation for smooth deceleration.
+     * 
+     * @param t Progress value from 0.0 to 1.0
+     * @return Eased value from 0.0 to 1.0
+     */
+    private static double easeOutCubic(double t) {
+        return 1 - Math.pow(1 - t, 3);
+    }
+    
+    /**
+     * Creates a blended image between two images with smooth interpolation.
+     * 
+     * @param from Starting image
+     * @param to Ending image
+     * @param progress Blend progress (0.0 = from, 1.0 = to)
+     * @return Blended image
+     */
+    private static Image blendImages(Image from, Image to, double progress) {
+        if (from == null) return to;
+        if (to == null) return from;
+        if (progress <= 0) return from;
+        if (progress >= 1) return to;
+        
+        try {
+            int width = SPRITE_SIZE;
+            int height = SPRITE_SIZE;
+            
+            javafx.scene.image.WritableImage blended = new javafx.scene.image.WritableImage(width, height);
+            javafx.scene.image.PixelWriter writer = blended.getPixelWriter();
+            javafx.scene.image.PixelReader fromReader = from.getPixelReader();
+            javafx.scene.image.PixelReader toReader = to.getPixelReader();
+            
+            double fromWeight = 1.0 - progress;
+            double toWeight = progress;
+            
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    javafx.scene.paint.Color fromColor = fromReader.getColor(x, y);
+                    javafx.scene.paint.Color toColor = toReader.getColor(x, y);
+                    
+                    double r = fromColor.getRed() * fromWeight + toColor.getRed() * toWeight;
+                    double g = fromColor.getGreen() * fromWeight + toColor.getGreen() * toWeight;
+                    double b = fromColor.getBlue() * fromWeight + toColor.getBlue() * toWeight;
+                    double a = fromColor.getOpacity() * fromWeight + toColor.getOpacity() * toWeight;
+                    
+                    writer.setColor(x, y, javafx.scene.paint.Color.color(
+                        Math.min(1.0, Math.max(0.0, r)),
+                        Math.min(1.0, Math.max(0.0, g)),
+                        Math.min(1.0, Math.max(0.0, b)),
+                        Math.min(1.0, Math.max(0.0, a))
+                    ));
+                }
+            }
+            
+            return blended;
+        } catch (Exception e) {
+            return progress < 0.5 ? from : to;
+        }
+    }
+    
+    /**
+     * Adds a single blink cycle (glow → silhouette → glow) to the timeline.
+     * 
+     * @param timeline The timeline to add keyframes to
+     * @param callback Frame update callback
+     * @param frameGlow The glow frame
+     * @param frameSilhouette The silhouette frame
+     * @param startTime Starting time in milliseconds
+     * @param transitionDuration Duration of each transition in milliseconds
+     * @return The end time after this blink cycle
+     */
+    private static double addBlinkCycle(Timeline timeline, Consumer<Image> callback,
+                                        Image frameGlow, Image frameSilhouette,
+                                        double startTime, double transitionDuration) {
+        double currentTime = startTime;
+        int frames = Math.max(2, (int) (transitionDuration / SMOOTH_FRAME_INTERVAL_MS));
+        
+        // Part A: Glow to silhouette
+        for (int i = 0; i <= frames; i++) {
+            final double progress = easeInOutCubic((double) i / frames);
+            final double time = currentTime + (i * SMOOTH_FRAME_INTERVAL_MS);
+            final Image blendedFrame = (frameGlow != null && frameSilhouette != null) 
+                ? blendImages(frameGlow, frameSilhouette, progress)
+                : frameGlow;
+            if (blendedFrame != null) {
+                timeline.getKeyFrames().add(new KeyFrame(
+                    Duration.millis(time),
+                    e -> callback.accept(blendedFrame)
+                ));
+            }
+        }
+        currentTime += transitionDuration;
+        
+        // Part B: Silhouette back to glow
+        for (int i = 0; i <= frames; i++) {
+            final double progress = easeInOutCubic((double) i / frames);
+            final double time = currentTime + (i * SMOOTH_FRAME_INTERVAL_MS);
+            final Image blendedFrame = (frameSilhouette != null && frameGlow != null) 
+                ? blendImages(frameSilhouette, frameGlow, progress)
+                : frameSilhouette;
+            if (blendedFrame != null) {
+                timeline.getKeyFrames().add(new KeyFrame(
+                    Duration.millis(time),
+                    e -> callback.accept(blendedFrame)
+                ));
+            }
+        }
+        currentTime += transitionDuration;
+        
+        return currentTime;
+    }
+    
+    /**
+     * Adds a blink cycle that ends with a flash (glow → silhouette → flash).
+     * 
+     * @param timeline The timeline to add keyframes to
+     * @param callback Frame update callback
+     * @param frameGlow The glow frame
+     * @param frameSilhouette The silhouette frame
+     * @param frameFlash The flash frame
+     * @param startTime Starting time in milliseconds
+     * @param transitionDuration Duration of each transition in milliseconds
+     * @return The end time after this blink cycle
+     */
+    private static double addBlinkToFlash(Timeline timeline, Consumer<Image> callback,
+                                          Image frameGlow, Image frameSilhouette, Image frameFlash,
+                                          double startTime, double transitionDuration) {
+        double currentTime = startTime;
+        int frames = Math.max(2, (int) (transitionDuration / SMOOTH_FRAME_INTERVAL_MS));
+        
+        // Part A: Glow to silhouette
+        for (int i = 0; i <= frames; i++) {
+            final double progress = easeInOutCubic((double) i / frames);
+            final double time = currentTime + (i * SMOOTH_FRAME_INTERVAL_MS);
+            final Image blendedFrame = (frameGlow != null && frameSilhouette != null) 
+                ? blendImages(frameGlow, frameSilhouette, progress)
+                : frameGlow;
+            if (blendedFrame != null) {
+                timeline.getKeyFrames().add(new KeyFrame(
+                    Duration.millis(time),
+                    e -> callback.accept(blendedFrame)
+                ));
+            }
+        }
+        currentTime += transitionDuration;
+        
+        // Part B: Silhouette to flash
+        for (int i = 0; i <= frames; i++) {
+            final double progress = easeInOutCubic((double) i / frames);
+            final double time = currentTime + (i * SMOOTH_FRAME_INTERVAL_MS);
+            final Image blendedFrame = (frameSilhouette != null && frameFlash != null) 
+                ? blendImages(frameSilhouette, frameFlash, progress)
+                : frameSilhouette;
+            if (blendedFrame != null) {
+                timeline.getKeyFrames().add(new KeyFrame(
+                    Duration.millis(time),
+                    e -> callback.accept(blendedFrame)
+                ));
+            }
+        }
+        currentTime += transitionDuration;
+        
+        return currentTime;
+    }
+    
+    /**
+     * Creates a special evolution animation sequence that transitions between stages.
+     * Uses smooth interpolation with 3 accelerating flashes for dramatic effect.
+     * 
+     * Animation sequence with 3 accelerating flashes (~3500ms total):
+     * - Phase 1: Old Pokemon with sparkles (300ms) - intro
+     * - Flash 1: SLOW - glow → silhouette → glow (700ms total)
+     * - Flash 2: MEDIUM - glow → silhouette → glow (450ms total)
+     * - Flash 3: FAST - glow → silhouette → BRIGHT FLASH (300ms total)
+     * - Phase 5: Peak white flash - THE SWAP MOMENT (200ms)
+     * - Phase 6: New form silhouette emergence (300ms)
+     * - Phase 7: New form fade-in with easing (400ms)
+     * - Phase 8: Celebratory sparkles fade-out (500ms)
      * 
      * @param fromSpecies Starting Pokemon species
      * @param toSpecies Target Pokemon species after evolution
@@ -658,80 +916,153 @@ public class AnimationUtils {
         Image oldPokemon = oldPokemonFrames.isEmpty() ? null : oldPokemonFrames.get(0);
         Image newPokemon = newPokemonFrames.isEmpty() ? null : newPokemonFrames.get(0);
         
-        // Frame timings (in ms) - classic Pokemon style
-        double[] frameDurations = {300, 300, 200, 150, 200, 400};
+        // Pre-compute frames using EvolutionFrameCache for performance (Requirement 1.1, 1.2)
+        EvolutionFrameCache.preComputeEvolutionFrames(
+            fromSpecies, toSpecies, fromStage, toStage,
+            oldPokemon, newPokemon, evolutionEffects);
+        
+        // Get cached silhouettes
+        String oldSilhouetteKey = EvolutionFrameCache.createSilhouetteCacheKey(fromSpecies, fromStage);
+        String newSilhouetteKey = EvolutionFrameCache.createSilhouetteCacheKey(toSpecies, toStage);
+        Image oldSilhouette = EvolutionFrameCache.getCachedSilhouette(oldPokemon, oldSilhouetteKey);
+        Image newSilhouette = EvolutionFrameCache.getCachedSilhouette(newPokemon, newSilhouetteKey);
+        
+        // Pre-compute key frames for smooth blending
+        Image frameSparkles = (oldPokemon != null && evolutionEffects.size() > 0) 
+            ? EvolutionFrameCache.createCompositeFrame(oldPokemon, evolutionEffects.get(0), 1.0) : oldPokemon;
+        Image frameGlow = (oldPokemon != null && evolutionEffects.size() > 1) 
+            ? EvolutionFrameCache.createCompositeFrame(oldPokemon, evolutionEffects.get(1), 1.0) : oldPokemon;
+        Image frameSilhouette = (oldSilhouette != null && evolutionEffects.size() > 2) 
+            ? EvolutionFrameCache.createCompositeFrame(oldSilhouette, evolutionEffects.get(2), 1.0) : oldSilhouette;
+        Image frameFlash = (evolutionEffects.size() > 3) ? evolutionEffects.get(3) : null;
+        Image frameNewSilhouette = (newSilhouette != null && evolutionEffects.size() > 4) 
+            ? EvolutionFrameCache.createCompositeFrame(newSilhouette, evolutionEffects.get(4), 1.0) : newSilhouette;
+        Image frameNewSparkles = (newPokemon != null && evolutionEffects.size() > 5) 
+            ? EvolutionFrameCache.createCompositeFrame(newPokemon, evolutionEffects.get(5), 1.0) : newPokemon;
+        
         double currentTime = 0;
         
-        // Frame 1: Old Pokemon with small sparkles (300ms)
-        if (oldPokemon != null && evolutionEffects.size() > 0) {
-            final Image pokemon = oldPokemon;
-            final Image effect = evolutionEffects.get(0);
-            evolutionTimeline.getKeyFrames().add(new KeyFrame(
-                Duration.millis(currentTime),
-                e -> frameUpdateCallback.accept(createCompositeFrame(pokemon, effect, 1.0))
-            ));
+        // === PHASE 1: Old Pokemon with sparkles (300ms) - intro ===
+        double introDuration = 300;
+        int introFrames = (int) (introDuration / SMOOTH_FRAME_INTERVAL_MS);
+        for (int i = 0; i <= introFrames; i++) {
+            final double progress = easeOutCubic((double) i / introFrames);
+            final double time = currentTime + (i * SMOOTH_FRAME_INTERVAL_MS);
+            final Image blendedFrame = (frameSparkles != null && frameGlow != null) 
+                ? blendImages(frameSparkles, frameGlow, progress * 0.3)
+                : frameSparkles;
+            if (blendedFrame != null) {
+                evolutionTimeline.getKeyFrames().add(new KeyFrame(
+                    Duration.millis(time),
+                    e -> frameUpdateCallback.accept(blendedFrame)
+                ));
+            }
         }
-        currentTime += frameDurations[0];
+        currentTime += introDuration;
         
-        // Frame 2: Old Pokemon with intensifying glow (300ms)
-        if (oldPokemon != null && evolutionEffects.size() > 1) {
-            final Image pokemon = oldPokemon;
-            final Image effect = evolutionEffects.get(1);
-            evolutionTimeline.getKeyFrames().add(new KeyFrame(
-                Duration.millis(currentTime),
-                e -> frameUpdateCallback.accept(createCompositeFrame(pokemon, effect, 1.0))
-            ));
+        // === RAPID BLINKING SEQUENCE - Accelerating flashes ===
+        // Each blink: glow → silhouette → glow, getting faster each time
+        
+        // Blink 1: SLOW (200ms per transition = 400ms total)
+        currentTime = addBlinkCycle(evolutionTimeline, frameUpdateCallback, 
+            frameGlow, frameSilhouette, currentTime, 200);
+        
+        // Blink 2: MEDIUM (150ms per transition = 300ms total)
+        currentTime = addBlinkCycle(evolutionTimeline, frameUpdateCallback, 
+            frameGlow, frameSilhouette, currentTime, 150);
+        
+        // Blink 3: FASTER (100ms per transition = 200ms total)
+        currentTime = addBlinkCycle(evolutionTimeline, frameUpdateCallback, 
+            frameGlow, frameSilhouette, currentTime, 100);
+        
+        // Blink 4: FAST (70ms per transition = 140ms total)
+        currentTime = addBlinkCycle(evolutionTimeline, frameUpdateCallback, 
+            frameGlow, frameSilhouette, currentTime, 70);
+        
+        // Blink 5: VERY FAST (50ms per transition = 100ms total)
+        currentTime = addBlinkCycle(evolutionTimeline, frameUpdateCallback, 
+            frameGlow, frameSilhouette, currentTime, 50);
+        
+        // Blink 6: RAPID (40ms per transition = 80ms total) - building to flash
+        currentTime = addBlinkToFlash(evolutionTimeline, frameUpdateCallback, 
+            frameGlow, frameSilhouette, frameFlash, currentTime, 40);
+        
+        // === PEAK WHITE FLASH - THE SWAP MOMENT ===
+        // Hold pure white flash for 300ms
+        double flashHoldDuration = 300;
+        int flashHoldFrames = (int) (flashHoldDuration / SMOOTH_FRAME_INTERVAL_MS);
+        for (int i = 0; i <= flashHoldFrames; i++) {
+            final double time = currentTime + (i * SMOOTH_FRAME_INTERVAL_MS);
+            if (frameFlash != null) {
+                evolutionTimeline.getKeyFrames().add(new KeyFrame(
+                    Duration.millis(time),
+                    e -> frameUpdateCallback.accept(frameFlash)
+                ));
+            }
         }
-        currentTime += frameDurations[1];
+        currentTime += flashHoldDuration;
         
-        // Frame 3: Old Pokemon as white silhouette (200ms)
-        if (oldPokemon != null && evolutionEffects.size() > 2) {
-            final Image pokemon = oldPokemon;
-            final Image effect = evolutionEffects.get(2);
-            evolutionTimeline.getKeyFrames().add(new KeyFrame(
-                Duration.millis(currentTime),
-                e -> frameUpdateCallback.accept(createCompositeFrame(createWhiteSilhouette(pokemon), effect, 1.0))
-            ));
+        // === DECELERATING BLINK PHASE-OUT ===
+        // After the bright flash, blink between new silhouette and new sparkles, gradually slowing down
+        
+        // Blink 1: FAST (60ms per transition = 120ms total)
+        currentTime = addBlinkCycle(evolutionTimeline, frameUpdateCallback, 
+            frameNewSilhouette, frameNewSparkles, currentTime, 60);
+        
+        // Blink 2: MEDIUM (90ms per transition = 180ms total)
+        currentTime = addBlinkCycle(evolutionTimeline, frameUpdateCallback, 
+            frameNewSilhouette, frameNewSparkles, currentTime, 90);
+        
+        // Blink 3: SLOW (130ms per transition = 260ms total)
+        currentTime = addBlinkCycle(evolutionTimeline, frameUpdateCallback, 
+            frameNewSilhouette, frameNewSparkles, currentTime, 130);
+        
+        // Blink 4: VERY SLOW (180ms per transition = 360ms total) - final phase-out
+        currentTime = addBlinkCycle(evolutionTimeline, frameUpdateCallback, 
+            frameNewSilhouette, frameNewSparkles, currentTime, 180);
+        
+        // === NEW FORM FADE-IN (500ms) - Requirement 3.5 ===
+        double fadeInDuration = FADE_IN_DURATION_MS; // 500ms from constant
+        int fadeInFrames = (int) (fadeInDuration / SMOOTH_FRAME_INTERVAL_MS);
+        for (int i = 0; i <= fadeInFrames; i++) {
+            final double progress = easeOutCubic((double) i / fadeInFrames);
+            final double time = currentTime + (i * SMOOTH_FRAME_INTERVAL_MS);
+            final Image blendedFrame = (frameNewSparkles != null && newPokemon != null) 
+                ? blendImages(frameNewSparkles, newPokemon, progress * 0.5)
+                : frameNewSparkles;
+            if (blendedFrame != null) {
+                evolutionTimeline.getKeyFrames().add(new KeyFrame(
+                    Duration.millis(time),
+                    e -> frameUpdateCallback.accept(blendedFrame)
+                ));
+            }
         }
-        currentTime += frameDurations[2];
+        currentTime += fadeInDuration;
         
-        // Frame 4: Peak white flash - NO Pokemon visible (150ms) - THE SWAP MOMENT
-        if (evolutionEffects.size() > 3) {
-            final Image effect = evolutionEffects.get(3);
-            evolutionTimeline.getKeyFrames().add(new KeyFrame(
-                Duration.millis(currentTime),
-                e -> frameUpdateCallback.accept(effect) // Pure effect, no Pokemon
-            ));
+        // === CELEBRATORY SPARKLES FADE-OUT (600ms) - Requirement 3.6 ===
+        double sparklesDuration = SPARKLES_DURATION_MS; // 600ms from constant
+        int sparklesFrames = (int) (sparklesDuration / SMOOTH_FRAME_INTERVAL_MS);
+        for (int i = 0; i <= sparklesFrames; i++) {
+            final double progress = easeOutCubic((double) i / sparklesFrames);
+            final double time = currentTime + (i * SMOOTH_FRAME_INTERVAL_MS);
+            final Image blendedFrame = (frameNewSparkles != null && newPokemon != null) 
+                ? blendImages(frameNewSparkles, newPokemon, 0.5 + progress * 0.5)
+                : newPokemon;
+            if (blendedFrame != null) {
+                evolutionTimeline.getKeyFrames().add(new KeyFrame(
+                    Duration.millis(time),
+                    e -> frameUpdateCallback.accept(blendedFrame)
+                ));
+            }
         }
-        currentTime += frameDurations[3];
+        currentTime += sparklesDuration;
         
-        // Frame 5: New Pokemon as white silhouette (200ms)
-        if (newPokemon != null && evolutionEffects.size() > 4) {
-            final Image pokemon = newPokemon;
-            final Image effect = evolutionEffects.get(4);
-            evolutionTimeline.getKeyFrames().add(new KeyFrame(
-                Duration.millis(currentTime),
-                e -> frameUpdateCallback.accept(createCompositeFrame(createWhiteSilhouette(pokemon), effect, 1.0))
-            ));
-        }
-        currentTime += frameDurations[4];
-        
-        // Frame 6: New Pokemon fully visible with final sparkles (400ms)
-        if (newPokemon != null && evolutionEffects.size() > 5) {
-            final Image pokemon = newPokemon;
-            final Image effect = evolutionEffects.get(5);
-            evolutionTimeline.getKeyFrames().add(new KeyFrame(
-                Duration.millis(currentTime),
-                e -> frameUpdateCallback.accept(createCompositeFrame(pokemon, effect, 1.0))
-            ));
-        }
-        currentTime += frameDurations[5];
-        
-        // Final frame: Show new Pokemon without effects and trigger callback
+        // === FINAL: Show clean new Pokemon and trigger callback ===
         if (newPokemon != null) {
             final Image pokemon = newPokemon;
+            final double finalTime = currentTime;
             evolutionTimeline.getKeyFrames().add(new KeyFrame(
-                Duration.millis(currentTime),
+                Duration.millis(finalTime),
                 e -> {
                     frameUpdateCallback.accept(pokemon);
                     if (evolutionCompleteCallback != null) {
@@ -742,7 +1073,8 @@ public class AnimationUtils {
         }
         
         evolutionTimeline.setCycleCount(1);
-        System.out.println("✨ Created evolution animation: " + fromSpecies + " → " + toSpecies + " (duration: " + currentTime + "ms)");
+        System.out.println("✨ Created evolution animation with 3 accelerating flashes: " + fromSpecies + " → " + toSpecies + 
+                          " (duration: " + currentTime + "ms)");
         
         return evolutionTimeline;
     }

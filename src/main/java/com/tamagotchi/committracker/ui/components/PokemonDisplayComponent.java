@@ -339,6 +339,12 @@ public class PokemonDisplayComponent extends StackPane {
      * Loads sprite frames for the current Pokemon configuration and starts animation.
      */
     private void loadAndStartAnimation() {
+        // Don't restart animation during evolution
+        if (isEvolutionInProgress) {
+            System.out.println("⚠️ Skipping loadAndStartAnimation - evolution in progress");
+            return;
+        }
+        
         if (currentStage == EvolutionStage.EGG) {
             // For eggs, always show static - use XP-based loading
             loadAndStartAnimationWithXP(0); // Default to 0 XP (stage 1 egg)
@@ -378,6 +384,12 @@ public class PokemonDisplayComponent extends StackPane {
      * @param totalXP Total accumulated XP (for egg stage determination)
      */
     public void loadAndStartAnimationWithXP(int totalXP) {
+        // Don't restart animation during evolution
+        if (isEvolutionInProgress) {
+            System.out.println("⚠️ Skipping loadAndStartAnimationWithXP - evolution in progress");
+            return;
+        }
+        
         // Stop current animation if running
         if (currentAnimation != null) {
             currentAnimation.stop();
@@ -523,28 +535,30 @@ public class PokemonDisplayComponent extends StackPane {
         isEvolutionInProgress = true;
         System.out.println("🌟 Starting evolution: " + currentStage + " -> " + newStage);
         
-        // Stop current animation
+        // Stop current animation completely
         if (currentAnimation != null) {
             currentAnimation.stop();
+            currentAnimation = null;
         }
         
         // Get the evolved Pokemon species
         PokemonSpecies evolvedSpecies = getEvolvedSpecies(currentSpecies, newStage);
         System.out.println("🌟 Evolving species: " + currentSpecies + " -> " + evolvedSpecies);
         
-        // Create evolution animation
-        Timeline evolutionAnimation = AnimationUtils.createEvolutionAnimation(
+        // Set current state to evolving BEFORE creating animation
+        this.currentState = PokemonState.EVOLVING;
+        
+        // Create evolution animation and store it as currentAnimation
+        // This prevents any other animation from interfering
+        currentAnimation = AnimationUtils.createEvolutionAnimation(
             currentSpecies, evolvedSpecies,
             currentStage, newStage,
             this::updateDisplayedFrame,
             () -> completeEvolution(evolvedSpecies, newStage)
         );
         
-        // Set current state to evolving
-        this.currentState = PokemonState.EVOLVING;
-        
         // Start evolution animation
-        evolutionAnimation.play();
+        currentAnimation.play();
     }
     
     /**
