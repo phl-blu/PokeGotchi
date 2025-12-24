@@ -321,25 +321,180 @@ public class AnimationUtils {
     /**
      * Creates a fallback image when sprite frames cannot be loaded.
      * This ensures the animation system always has at least one frame to display.
+     * Implements graceful degradation for missing sprite files (Requirement 8.3).
      */
     private static Image createFallbackImage(PokemonSpecies species, EvolutionStage stage) {
-        // Try to load a generic fallback sprite
-        String fallbackPath = "/pokemon/sprites/fallback/" + stage.name().toLowerCase() + ".png";
-        InputStream fallbackStream = AnimationUtils.class.getResourceAsStream(fallbackPath);
+        // Try multiple fallback strategies in order of preference
         
-        if (fallbackStream != null) {
-            try {
-                Image fallback = new Image(fallbackStream, SPRITE_SIZE, SPRITE_SIZE, true, true);
-                fallbackStream.close();
+        // Strategy 1: Try to load a generic fallback sprite for the stage
+        String fallbackPath = "/pokemon/sprites/fallback/" + stage.name().toLowerCase() + ".png";
+        Image fallback = tryLoadImage(fallbackPath);
+        if (fallback != null) {
+            ErrorHandler.handleSpriteLoadingError(species + "/" + stage, true);
+            return fallback;
+        }
+        
+        // Strategy 2: Try to load any available sprite from the species folder
+        String speciesFolder = getBaseSpeciesFolder(species);
+        String[] fallbackPaths = {
+            "/pokemon/sprites/" + speciesFolder + "/basic/content/frame1.png",
+            "/pokemon/sprites/" + speciesFolder + "/egg/stage1/frame1.png",
+            "/pokemon/sprites/" + speciesFolder + "/stage_1/content/frame1.png"
+        };
+        
+        for (String path : fallbackPaths) {
+            fallback = tryLoadImage(path);
+            if (fallback != null) {
+                System.out.println("🔄 Using alternative fallback sprite: " + path);
+                ErrorHandler.handleSpriteLoadingError(species + "/" + stage, true);
                 return fallback;
-            } catch (Exception e) {
-                System.err.println("Failed to load fallback image: " + e.getMessage());
             }
         }
         
-        // If even fallback fails, create a simple colored rectangle as last resort
-        // This would be replaced with actual sprite loading in a real implementation
-        return new Image(AnimationUtils.class.getResourceAsStream("/pokemon/sprites/.gitkeep"));
+        // Strategy 3: Try to load from any available Pokemon as last resort
+        String[] genericFallbacks = {
+            "/pokemon/sprites/charmander/basic/content/frame1.png",
+            "/pokemon/sprites/charmander/egg/stage1/frame1.png",
+            "/pokemon/sprites/cyndaquil/basic/content/frame1.png"
+        };
+        
+        for (String path : genericFallbacks) {
+            fallback = tryLoadImage(path);
+            if (fallback != null) {
+                System.out.println("🔄 Using generic fallback sprite: " + path);
+                ErrorHandler.handleSpriteLoadingError(species + "/" + stage, true);
+                return fallback;
+            }
+        }
+        
+        // Strategy 4: Create a programmatic placeholder image
+        fallback = createPlaceholderImage(species, stage);
+        if (fallback != null) {
+            System.out.println("🔄 Using programmatic placeholder for: " + species + "/" + stage);
+            ErrorHandler.handleSpriteLoadingError(species + "/" + stage, true);
+            return fallback;
+        }
+        
+        // Final fallback: return null and let caller handle it
+        ErrorHandler.handleSpriteLoadingError(species + "/" + stage, false);
+        System.err.println("❌ No fallback available for: " + species + "/" + stage);
+        return null;
+    }
+    
+    /**
+     * Attempts to load an image from the given path.
+     * Returns null if loading fails.
+     */
+    private static Image tryLoadImage(String path) {
+        try {
+            InputStream stream = AnimationUtils.class.getResourceAsStream(path);
+            if (stream != null) {
+                Image image = new Image(stream, SPRITE_SIZE, SPRITE_SIZE, true, true);
+                stream.close();
+                if (!image.isError()) {
+                    return image;
+                }
+            }
+        } catch (Exception e) {
+            // Silently fail and return null
+        }
+        return null;
+    }
+    
+    /**
+     * Creates a simple programmatic placeholder image when no sprites are available.
+     * This ensures the UI always has something to display.
+     */
+    private static Image createPlaceholderImage(PokemonSpecies species, EvolutionStage stage) {
+        try {
+            // Create a simple colored placeholder using JavaFX
+            // The color is based on the Pokemon type for visual consistency
+            int width = SPRITE_SIZE;
+            int height = SPRITE_SIZE;
+            
+            javafx.scene.image.WritableImage writableImage = new javafx.scene.image.WritableImage(width, height);
+            javafx.scene.image.PixelWriter pixelWriter = writableImage.getPixelWriter();
+            
+            // Determine color based on Pokemon type
+            javafx.scene.paint.Color baseColor = getPokemonTypeColor(species);
+            javafx.scene.paint.Color borderColor = baseColor.darker();
+            
+            // Draw a simple egg or Pokemon shape
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    // Create an oval shape
+                    double centerX = width / 2.0;
+                    double centerY = height / 2.0;
+                    double radiusX = width / 2.5;
+                    double radiusY = height / 2.2;
+                    
+                    double normalizedX = (x - centerX) / radiusX;
+                    double normalizedY = (y - centerY) / radiusY;
+                    double distance = normalizedX * normalizedX + normalizedY * normalizedY;
+                    
+                    if (distance <= 1.0) {
+                        if (distance > 0.85) {
+                            pixelWriter.setColor(x, y, borderColor);
+                        } else {
+                            pixelWriter.setColor(x, y, baseColor);
+                        }
+                    } else {
+                        pixelWriter.setColor(x, y, javafx.scene.paint.Color.TRANSPARENT);
+                    }
+                }
+            }
+            
+            return writableImage;
+        } catch (Exception e) {
+            System.err.println("Failed to create placeholder image: " + e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Gets a color representing the Pokemon's type for placeholder images.
+     */
+    private static javafx.scene.paint.Color getPokemonTypeColor(PokemonSpecies species) {
+        switch (species) {
+            // Fire types - orange/red
+            case CHARMANDER:
+            case CHARMELEON:
+            case CHARIZARD:
+            case CYNDAQUIL:
+            case QUILAVA:
+            case TYPHLOSION:
+            case FUECOCO:
+            case CROCALOR:
+            case SKELEDIRGE:
+                return javafx.scene.paint.Color.rgb(255, 140, 80);
+            
+            // Water types - blue
+            case MUDKIP:
+            case MARSHTOMP:
+            case SWAMPERT:
+            case PIPLUP:
+            case PRINPLUP:
+            case EMPOLEON:
+            case FROAKIE:
+            case FROGADIER:
+            case GRENINJA:
+                return javafx.scene.paint.Color.rgb(100, 180, 255);
+            
+            // Grass types - green
+            case SNIVY:
+            case SERVINE:
+            case SERPERIOR:
+            case ROWLET:
+            case DARTRIX:
+            case DECIDUEYE:
+            case GROOKEY:
+            case THWACKEY:
+            case RILLABOOM:
+                return javafx.scene.paint.Color.rgb(120, 200, 120);
+            
+            default:
+                return javafx.scene.paint.Color.rgb(200, 200, 200);
+        }
     }
     
     /**

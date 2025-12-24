@@ -5,6 +5,8 @@ import com.tamagotchi.committracker.domain.CommitHistory;
 import com.tamagotchi.committracker.domain.Repository;
 import com.tamagotchi.committracker.config.AppConfig;
 import com.tamagotchi.committracker.util.WindowsIntegration;
+import com.tamagotchi.committracker.util.ErrorHandler;
+import com.tamagotchi.committracker.util.RetryMechanism;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.LogCommand;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -24,6 +26,7 @@ import java.util.logging.Logger;
 /**
  * Orchestrates repository monitoring and data collection.
  * Manages 5-minute polling cycle and processes new commits.
+ * Implements graceful error handling and retry mechanisms for resilience.
  */
 public class CommitService {
     private static final Logger logger = Logger.getLogger(CommitService.class.getName());
@@ -33,6 +36,7 @@ public class CommitService {
     private final ExecutorService scanExecutor;
     private final CommitHistory commitHistory;
     private final List<CommitListener> listeners;
+    private final RetryMechanism retryMechanism;
     
     private volatile boolean isMonitoring = false;
     private ScheduledFuture<?> pollingTask;
@@ -43,6 +47,12 @@ public class CommitService {
         this.scanExecutor = Executors.newFixedThreadPool(4);
         this.commitHistory = new CommitHistory();
         this.listeners = new ArrayList<>();
+        this.retryMechanism = RetryMechanism.builder()
+            .maxRetries(3)
+            .initialDelay(2000)
+            .maxDelay(30000)
+            .backoffMultiplier(2.0)
+            .build();
     }
     
     public CommitService(RepositoryScanner repositoryScanner) {
@@ -51,6 +61,12 @@ public class CommitService {
         this.scanExecutor = Executors.newFixedThreadPool(4);
         this.commitHistory = new CommitHistory();
         this.listeners = new ArrayList<>();
+        this.retryMechanism = RetryMechanism.builder()
+            .maxRetries(3)
+            .initialDelay(2000)
+            .maxDelay(30000)
+            .backoffMultiplier(2.0)
+            .build();
     }
     
     /**
@@ -97,6 +113,7 @@ public class CommitService {
         
         scheduler.shutdown();
         scanExecutor.shutdown();
+        retryMechanism.shutdown();
         
         try {
             if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
@@ -165,6 +182,7 @@ public class CommitService {
     
     /**
      * Scans all repositories for new commits.
+     * Implements retry mechanism for transient failures and graceful error handling.
      */
     public void scanAllRepositories() {
         if (!isMonitoring) {
@@ -184,9 +202,25 @@ public class CommitService {
                             LocalDateTime since = repo.getLastScanned() != null ? 
                                 repo.getLastScanned() : LocalDateTime.now().minusHours(6);
                             
-                            List<Commit> commits = getCommitsSince(repo, since);
-                            repo.setLastScanned(LocalDateTime.now());
-                            return commits;
+                            // Use retry mechanism for potentially transient failures
+                            RetryMechanism.RetryResult<List<Commit>> result = retryMechanism.executeWithRetry(
+                                () -> getCommitsSince(repo, since),
+                                "scan repository " + repo.getName(),
+                                e -> RetryMechanism.isRetryableException(e) && !RetryMechanism.isAuthenticationException(e)
+                            );
+                            
+                            if (result.isSuccess()) {
+                                repo.setLastScanned(LocalDateTime.now());
+                                return result.getResult();
+                            } else {
+                                // Mark repository as inaccessible after all retries failed
+                                if (RetryMechanism.isAuthenticationException(result.getLastError())) {
+                                    ErrorHandler.handleGitAuthenticationError(repo.getName(), result.getLastError());
+                                }
+                                repo.setAccessible(false);
+                                return Collections.emptyList();
+                            }
+                            
                         } catch (Exception e) {
                             logger.log(Level.WARNING, "Failed to scan repository: " + repo.getName(), e);
                             repo.setAccessible(false);
@@ -202,6 +236,9 @@ public class CommitService {
             for (Future<List<Commit>> future : futures) {
                 try {
                     newCommits.addAll(future.get(30, TimeUnit.SECONDS));
+                } catch (TimeoutException e) {
+                    logger.log(Level.WARNING, "Repository scan task timed out");
+                    ErrorHandler.handleNetworkError("repository scan", e, false);
                 } catch (Exception e) {
                     logger.log(Level.WARNING, "Repository scan task failed", e);
                 }
@@ -214,12 +251,14 @@ public class CommitService {
             
         } catch (Exception e) {
             logger.log(Level.WARNING, "Periodic scan failed", e);
+            ErrorHandler.handleNetworkError("periodic repository scan", e, true);
         }
     }
     
     /**
      * Gets commits from a repository since a specific date.
      * Uses Windows credential storage for authentication when available.
+     * Implements graceful error handling for authentication and access failures.
      */
     public List<Commit> getCommitsSince(Repository repository, LocalDateTime since) {
         List<Commit> commits = new ArrayList<>();
@@ -269,17 +308,26 @@ public class CommitService {
             jgitRepo.close();
             
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Failed to get commits from repository: " + repository.getName(), e);
-            
-            // Try to handle authentication failure
-            if (e.getMessage() != null && e.getMessage().toLowerCase().contains("auth")) {
+            // Classify and handle the error appropriately
+            if (RetryMechanism.isAuthenticationException(e)) {
+                // Handle authentication failure
+                ErrorHandler.handleGitAuthenticationError(repository.getName(), e);
+                
+                // Try to handle authentication failure with stored credentials
                 if (handleAuthenticationFailure(repository)) {
                     logger.info("Authentication credentials found, repository may be accessible on retry");
                 } else {
                     logger.warning("No authentication credentials available for repository: " + repository.getName());
                 }
+            } else if (RetryMechanism.isRetryableException(e)) {
+                // Network or transient error - will be retried by caller
+                ErrorHandler.handleNetworkError("reading commits from " + repository.getName(), e, true);
+            } else {
+                // Repository access error
+                ErrorHandler.handleRepositoryAccessError(repository.getPath().toString(), e);
             }
             
+            logger.log(Level.WARNING, "Failed to get commits from repository: " + repository.getName(), e);
             throw new RuntimeException("Failed to read commits from repository", e);
         }
         
