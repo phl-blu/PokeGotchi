@@ -6,8 +6,10 @@ import com.tamagotchi.committracker.pokemon.PokemonState;
 import com.tamagotchi.committracker.pokemon.EvolutionStage;
 import com.tamagotchi.committracker.config.AppConfig;
 
+import java.io.InputStream;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -24,6 +26,9 @@ public class SpriteCache {
     // Cache storage
     private final ConcurrentHashMap<String, List<Image>> spriteCache;
     private final ConcurrentLinkedQueue<String> accessOrder; // For LRU eviction
+    
+    // Evolution effect frames cache (separate from sprite cache for persistence)
+    private volatile List<Image> evolutionEffectFrames;
     
     // Cache statistics
     private volatile long cacheHits = 0;
@@ -200,6 +205,131 @@ public class SpriteCache {
         }
         
         logger.info("Preloading completed. Cache size: " + spriteCache.size());
+    }
+    
+    /**
+     * Preloads evolution effect frames and pre-computes silhouettes for all starter Pokemon.
+     * Should be called during application startup to ensure smooth evolution animations.
+     * 
+     * Requirements: 1.4
+     */
+    public void preloadEvolutionEffects() {
+        if (!AppConfig.isSpriteCachingEnabled()) {
+            logger.info("Sprite caching disabled - skipping evolution effects preload");
+            return;
+        }
+        
+        logger.info("Preloading evolution effects...");
+        
+        // Load all 6 evolution effect frames
+        evolutionEffectFrames = loadEvolutionEffectFramesDirect();
+        logger.info("Loaded " + evolutionEffectFrames.size() + " evolution effect frames");
+        
+        // Pre-compute silhouettes for all 9 starter Pokemon (EGG and BASIC stages)
+        PokemonSpecies[] starters = {
+            PokemonSpecies.CHARMANDER, PokemonSpecies.CYNDAQUIL, PokemonSpecies.MUDKIP,
+            PokemonSpecies.PIPLUP, PokemonSpecies.SNIVY, PokemonSpecies.FROAKIE,
+            PokemonSpecies.ROWLET, PokemonSpecies.GROOKEY, PokemonSpecies.FUECOCO
+        };
+        
+        int silhouettesPreloaded = 0;
+        for (PokemonSpecies starter : starters) {
+            // Pre-compute silhouette for EGG stage (stage 4 - the hatching stage)
+            Image eggSprite = loadSingleSprite(starter, EvolutionStage.EGG, 4);
+            if (eggSprite != null) {
+                String eggSilhouetteKey = EvolutionFrameCache.createSilhouetteCacheKey(starter, EvolutionStage.EGG);
+                EvolutionFrameCache.getCachedSilhouette(eggSprite, eggSilhouetteKey);
+                silhouettesPreloaded++;
+            }
+            
+            // Pre-compute silhouette for BASIC stage
+            Image basicSprite = loadSingleSprite(starter, EvolutionStage.BASIC, 0);
+            if (basicSprite != null) {
+                String basicSilhouetteKey = EvolutionFrameCache.createSilhouetteCacheKey(starter, EvolutionStage.BASIC);
+                EvolutionFrameCache.getCachedSilhouette(basicSprite, basicSilhouetteKey);
+                silhouettesPreloaded++;
+            }
+        }
+        
+        logger.info("Preloaded " + silhouettesPreloaded + " silhouettes for starter Pokemon");
+        logger.info("Evolution effects preloading completed");
+    }
+    
+    /**
+     * Gets the cached evolution effect frames.
+     * Returns null if not preloaded yet.
+     * 
+     * @return List of evolution effect frames, or null if not loaded
+     */
+    public List<Image> getEvolutionEffectFrames() {
+        if (evolutionEffectFrames == null) {
+            // Lazy load if not preloaded
+            evolutionEffectFrames = loadEvolutionEffectFramesDirect();
+        }
+        return evolutionEffectFrames;
+    }
+    
+    /**
+     * Directly loads evolution effect frames from resources.
+     * 
+     * @return List of evolution effect frame images
+     */
+    private List<Image> loadEvolutionEffectFramesDirect() {
+        List<Image> frames = new ArrayList<>();
+        int spriteSize = 64;
+        
+        for (int i = 1; i <= 6; i++) {
+            String effectPath = "/pokemon/sprites/effects/evolution/frame" + i + ".png";
+            try (InputStream effectStream = getClass().getResourceAsStream(effectPath)) {
+                if (effectStream != null) {
+                    Image frame = new Image(effectStream, spriteSize, spriteSize, true, true);
+                    if (!frame.isError()) {
+                        frames.add(frame);
+                    } else {
+                        logger.warning("Error loading evolution effect frame: " + effectPath);
+                    }
+                } else {
+                    logger.warning("Evolution effect frame not found: " + effectPath);
+                }
+            } catch (Exception e) {
+                logger.warning("Failed to load evolution effect frame " + i + ": " + e.getMessage());
+            }
+        }
+        
+        return frames;
+    }
+    
+    /**
+     * Loads a single sprite for silhouette pre-computation.
+     * 
+     * @param species The Pokemon species
+     * @param stage The evolution stage
+     * @param eggStage The egg stage (1-4) if stage is EGG, otherwise ignored
+     * @return The loaded sprite image, or null if not found
+     */
+    private Image loadSingleSprite(PokemonSpecies species, EvolutionStage stage, int eggStage) {
+        int spriteSize = 64;
+        String speciesFolder = species.name().toLowerCase();
+        String path;
+        
+        if (stage == EvolutionStage.EGG) {
+            path = "/pokemon/sprites/" + speciesFolder + "/egg/stage" + eggStage + "/frame1.png";
+        } else {
+            path = "/pokemon/sprites/" + speciesFolder + "/" + stage.name().toLowerCase() + "/content/frame1.png";
+        }
+        
+        try (InputStream stream = getClass().getResourceAsStream(path)) {
+            if (stream != null) {
+                Image sprite = new Image(stream, spriteSize, spriteSize, true, true);
+                if (!sprite.isError()) {
+                    return sprite;
+                }
+            }
+        } catch (Exception e) {
+            logger.fine("Could not load sprite for silhouette: " + path);
+        }
+        
+        return null;
     }
     
     /**

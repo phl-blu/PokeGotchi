@@ -34,6 +34,11 @@ public class TamagotchiCommitTrackerApp extends Application {
             System.out.println("🖼️ Initializing sprite cache...");
             SpriteCache.getInstance().preloadCommonSprites();
             System.out.println("✅ Sprite cache initialized: " + SpriteCache.getInstance().getCacheStats());
+            
+            // Preload evolution effects for smooth evolution animations
+            System.out.println("✨ Preloading evolution effects...");
+            SpriteCache.getInstance().preloadEvolutionEffects();
+            System.out.println("✅ Evolution effects preloaded");
         }
         
         // Initialize core services
