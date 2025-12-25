@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 /**
@@ -26,6 +29,7 @@ public class EvolutionFrameCache {
     private static final Logger logger = Logger.getLogger(EvolutionFrameCache.class.getName());
     private static final int SPRITE_SIZE = 64;
     private static final long CACHE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
+    private static final long CLEANUP_INTERVAL_MS = 60 * 1000; // 1 minute cleanup interval
     
     // Cache for pre-computed evolution frame sequences
     private static final Map<String, CachedEvolutionSequence> frameCache = new ConcurrentHashMap<>();
@@ -35,6 +39,56 @@ public class EvolutionFrameCache {
     
     // Track last access time for cache expiration
     private static final Map<String, Long> lastAccessTime = new ConcurrentHashMap<>();
+    
+    // Scheduled executor for automatic cache cleanup
+    private static final ScheduledExecutorService cleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "EvolutionFrameCache-Cleanup");
+        t.setDaemon(true); // Don't prevent JVM shutdown
+        return t;
+    });
+    
+    // Track current Pokemon to clear silhouette cache when it changes
+    private static volatile PokemonSpecies currentPokemon = null;
+    
+    static {
+        // Start automatic cache cleanup
+        startAutomaticCleanup();
+    }
+    
+    /**
+     * Starts automatic cache cleanup that runs every minute.
+     * Removes expired entries to prevent memory leaks.
+     */
+    private static void startAutomaticCleanup() {
+        cleanupExecutor.scheduleAtFixedRate(() -> {
+            try {
+                evictExpiredEntries();
+            } catch (Exception e) {
+                logger.warning("Error during automatic cache cleanup: " + e.getMessage());
+            }
+        }, CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        
+        logger.info("Started automatic cache cleanup (interval: " + CLEANUP_INTERVAL_MS + "ms)");
+    }
+    
+    /**
+     * Notifies the cache that the current Pokemon has changed.
+     * This triggers silhouette cache clearing to free memory from old Pokemon.
+     * 
+     * Requirements: 1.5
+     * 
+     * @param newPokemon The new current Pokemon species
+     */
+    public static void notifyPokemonChange(PokemonSpecies newPokemon) {
+        PokemonSpecies oldPokemon = currentPokemon;
+        currentPokemon = newPokemon;
+        
+        if (oldPokemon != null && !oldPokemon.equals(newPokemon)) {
+            // Clear silhouette cache when Pokemon changes to free memory
+            clearSilhouetteCache();
+            logger.info("Cleared silhouette cache due to Pokemon change: " + oldPokemon + " -> " + newPokemon);
+        }
+    }
     
     /**
      * Generates a cache key for evolution frame sequences.
@@ -365,6 +419,8 @@ public class EvolutionFrameCache {
      */
     public static void evictExpiredEntries() {
         long now = System.currentTimeMillis();
+        int evictedFrames = 0;
+        int evictedSilhouettes = 0;
         
         // Evict expired frame sequences
         frameCache.entrySet().removeIf(entry -> {
@@ -377,6 +433,10 @@ public class EvolutionFrameCache {
             return false;
         });
         
+        // Count evicted frame sequences
+        evictedFrames = frameCache.size();
+        int initialFrameSize = evictedFrames;
+        
         // Evict expired silhouettes
         silhouetteCache.entrySet().removeIf(entry -> {
             Long lastAccess = lastAccessTime.get(entry.getKey());
@@ -387,6 +447,36 @@ public class EvolutionFrameCache {
             }
             return false;
         });
+        
+        // Count evicted silhouettes
+        evictedSilhouettes = silhouetteCache.size();
+        int initialSilhouetteSize = evictedSilhouettes;
+        
+        // Calculate actual evicted counts
+        evictedFrames = initialFrameSize - frameCache.size();
+        evictedSilhouettes = initialSilhouetteSize - silhouetteCache.size();
+        
+        if (evictedFrames > 0 || evictedSilhouettes > 0) {
+            logger.info("Cache cleanup completed - evicted " + evictedFrames + " frame sequences, " + 
+                       evictedSilhouettes + " silhouettes");
+        }
+    }
+    
+    /**
+     * Shuts down the automatic cleanup executor.
+     * Should be called when the application is shutting down.
+     */
+    public static void shutdown() {
+        cleanupExecutor.shutdown();
+        try {
+            if (!cleanupExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                cleanupExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            cleanupExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+        logger.info("Evolution frame cache cleanup executor shut down");
     }
     
     /**

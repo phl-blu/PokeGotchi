@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Logger;
 
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonState;
@@ -21,6 +22,7 @@ import com.tamagotchi.committracker.util.AnimationUtils;
  * and managing evolution sequences.
  */
 public class PokemonDisplayComponent extends StackPane {
+    private static final Logger logger = Logger.getLogger(PokemonDisplayComponent.class.getName());
     
     // Animation concurrency control (Requirements 1.3)
     private static final int MAX_CONCURRENT_ANIMATIONS = 2;
@@ -256,7 +258,7 @@ public class PokemonDisplayComponent extends StackPane {
         
         // Stop current animation if running
         if (currentAnimation != null) {
-            currentAnimation.stop();
+            stopAndCleanupAnimation();
         }
         
         // Load all 4 frames for the animation
@@ -303,8 +305,7 @@ public class PokemonDisplayComponent extends StackPane {
                 
                 // Stop any running animation
                 if (currentAnimation != null) {
-                    currentAnimation.stop();
-                    currentAnimation = null;
+                    stopAndCleanupAnimation();
                 }
                 
                 System.out.println("🥚 Egg returned to static state");
@@ -360,8 +361,7 @@ public class PokemonDisplayComponent extends StackPane {
             // For Pokemon, load normal sprite animation
             // Stop current animation if running
             if (currentAnimation != null) {
-                currentAnimation.stop();
-                currentAnimation = null;
+                stopAndCleanupAnimation();
             }
             
             // Load sprite frames for current Pokemon configuration
@@ -400,8 +400,7 @@ public class PokemonDisplayComponent extends StackPane {
         
         // Stop current animation if running
         if (currentAnimation != null) {
-            currentAnimation.stop();
-            currentAnimation = null;
+            stopAndCleanupAnimation();
         }
         
         // Load sprite frames for current configuration
@@ -588,8 +587,7 @@ public class PokemonDisplayComponent extends StackPane {
         
         // Stop current animation completely
         if (currentAnimation != null) {
-            currentAnimation.stop();
-            currentAnimation = null;
+            stopAndCleanupAnimation();
         }
         
         // For egg evolution, ensure stage 4 is shown first (Requirements 2.1, 2.4)
@@ -685,6 +683,9 @@ public class PokemonDisplayComponent extends StackPane {
      */
     private void completeEvolution(PokemonSpecies newSpecies, EvolutionStage newStage) {
         System.out.println("✅ Evolution complete: " + currentSpecies + " -> " + newSpecies + ", Stage: " + currentStage + " -> " + newStage);
+        
+        // Clean up evolution animation Timeline (Requirements 1.3)
+        stopAndCleanupAnimation();
         
         this.currentSpecies = newSpecies;
         this.currentStage = newStage;
@@ -872,10 +873,12 @@ public class PokemonDisplayComponent extends StackPane {
         
         System.out.println("🔄 Changing Pokemon species from " + currentSpecies + " to " + newSpecies);
         
+        // Notify cache about Pokemon change to clear silhouette cache (Requirements 1.5)
+        com.tamagotchi.committracker.util.EvolutionFrameCache.notifyPokemonChange(newSpecies);
+        
         // Stop current animation
         if (currentAnimation != null) {
-            currentAnimation.stop();
-            currentAnimation = null;
+            stopAndCleanupAnimation();
         }
         
         // Update species and reset to egg
@@ -956,8 +959,7 @@ public class PokemonDisplayComponent extends StackPane {
         
         // Stop current animation
         if (currentAnimation != null) {
-            currentAnimation.stop();
-            currentAnimation = null;
+            stopAndCleanupAnimation();
         }
         
         // Reset to egg stage
@@ -980,13 +982,42 @@ public class PokemonDisplayComponent extends StackPane {
      * Stops all animations and cleans up resources.
      */
     public void cleanup() {
-        if (currentAnimation != null) {
-            currentAnimation.stop();
-            currentAnimation = null;
-        }
+        // Stop and properly clean up current animation (Requirements 1.3)
+        stopAndCleanupAnimation();
         
         // Clear animation tracking
         activeAnimationCount.set(0);
         evolutionQueue.clear();
+        
+        // Notify cache to shut down cleanup executor if this is the last component
+        // Note: In a real application, this should be managed by the application lifecycle
+        logger.info("PokemonDisplayComponent cleanup completed");
+    }
+    
+    /**
+     * Stops the current animation and properly cleans up Timeline references.
+     * Ensures Timeline is stopped and nulled to allow garbage collection.
+     * 
+     * Requirements: 1.3
+     */
+    private void stopAndCleanupAnimation() {
+        if (currentAnimation != null) {
+            try {
+                // Stop the Timeline
+                currentAnimation.stop();
+                
+                // Clear any event handlers to break potential reference cycles
+                currentAnimation.setOnFinished(null);
+                
+                // Null out the reference to allow garbage collection
+                currentAnimation = null;
+                
+                logger.fine("Animation Timeline stopped and cleaned up");
+            } catch (Exception e) {
+                logger.warning("Error during animation cleanup: " + e.getMessage());
+                // Still null out the reference even if stop() failed
+                currentAnimation = null;
+            }
+        }
     }
 }
