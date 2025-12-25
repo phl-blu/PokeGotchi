@@ -142,13 +142,13 @@ public class PokemonSelectionData {
         return new PokemonSpecies[] {
             PokemonSpecies.CHARMANDER,  // Kanto Fire
             PokemonSpecies.CYNDAQUIL,   // Johto Fire
-            PokemonSpecies.MUDKIP,      // Hoenn Water
+            PokemonSpecies.FUECOCO,     // Paldea Fire
             PokemonSpecies.PIPLUP,      // Sinnoh Water
-            PokemonSpecies.SNIVY,       // Unova Grass
+            PokemonSpecies.MUDKIP,      // Hoenn Water
             PokemonSpecies.FROAKIE,     // Kalos Water
             PokemonSpecies.ROWLET,      // Alola Grass
             PokemonSpecies.GROOKEY,     // Galar Grass
-            PokemonSpecies.FUECOCO      // Paldea Fire
+            PokemonSpecies.SNIVY        // Unova Grass
         };
     }
     

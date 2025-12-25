@@ -26,13 +26,13 @@ class PokemonSelectionDataTest {
         assertArrayEquals(new PokemonSpecies[] {
             PokemonSpecies.CHARMANDER,
             PokemonSpecies.CYNDAQUIL,
-            PokemonSpecies.MUDKIP,
+            PokemonSpecies.FUECOCO,
             PokemonSpecies.PIPLUP,
-            PokemonSpecies.SNIVY,
+            PokemonSpecies.MUDKIP,
             PokemonSpecies.FROAKIE,
             PokemonSpecies.ROWLET,
             PokemonSpecies.GROOKEY,
-            PokemonSpecies.FUECOCO
+            PokemonSpecies.SNIVY
         }, starters);
     }
     

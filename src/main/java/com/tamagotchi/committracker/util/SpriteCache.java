@@ -4,6 +4,7 @@ import javafx.scene.image.Image;
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonState;
 import com.tamagotchi.committracker.pokemon.EvolutionStage;
+import com.tamagotchi.committracker.pokemon.PokemonSelectionData;
 import com.tamagotchi.committracker.config.AppConfig;
 
 import java.io.InputStream;
@@ -185,11 +186,7 @@ public class SpriteCache {
         logger.info("Preloading common sprites...");
         
         // Preload egg sprites for all starter Pokemon (most commonly used)
-        PokemonSpecies[] starters = {
-            PokemonSpecies.CHARMANDER, PokemonSpecies.CYNDAQUIL, PokemonSpecies.MUDKIP,
-            PokemonSpecies.PIPLUP, PokemonSpecies.SNIVY, PokemonSpecies.FROAKIE,
-            PokemonSpecies.ROWLET, PokemonSpecies.GROOKEY, PokemonSpecies.FUECOCO
-        };
+        PokemonSpecies[] starters = PokemonSelectionData.getStarterOptions();
         
         for (PokemonSpecies starter : starters) {
             // Preload egg stages 1-4 for each starter
@@ -226,11 +223,7 @@ public class SpriteCache {
         logger.info("Loaded " + evolutionEffectFrames.size() + " evolution effect frames");
         
         // Pre-compute silhouettes for all 9 starter Pokemon (EGG and BASIC stages)
-        PokemonSpecies[] starters = {
-            PokemonSpecies.CHARMANDER, PokemonSpecies.CYNDAQUIL, PokemonSpecies.MUDKIP,
-            PokemonSpecies.PIPLUP, PokemonSpecies.SNIVY, PokemonSpecies.FROAKIE,
-            PokemonSpecies.ROWLET, PokemonSpecies.GROOKEY, PokemonSpecies.FUECOCO
-        };
+        PokemonSpecies[] starters = PokemonSelectionData.getStarterOptions();
         
         int silhouettesPreloaded = 0;
         for (PokemonSpecies starter : starters) {
