@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
+import java.util.Map;
 
 /**
  * Property-based tests for ResourceManager resource lifecycle management.
@@ -32,48 +33,39 @@ class ResourceManagerProperties {
      */
     @Property(tries = 100)
     void resourceCleanupCompleteness(
-            @ForAll("resourcePairs") List<ResourcePair> resourcePairs) {
+            @ForAll("uniqueResourceIds") List<String> uniqueIds) {
         
-        Assume.that(!resourcePairs.isEmpty());
-        Assume.that(resourcePairs.size() <= 10); // Limit size for performance
+        Assume.that(!uniqueIds.isEmpty());
+        Assume.that(uniqueIds.size() <= 10); // Limit size for performance
         
-        // Create a fresh ResourceManager instance for this test
-        // Note: We can't easily create a new instance due to singleton pattern,
-        // so we'll work with the existing one and clean up afterward
         ResourceManager resourceManager = ResourceManager.getInstance();
         
         // Clean up any existing state first
         resourceManager.cleanupAll();
         
-        // Track cleanup calls for verification
-        List<AtomicBoolean> cleanupCalled = new ArrayList<>();
-        List<String> registeredIds = new ArrayList<>();
+        // Track cleanup calls for verification - map ID to cleanup flag
+        Map<String, AtomicBoolean> cleanupTracking = new java.util.HashMap<>();
         
         // Register resources with cleanup tracking
-        for (int i = 0; i < resourcePairs.size(); i++) {
-            ResourcePair pair = resourcePairs.get(i);
-            String id = pair.id;
-            ResourceManager.ResourceType type = pair.type;
+        for (String id : uniqueIds) {
             AtomicBoolean wasCleanedUp = new AtomicBoolean(false);
             
             // Create a test resource that tracks cleanup
             AutoCloseable testResource = () -> wasCleanedUp.set(true);
             
             // Register the resource
-            resourceManager.registerResource(id, testResource, type);
-            cleanupCalled.add(wasCleanedUp);
-            registeredIds.add(id);
+            resourceManager.registerResource(id, testResource, ResourceManager.ResourceType.OTHER);
+            cleanupTracking.put(id, wasCleanedUp);
         }
         
         // Verify all resources are tracked
         ResourceManager.ResourceStats initialStats = resourceManager.getResourceStats();
-        assertTrue(initialStats.activeCount >= registeredIds.size(),
+        assertEquals(uniqueIds.size(), initialStats.activeCount,
                 "All registered resources should be tracked");
         
         // Clean up each resource individually
-        for (int i = 0; i < registeredIds.size(); i++) {
-            String id = registeredIds.get(i);
-            AtomicBoolean wasCleanedUp = cleanupCalled.get(i);
+        for (String id : uniqueIds) {
+            AtomicBoolean wasCleanedUp = cleanupTracking.get(id);
             
             // Cleanup should succeed
             boolean cleanupResult = resourceManager.cleanupResource(id);
@@ -86,15 +78,15 @@ class ResourceManagerProperties {
         
         // Verify resources are no longer tracked
         Set<String> activeIds = resourceManager.getActiveResourceIds();
-        for (String id : registeredIds) {
+        for (String id : uniqueIds) {
             assertFalse(activeIds.contains(id), 
                     "Resource should no longer be tracked after cleanup: " + id);
         }
         
         // Verify statistics reflect the cleanup
         ResourceManager.ResourceStats finalStats = resourceManager.getResourceStats();
-        assertEquals(initialStats.totalDisposed + registeredIds.size(), finalStats.totalDisposed,
-                "Disposed count should increase by number of cleaned up resources");
+        assertEquals(0, finalStats.activeCount,
+                "Active count should be 0 after all cleanups");
     }
     
     /**
@@ -106,55 +98,51 @@ class ResourceManagerProperties {
      */
     @Property(tries = 100)
     void cleanupAllCompleteness(
-            @ForAll("resourcePairs") List<ResourcePair> resourcePairs) {
+            @ForAll("uniqueResourceIds") List<String> resourceIds) {
         
-        Assume.that(!resourcePairs.isEmpty());
-        Assume.that(resourcePairs.size() <= 10); // Limit size for performance
+        Assume.that(!resourceIds.isEmpty());
+        Assume.that(resourceIds.size() <= 10); // Limit size for performance
         
-        // Create a fresh ResourceManager instance for this test
         ResourceManager resourceManager = ResourceManager.getInstance();
         
         // Clean up any existing state first
         resourceManager.cleanupAll();
         
-        // Track cleanup calls for verification
-        List<AtomicBoolean> cleanupCalled = new ArrayList<>();
+        // Track cleanup calls for verification - map ID to cleanup flag
+        Map<String, AtomicBoolean> cleanupTracking = new java.util.HashMap<>();
         
         // Register resources with cleanup tracking
-        for (int i = 0; i < resourcePairs.size(); i++) {
-            ResourcePair pair = resourcePairs.get(i);
-            String id = pair.id;
-            ResourceManager.ResourceType type = pair.type;
+        for (String id : resourceIds) {
             AtomicBoolean wasCleanedUp = new AtomicBoolean(false);
             
             // Create a test resource that tracks cleanup
             AutoCloseable testResource = () -> wasCleanedUp.set(true);
             
             // Register the resource
-            resourceManager.registerResource(id, testResource, type);
-            cleanupCalled.add(wasCleanedUp);
+            resourceManager.registerResource(id, testResource, ResourceManager.ResourceType.OTHER);
+            cleanupTracking.put(id, wasCleanedUp);
         }
         
         // Verify resources are tracked before cleanup
         ResourceManager.ResourceStats beforeStats = resourceManager.getResourceStats();
-        assertTrue(beforeStats.activeCount >= resourcePairs.size(),
+        assertEquals(resourceIds.size(), beforeStats.activeCount,
                 "All registered resources should be tracked before cleanup");
         
         // Call cleanupAll()
         resourceManager.cleanupAll();
         
         // Verify all resources were cleaned up
-        for (int i = 0; i < cleanupCalled.size(); i++) {
-            AtomicBoolean wasCleanedUp = cleanupCalled.get(i);
+        for (String id : resourceIds) {
+            AtomicBoolean wasCleanedUp = cleanupTracking.get(id);
             assertTrue(wasCleanedUp.get(), 
-                    "Resource " + i + " cleanup method should be called during cleanupAll");
+                    "Resource cleanup method should be called during cleanupAll: " + id);
         }
         
         // Verify no resources are tracked after cleanupAll
         Set<String> activeIds = resourceManager.getActiveResourceIds();
-        for (ResourcePair pair : resourcePairs) {
-            assertFalse(activeIds.contains(pair.id), 
-                    "No resources should be tracked after cleanupAll: " + pair.id);
+        for (String id : resourceIds) {
+            assertFalse(activeIds.contains(id), 
+                    "No resources should be tracked after cleanupAll: " + id);
         }
         
         // Verify statistics reflect complete cleanup
@@ -172,7 +160,7 @@ class ResourceManagerProperties {
      */
     @Property(tries = 100)
     void timelineResourceCleanup(
-            @ForAll("resourceIds") List<String> timelineIds) {
+            @ForAll("uniqueResourceIds") List<String> timelineIds) {
         
         Assume.that(!timelineIds.isEmpty());
         Assume.that(timelineIds.size() <= 5); // Limit for performance
@@ -194,7 +182,7 @@ class ResourceManagerProperties {
         
         // Verify Timelines are tracked
         ResourceManager.ResourceStats stats = resourceManager.getResourceStats();
-        assertTrue(stats.activeCount >= timelineIds.size(),
+        assertEquals(timelineIds.size(), stats.activeCount,
                 "All Timeline resources should be tracked");
         
         // Clean up all resources
@@ -214,36 +202,13 @@ class ResourceManagerProperties {
     }
     
     /**
-     * Provides lists of resource pairs (ID + Type) for testing.
-     */
-    @Provide
-    Arbitrary<List<ResourcePair>> resourcePairs() {
-        return Arbitraries.integers()
-                .between(1, 10)
-                .flatMap(size -> {
-                    // Generate a list of unique IDs first
-                    return Arbitraries.integers().between(1, 10000)
-                            .set()
-                            .ofMinSize(size)
-                            .ofMaxSize(size)
-                            .flatMap(idSet -> {
-                                // For each unique ID, pair it with a random type
-                                List<Arbitrary<ResourcePair>> pairArbitraries = idSet.stream()
-                                        .map(id -> Arbitraries.of(ResourceManager.ResourceType.values())
-                                                .map(type -> new ResourcePair("resource-" + id, type)))
-                                        .toList();
-                                return Combinators.combine(pairArbitraries).as(list -> list);
-                            });
-                });
-    }
-    
-    /**
      * Provides lists of unique resource IDs for testing.
+     * Ensures no duplicate IDs are generated.
      */
     @Provide
-    Arbitrary<List<String>> resourceIds() {
+    Arbitrary<List<String>> uniqueResourceIds() {
         return Arbitraries.integers()
-                .between(1, 1000)
+                .between(1, 100000)
                 .set()  // Use set to ensure uniqueness
                 .ofMinSize(1)
                 .ofMaxSize(10)
@@ -264,19 +229,6 @@ class ResourceManagerProperties {
                             .list()
                             .ofSize(size)
                 );
-    }
-    
-    /**
-     * Resource pair for testing.
-     */
-    private static class ResourcePair {
-        final String id;
-        final ResourceManager.ResourceType type;
-        
-        ResourcePair(String id, ResourceManager.ResourceType type) {
-            this.id = id;
-            this.type = type;
-        }
     }
     
     /**

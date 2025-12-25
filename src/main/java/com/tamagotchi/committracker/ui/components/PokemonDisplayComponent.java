@@ -10,6 +10,11 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
+import java.lang.ref.WeakReference;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledFuture;
 
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonState;
@@ -25,10 +30,23 @@ import com.tamagotchi.committracker.util.ResourceManager;
 public class PokemonDisplayComponent extends StackPane {
     private static final Logger logger = Logger.getLogger(PokemonDisplayComponent.class.getName());
     
+    // Animation timeout configuration (Requirements 1.2, 2.1)
+    private static final long ANIMATION_TIMEOUT_MS = 30000; // 30 seconds max for any animation
+    private static final ScheduledExecutorService timeoutExecutor = 
+        Executors.newScheduledThreadPool(1, r -> {
+            Thread t = new Thread(r, "Animation-Timeout-Monitor");
+            t.setDaemon(true);
+            return t;
+        });
+    
     // Animation concurrency control (Requirements 1.3)
     private static final int MAX_CONCURRENT_ANIMATIONS = 2;
     private final AtomicInteger activeAnimationCount = new AtomicInteger(0);
     private final Queue<Runnable> evolutionQueue = new ConcurrentLinkedQueue<>();
+    
+    // Weak reference tracking for Timeline cleanup verification (Requirements 1.2)
+    private WeakReference<Timeline> weakTimelineRef;
+    private ScheduledFuture<?> currentTimeoutTask;
     
     /**
      * Listener interface for reset events.
@@ -283,6 +301,12 @@ public class PokemonDisplayComponent extends StackPane {
                 currentAnimationId = "pokemon-animation-" + System.currentTimeMillis();
                 ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
                 
+                // Track with weak reference for cleanup verification (Requirements 1.2)
+                weakTimelineRef = new WeakReference<>(currentAnimation);
+                
+                // Set up timeout-based cleanup for stuck animations (Requirements 1.2, 2.1)
+                scheduleAnimationTimeout();
+                
                 currentAnimation.play();
                 System.out.println("🎬 Egg animation started successfully!");
             } else {
@@ -387,6 +411,12 @@ public class PokemonDisplayComponent extends StackPane {
                     currentAnimationId = "pokemon-animation-" + System.currentTimeMillis();
                     ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
                     
+                    // Track with weak reference for cleanup verification (Requirements 1.2)
+                    weakTimelineRef = new WeakReference<>(currentAnimation);
+                    
+                    // Set up timeout-based cleanup for stuck animations (Requirements 1.2, 2.1)
+                    scheduleAnimationTimeout();
+                    
                     currentAnimation.play();
                     
                     // Also set the first frame immediately
@@ -441,6 +471,12 @@ public class PokemonDisplayComponent extends StackPane {
                     // Register Timeline with ResourceManager
                     currentAnimationId = "pokemon-animation-" + System.currentTimeMillis();
                     ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
+                    
+                    // Track with weak reference for cleanup verification (Requirements 1.2)
+                    weakTimelineRef = new WeakReference<>(currentAnimation);
+                    
+                    // Set up timeout-based cleanup for stuck animations (Requirements 1.2, 2.1)
+                    scheduleAnimationTimeout();
                     
                     currentAnimation.play();
                     
@@ -630,6 +666,12 @@ public class PokemonDisplayComponent extends StackPane {
         if (currentAnimation != null) {
             currentAnimationId = "evolution-animation-" + System.currentTimeMillis();
             ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
+            
+            // Track with weak reference for cleanup verification (Requirements 1.2)
+            weakTimelineRef = new WeakReference<>(currentAnimation);
+            
+            // Set up timeout-based cleanup for stuck animations (Requirements 1.2, 2.1)
+            scheduleAnimationTimeout();
         }
         
         // Start evolution animation
@@ -698,6 +740,12 @@ public class PokemonDisplayComponent extends StackPane {
         if (currentAnimation != null) {
             currentAnimationId = "evolution-animation-" + System.currentTimeMillis();
             ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
+            
+            // Track with weak reference for cleanup verification (Requirements 1.2)
+            weakTimelineRef = new WeakReference<>(currentAnimation);
+            
+            // Set up timeout-based cleanup for stuck animations (Requirements 1.2, 2.1)
+            scheduleAnimationTimeout();
         }
         
         // Start evolution animation
@@ -1015,9 +1063,75 @@ public class PokemonDisplayComponent extends StackPane {
         activeAnimationCount.set(0);
         evolutionQueue.clear();
         
+        // Verify Timeline cleanup using weak reference (Requirements 1.2)
+        verifyTimelineCleanup();
+        
         // Notify cache to shut down cleanup executor if this is the last component
         // Note: In a real application, this should be managed by the application lifecycle
         logger.info("PokemonDisplayComponent cleanup completed");
+    }
+    
+    /**
+     * Schedules a timeout task to cleanup stuck animations.
+     * This ensures animations don't run indefinitely if they get stuck.
+     * 
+     * Requirements: 1.2, 2.1
+     */
+    private void scheduleAnimationTimeout() {
+        // Cancel any existing timeout task
+        cancelAnimationTimeout();
+        
+        // Schedule new timeout task
+        currentTimeoutTask = timeoutExecutor.schedule(() -> {
+            logger.warning("Animation timeout reached - forcing cleanup");
+            Platform.runLater(() -> {
+                if (currentAnimation != null) {
+                    logger.warning("Cleaning up stuck animation: " + currentAnimationId);
+                    stopAndCleanupAnimation();
+                    
+                    // If this was an evolution, reset the flag
+                    if (isEvolutionInProgress) {
+                        isEvolutionInProgress = false;
+                        activeAnimationCount.decrementAndGet();
+                        processEvolutionQueue();
+                    }
+                }
+            });
+        }, ANIMATION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+    }
+    
+    /**
+     * Cancels the current animation timeout task if one exists.
+     */
+    private void cancelAnimationTimeout() {
+        if (currentTimeoutTask != null && !currentTimeoutTask.isDone()) {
+            currentTimeoutTask.cancel(false);
+            currentTimeoutTask = null;
+        }
+    }
+    
+    /**
+     * Verifies that Timeline has been properly cleaned up using weak reference.
+     * Logs a warning if Timeline is still referenced after cleanup.
+     * 
+     * Requirements: 1.2
+     */
+    private void verifyTimelineCleanup() {
+        if (weakTimelineRef != null) {
+            Timeline timeline = weakTimelineRef.get();
+            if (timeline != null) {
+                logger.warning("Timeline still referenced after cleanup - potential memory leak");
+                // Force cleanup
+                try {
+                    timeline.stop();
+                } catch (Exception e) {
+                    logger.warning("Error stopping Timeline during verification: " + e.getMessage());
+                }
+            } else {
+                logger.fine("Timeline successfully garbage collected");
+            }
+            weakTimelineRef = null;
+        }
     }
     
     /**
@@ -1027,6 +1141,9 @@ public class PokemonDisplayComponent extends StackPane {
      * Requirements: 1.3
      */
     private void stopAndCleanupAnimation() {
+        // Cancel any pending timeout task (Requirements 1.2, 2.1)
+        cancelAnimationTimeout();
+        
         if (currentAnimation != null) {
             try {
                 // Stop the Timeline
