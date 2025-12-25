@@ -1022,14 +1022,17 @@ public class AnimationUtils {
             frameNewSilhouette, frameNewSparkles, currentTime, 180);
         
         // === NEW FORM FADE-IN (500ms) - Requirement 3.5 ===
+        // Transition from silhouette to full visibility over 500ms
         double fadeInDuration = FADE_IN_DURATION_MS; // 500ms from constant
         int fadeInFrames = (int) (fadeInDuration / SMOOTH_FRAME_INTERVAL_MS);
         for (int i = 0; i <= fadeInFrames; i++) {
             final double progress = easeOutCubic((double) i / fadeInFrames);
             final double time = currentTime + (i * SMOOTH_FRAME_INTERVAL_MS);
-            final Image blendedFrame = (frameNewSparkles != null && newPokemon != null) 
-                ? blendImages(frameNewSparkles, newPokemon, progress * 0.5)
-                : frameNewSparkles;
+            
+            // Create intermediate frames with increasing opacity
+            // Start from new silhouette (0% opacity) to full Pokemon (100% opacity)
+            final Image blendedFrame = createOpacityTransition(frameNewSilhouette, newPokemon, progress);
+            
             if (blendedFrame != null) {
                 evolutionTimeline.getKeyFrames().add(new KeyFrame(
                     Duration.millis(time),
@@ -1174,6 +1177,60 @@ public class AnimationUtils {
         } catch (Exception e) {
             System.err.println("Failed to create white silhouette: " + e.getMessage());
             return sprite; // Fallback to original
+        }
+    }
+    
+    /**
+     * Creates an opacity transition between two images.
+     * Generates intermediate frames with increasing opacity from silhouette to full visibility.
+     * 
+     * @param silhouette The starting silhouette image
+     * @param fullImage The target full-visibility image
+     * @param progress Transition progress (0.0 = silhouette, 1.0 = full image)
+     * @return Image with intermediate opacity
+     */
+    private static Image createOpacityTransition(Image silhouette, Image fullImage, double progress) {
+        if (silhouette == null) return fullImage;
+        if (fullImage == null) return silhouette;
+        if (progress <= 0) return silhouette;
+        if (progress >= 1) return fullImage;
+        
+        try {
+            int width = SPRITE_SIZE;
+            int height = SPRITE_SIZE;
+            
+            javafx.scene.image.WritableImage transition = new javafx.scene.image.WritableImage(width, height);
+            javafx.scene.image.PixelWriter writer = transition.getPixelWriter();
+            javafx.scene.image.PixelReader silhouetteReader = silhouette.getPixelReader();
+            javafx.scene.image.PixelReader fullReader = fullImage.getPixelReader();
+            
+            // Blend from silhouette to full image based on progress
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    javafx.scene.paint.Color silhouetteColor = silhouetteReader.getColor(x, y);
+                    javafx.scene.paint.Color fullColor = fullReader.getColor(x, y);
+                    
+                    // Interpolate between silhouette and full color
+                    double r = silhouetteColor.getRed() * (1 - progress) + fullColor.getRed() * progress;
+                    double g = silhouetteColor.getGreen() * (1 - progress) + fullColor.getGreen() * progress;
+                    double b = silhouetteColor.getBlue() * (1 - progress) + fullColor.getBlue() * progress;
+                    
+                    // Maintain the alpha channel from the full image
+                    double alpha = fullColor.getOpacity();
+                    
+                    writer.setColor(x, y, javafx.scene.paint.Color.color(
+                        Math.min(1.0, Math.max(0.0, r)),
+                        Math.min(1.0, Math.max(0.0, g)),
+                        Math.min(1.0, Math.max(0.0, b)),
+                        Math.min(1.0, Math.max(0.0, alpha))
+                    ));
+                }
+            }
+            
+            return transition;
+        } catch (Exception e) {
+            System.err.println("Failed to create opacity transition: " + e.getMessage());
+            return progress < 0.5 ? silhouette : fullImage;
         }
     }
     
