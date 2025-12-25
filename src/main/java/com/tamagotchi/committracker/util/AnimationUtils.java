@@ -908,8 +908,16 @@ public class AnimationUtils {
         
         Timeline evolutionTimeline = new Timeline();
         
-        // Load sprites
-        List<Image> oldPokemonFrames = loadSpriteFrames(fromSpecies, fromStage, PokemonState.CONTENT);
+        // Load sprites - use stage 4 egg for egg evolution (Requirements 2.2, 2.3)
+        List<Image> oldPokemonFrames;
+        if (fromStage == EvolutionStage.EGG) {
+            // Force load stage 4 egg sprite regardless of current egg stage
+            oldPokemonFrames = loadPokemonEggSpriteFramesForStageDirect(fromSpecies, 4, PokemonState.CONTENT);
+            System.out.println("🥚 Using stage 4 egg sprite for evolution animation: " + fromSpecies);
+        } else {
+            oldPokemonFrames = loadSpriteFrames(fromSpecies, fromStage, PokemonState.CONTENT);
+        }
+        
         List<Image> newPokemonFrames = loadSpriteFrames(toSpecies, toStage, PokemonState.HAPPY);
         List<Image> evolutionEffects = loadEvolutionEffectFrames();
         
@@ -921,8 +929,14 @@ public class AnimationUtils {
             fromSpecies, toSpecies, fromStage, toStage,
             oldPokemon, newPokemon, evolutionEffects);
         
-        // Get cached silhouettes
-        String oldSilhouetteKey = EvolutionFrameCache.createSilhouetteCacheKey(fromSpecies, fromStage);
+        // Get cached silhouettes - use stage 4 egg for silhouette generation when evolving from egg
+        String oldSilhouetteKey;
+        if (fromStage == EvolutionStage.EGG) {
+            // Create silhouette key for stage 4 egg specifically
+            oldSilhouetteKey = EvolutionFrameCache.createSilhouetteCacheKey(fromSpecies, EvolutionStage.EGG) + "_stage4";
+        } else {
+            oldSilhouetteKey = EvolutionFrameCache.createSilhouetteCacheKey(fromSpecies, fromStage);
+        }
         String newSilhouetteKey = EvolutionFrameCache.createSilhouetteCacheKey(toSpecies, toStage);
         Image oldSilhouette = EvolutionFrameCache.getCachedSilhouette(oldPokemon, oldSilhouetteKey);
         Image newSilhouette = EvolutionFrameCache.getCachedSilhouette(newPokemon, newSilhouetteKey);

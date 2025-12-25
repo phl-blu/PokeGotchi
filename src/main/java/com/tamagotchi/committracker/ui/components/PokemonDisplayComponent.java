@@ -541,9 +541,77 @@ public class PokemonDisplayComponent extends StackPane {
             currentAnimation = null;
         }
         
+        // For egg evolution, ensure stage 4 is shown first (Requirements 2.1, 2.4)
+        if (currentStage == EvolutionStage.EGG) {
+            showEggStage4ThenEvolve(newStage);
+            return;
+        }
+        
         // Get the evolved Pokemon species
         PokemonSpecies evolvedSpecies = getEvolvedSpecies(currentSpecies, newStage);
         System.out.println("🌟 Evolving species: " + currentSpecies + " -> " + evolvedSpecies);
+        
+        // Set current state to evolving BEFORE creating animation
+        this.currentState = PokemonState.EVOLVING;
+        
+        // Create evolution animation and store it as currentAnimation
+        // This prevents any other animation from interfering
+        currentAnimation = AnimationUtils.createEvolutionAnimation(
+            currentSpecies, evolvedSpecies,
+            currentStage, newStage,
+            this::updateDisplayedFrame,
+            () -> completeEvolution(evolvedSpecies, newStage)
+        );
+        
+        // Start evolution animation
+        currentAnimation.play();
+    }
+    
+    /**
+     * Shows the stage 4 egg sprite briefly before starting evolution animation.
+     * This ensures egg-to-basic evolution always starts from the fully cracked egg.
+     * 
+     * @param newStage The evolution stage to evolve to
+     */
+    private void showEggStage4ThenEvolve(EvolutionStage newStage) {
+        System.out.println("🥚 Showing stage 4 egg before evolution to " + newStage);
+        
+        // Load and display stage 4 egg sprite (Requirements 2.1, 2.4)
+        List<Image> stage4EggFrames = AnimationUtils.loadPokemonEggSpriteFramesForStageDirect(
+            currentSpecies, 4, PokemonState.CONTENT);
+        
+        if (!stage4EggFrames.isEmpty()) {
+            // Display stage 4 egg immediately
+            updateDisplayedFrame(stage4EggFrames.get(0));
+            
+            // Wait briefly (200ms) to show the stage 4 egg, then start evolution
+            Platform.runLater(() -> {
+                try {
+                    Thread.sleep(200);
+                    // Now start the actual evolution animation
+                    startEvolutionFromEggStage4(newStage);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    // If interrupted, still start evolution
+                    startEvolutionFromEggStage4(newStage);
+                }
+            });
+        } else {
+            System.out.println("⚠️ Could not load stage 4 egg sprite, proceeding with evolution");
+            // Fallback: start evolution immediately
+            startEvolutionFromEggStage4(newStage);
+        }
+    }
+    
+    /**
+     * Starts the evolution animation from egg stage 4.
+     * 
+     * @param newStage The evolution stage to evolve to
+     */
+    private void startEvolutionFromEggStage4(EvolutionStage newStage) {
+        // Get the evolved Pokemon species
+        PokemonSpecies evolvedSpecies = getEvolvedSpecies(currentSpecies, newStage);
+        System.out.println("🌟 Evolving species from stage 4 egg: " + currentSpecies + " -> " + evolvedSpecies);
         
         // Set current state to evolving BEFORE creating animation
         this.currentState = PokemonState.EVOLVING;
