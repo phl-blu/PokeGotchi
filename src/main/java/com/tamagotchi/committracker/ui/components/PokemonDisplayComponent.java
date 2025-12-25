@@ -15,6 +15,7 @@ import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonState;
 import com.tamagotchi.committracker.pokemon.EvolutionStage;
 import com.tamagotchi.committracker.util.AnimationUtils;
+import com.tamagotchi.committracker.util.ResourceManager;
 
 /**
  * Renders animated Pokemon with evolution stages using frame-based animation.
@@ -49,6 +50,7 @@ public class PokemonDisplayComponent extends StackPane {
     
     private ImageView pokemonImageView;
     private Timeline currentAnimation;
+    private String currentAnimationId; // For ResourceManager tracking
     
     // Current Pokemon state
     private PokemonSpecies currentSpecies;
@@ -277,6 +279,10 @@ public class PokemonDisplayComponent extends StackPane {
             );
             
             if (currentAnimation != null) {
+                // Register Timeline with ResourceManager
+                currentAnimationId = "pokemon-animation-" + System.currentTimeMillis();
+                ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
+                
                 currentAnimation.play();
                 System.out.println("🎬 Egg animation started successfully!");
             } else {
@@ -377,6 +383,10 @@ public class PokemonDisplayComponent extends StackPane {
                 );
                 
                 if (currentAnimation != null) {
+                    // Register Timeline with ResourceManager
+                    currentAnimationId = "pokemon-animation-" + System.currentTimeMillis();
+                    ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
+                    
                     currentAnimation.play();
                     
                     // Also set the first frame immediately
@@ -428,6 +438,10 @@ public class PokemonDisplayComponent extends StackPane {
                 );
                 
                 if (currentAnimation != null) {
+                    // Register Timeline with ResourceManager
+                    currentAnimationId = "pokemon-animation-" + System.currentTimeMillis();
+                    ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
+                    
                     currentAnimation.play();
                     
                     // Also set the first frame immediately
@@ -612,6 +626,12 @@ public class PokemonDisplayComponent extends StackPane {
             () -> completeEvolution(evolvedSpecies, newStage)
         );
         
+        // Register Timeline with ResourceManager
+        if (currentAnimation != null) {
+            currentAnimationId = "evolution-animation-" + System.currentTimeMillis();
+            ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
+        }
+        
         // Start evolution animation
         currentAnimation.play();
     }
@@ -673,6 +693,12 @@ public class PokemonDisplayComponent extends StackPane {
             this::updateDisplayedFrame,
             () -> completeEvolution(evolvedSpecies, newStage)
         );
+        
+        // Register Timeline with ResourceManager
+        if (currentAnimation != null) {
+            currentAnimationId = "evolution-animation-" + System.currentTimeMillis();
+            ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
+        }
         
         // Start evolution animation
         currentAnimation.play();
@@ -1009,14 +1035,21 @@ public class PokemonDisplayComponent extends StackPane {
                 // Clear any event handlers to break potential reference cycles
                 currentAnimation.setOnFinished(null);
                 
+                // Clean up ResourceManager registration
+                if (currentAnimationId != null) {
+                    ResourceManager.getInstance().cleanupResource(currentAnimationId);
+                    currentAnimationId = null;
+                }
+                
                 // Null out the reference to allow garbage collection
                 currentAnimation = null;
                 
                 logger.fine("Animation Timeline stopped and cleaned up");
             } catch (Exception e) {
                 logger.warning("Error during animation cleanup: " + e.getMessage());
-                // Still null out the reference even if stop() failed
+                // Still null out the references even if stop() failed
                 currentAnimation = null;
+                currentAnimationId = null;
             }
         }
     }

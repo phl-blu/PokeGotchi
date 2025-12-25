@@ -10,6 +10,7 @@ import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonStateManager;
 import com.tamagotchi.committracker.pokemon.XPSystem;
 import com.tamagotchi.committracker.util.SpriteCache;
+import com.tamagotchi.committracker.util.ResourceManager;
 import com.tamagotchi.committracker.config.AppConfig;
 
 /**
@@ -24,10 +25,14 @@ public class TamagotchiCommitTrackerApp extends Application {
     private CommitService commitService;
     private PokemonStateManager pokemonStateManager;
     private XPSystem xpSystem;
+    private ResourceManager resourceManager;
 
     @Override
     public void start(Stage primaryStage) throws Exception {
         primaryStage.setTitle("Tamagotchi Commit Tracker");
+        
+        // Initialize resource manager for lifecycle management
+        resourceManager = ResourceManager.getInstance();
         
         // Initialize sprite cache and preload common sprites for better performance
         if (AppConfig.isSpriteCachingEnabled()) {
@@ -45,6 +50,14 @@ public class TamagotchiCommitTrackerApp extends Application {
         commitService = new CommitService();
         xpSystem = new XPSystem();
         pokemonStateManager = new PokemonStateManager();
+        
+        // Register core services with resource manager
+        resourceManager.registerResource("commitService", commitService::stopMonitoring, ResourceManager.ResourceType.OTHER);
+        resourceManager.registerResource("spriteCache", () -> {
+            if (AppConfig.isSpriteCachingEnabled()) {
+                SpriteCache.getInstance().clearCache();
+            }
+        }, ResourceManager.ResourceType.CACHE);
         
         // Log performance configuration
         logPerformanceSettings();
@@ -326,7 +339,21 @@ public class TamagotchiCommitTrackerApp extends Application {
     public void stop() throws Exception {
         System.out.println("🛑 Shutting down Tamagotchi Commit Tracker...");
         
-        // Clean shutdown
+        // Use ResourceManager for comprehensive cleanup
+        if (resourceManager != null) {
+            resourceManager.cleanupAll();
+            System.out.println("✅ All resources cleaned up via ResourceManager");
+            
+            // Log resource statistics
+            var stats = resourceManager.getResourceStats();
+            System.out.println("📊 Resource Statistics: " + stats);
+            
+            if (resourceManager.hasPotentialLeaks()) {
+                System.out.println("⚠️ Potential resource leaks detected - check logs");
+            }
+        }
+        
+        // Legacy cleanup for compatibility
         if (commitService != null) {
             commitService.stopMonitoring();
         }

@@ -7,6 +7,7 @@ import com.tamagotchi.committracker.config.AppConfig;
 import com.tamagotchi.committracker.util.WindowsIntegration;
 import com.tamagotchi.committracker.util.ErrorHandler;
 import com.tamagotchi.committracker.util.RetryMechanism;
+import com.tamagotchi.committracker.util.ResourceManager;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.LogCommand;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -53,6 +54,11 @@ public class CommitService {
             .maxDelay(30000)
             .backoffMultiplier(2.0)
             .build();
+        
+        // Register thread pools with ResourceManager
+        ResourceManager resourceManager = ResourceManager.getInstance();
+        resourceManager.registerExecutorService("commitService-scheduler", scheduler);
+        resourceManager.registerExecutorService("commitService-scanExecutor", scanExecutor);
     }
     
     public CommitService(RepositoryScanner repositoryScanner) {
@@ -67,6 +73,11 @@ public class CommitService {
             .maxDelay(30000)
             .backoffMultiplier(2.0)
             .build();
+        
+        // Register thread pools with ResourceManager
+        ResourceManager resourceManager = ResourceManager.getInstance();
+        resourceManager.registerExecutorService("commitService-scheduler", scheduler);
+        resourceManager.registerExecutorService("commitService-scanExecutor", scanExecutor);
     }
     
     /**
