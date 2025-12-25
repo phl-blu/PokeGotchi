@@ -6,6 +6,9 @@ import javafx.scene.layout.StackPane;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonState;
@@ -18,6 +21,11 @@ import com.tamagotchi.committracker.util.AnimationUtils;
  * and managing evolution sequences.
  */
 public class PokemonDisplayComponent extends StackPane {
+    
+    // Animation concurrency control (Requirements 1.3)
+    private static final int MAX_CONCURRENT_ANIMATIONS = 2;
+    private final AtomicInteger activeAnimationCount = new AtomicInteger(0);
+    private final Queue<Runnable> evolutionQueue = new ConcurrentLinkedQueue<>();
     
     /**
      * Listener interface for reset events.
@@ -532,6 +540,49 @@ public class PokemonDisplayComponent extends StackPane {
             return;
         }
         
+        // Check concurrent animation limit (Requirements 1.3)
+        if (activeAnimationCount.get() >= MAX_CONCURRENT_ANIMATIONS) {
+            System.out.println("⚠️ Evolution queued: at concurrent animation limit (" + activeAnimationCount.get() + "/" + MAX_CONCURRENT_ANIMATIONS + ")");
+            queueEvolution(newStage);
+            return;
+        }
+        
+        startEvolution(newStage);
+    }
+    
+    /**
+     * Queues an evolution request when concurrent animation limit is reached.
+     * 
+     * @param newStage The evolution stage to evolve to
+     */
+    private void queueEvolution(EvolutionStage newStage) {
+        evolutionQueue.offer(() -> startEvolution(newStage));
+        System.out.println("📋 Evolution queued for stage " + newStage + " (queue size: " + evolutionQueue.size() + ")");
+    }
+    
+    /**
+     * Processes the next evolution in the queue if any are waiting.
+     */
+    private void processEvolutionQueue() {
+        if (!evolutionQueue.isEmpty() && activeAnimationCount.get() < MAX_CONCURRENT_ANIMATIONS) {
+            Runnable nextEvolution = evolutionQueue.poll();
+            if (nextEvolution != null) {
+                System.out.println("📋 Processing queued evolution (remaining in queue: " + evolutionQueue.size() + ")");
+                Platform.runLater(nextEvolution);
+            }
+        }
+    }
+    
+    /**
+     * Starts the evolution animation sequence to the specified stage.
+     * 
+     * @param newStage The evolution stage to evolve to
+     */
+    private void startEvolution(EvolutionStage newStage) {
+        // Increment active animation count
+        activeAnimationCount.incrementAndGet();
+        System.out.println("🎬 Starting evolution animation (active count: " + activeAnimationCount.get() + "/" + MAX_CONCURRENT_ANIMATIONS + ")");
+        
         isEvolutionInProgress = true;
         System.out.println("🌟 Starting evolution: " + currentStage + " -> " + newStage);
         
@@ -640,6 +691,10 @@ public class PokemonDisplayComponent extends StackPane {
         this.currentState = PokemonState.HAPPY; // Happy after evolution
         this.isEvolutionInProgress = false;
         
+        // Decrement active animation count and process queue
+        int currentCount = activeAnimationCount.decrementAndGet();
+        System.out.println("🎬 Evolution animation completed (active count: " + currentCount + "/" + MAX_CONCURRENT_ANIMATIONS + ")");
+        
         System.out.println("✅ Updated state - Species: " + currentSpecies + ", Stage: " + currentStage);
         
         // Resume normal animation with new Pokemon
@@ -652,6 +707,9 @@ public class PokemonDisplayComponent extends StackPane {
                 System.out.println("🔔 Evolution listener notified: " + newSpecies + " -> " + newStage);
             });
         }
+        
+        // Process any queued evolutions
+        processEvolutionQueue();
     }
     
     /**
@@ -926,5 +984,9 @@ public class PokemonDisplayComponent extends StackPane {
             currentAnimation.stop();
             currentAnimation = null;
         }
+        
+        // Clear animation tracking
+        activeAnimationCount.set(0);
+        evolutionQueue.clear();
     }
 }
