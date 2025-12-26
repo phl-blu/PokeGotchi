@@ -24,7 +24,7 @@ public class SpriteCache {
     // Singleton instance
     private static volatile SpriteCache instance;
     
-    // Cache storage
+    // Cache storage with strict LRU eviction
     private final ConcurrentHashMap<String, List<Image>> spriteCache;
     private final ConcurrentLinkedQueue<String> accessOrder; // For LRU eviction
     
@@ -34,10 +34,21 @@ public class SpriteCache {
     // Cache statistics
     private volatile long cacheHits = 0;
     private volatile long cacheMisses = 0;
+    private volatile long evictions = 0;
+    
+    // Background loading support
+    private final java.util.concurrent.ExecutorService backgroundLoader;
+    private final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.Future<List<Image>>> loadingTasks;
     
     private SpriteCache() {
         this.spriteCache = new ConcurrentHashMap<>();
         this.accessOrder = new ConcurrentLinkedQueue<>();
+        this.backgroundLoader = java.util.concurrent.Executors.newFixedThreadPool(2, r -> {
+            Thread t = new Thread(r, "SpriteCache-Background-Loader");
+            t.setDaemon(true);
+            return t;
+        });
+        this.loadingTasks = new java.util.concurrent.ConcurrentHashMap<>();
     }
     
     /**
@@ -56,7 +67,7 @@ public class SpriteCache {
     
     /**
      * Gets sprite frames from cache or loads them if not cached.
-     * Implements lazy loading with LRU eviction.
+     * Implements lazy loading with strict LRU eviction and background loading.
      */
     public List<Image> getSpriteFrames(PokemonSpecies species, EvolutionStage stage, PokemonState state) {
         if (!AppConfig.isSpriteCachingEnabled()) {
@@ -75,14 +86,34 @@ public class SpriteCache {
             return cachedFrames;
         }
         
-        // Cache miss - load sprites
+        // Check if already loading in background
+        java.util.concurrent.Future<List<Image>> loadingTask = loadingTasks.get(cacheKey);
+        if (loadingTask != null) {
+            try {
+                // Wait for background loading to complete (with timeout)
+                List<Image> frames = loadingTask.get(100, java.util.concurrent.TimeUnit.MILLISECONDS);
+                if (frames != null) {
+                    cacheHits++; // Count as hit since it was being loaded
+                    updateAccessOrder(cacheKey);
+                    logger.fine("Background load completed for: " + cacheKey);
+                    return frames;
+                }
+            } catch (java.util.concurrent.TimeoutException e) {
+                // Background loading taking too long, load synchronously
+                logger.fine("Background loading timeout for: " + cacheKey + ", loading synchronously");
+            } catch (Exception e) {
+                logger.warning("Background loading failed for: " + cacheKey + " - " + e.getMessage());
+            }
+        }
+        
+        // Cache miss - load sprites synchronously
         cacheMisses++;
         logger.fine("Cache miss for: " + cacheKey + " - loading sprites");
         
         List<Image> frames = AnimationUtils.loadSpriteFramesDirect(species, stage, state);
         
-        // Store in cache if enabled
-        if (AppConfig.isLazyLoadingEnabled()) {
+        // Store in cache if enabled and frames loaded successfully
+        if (AppConfig.isLazyLoadingEnabled() && frames != null && !frames.isEmpty()) {
             putInCache(cacheKey, frames);
         }
         
@@ -91,6 +122,7 @@ public class SpriteCache {
     
     /**
      * Gets egg sprite frames from cache or loads them if not cached.
+     * Implements lazy loading with background loading support.
      */
     public List<Image> getEggSpriteFrames(PokemonSpecies species, int totalXP, PokemonState state) {
         if (!AppConfig.isSpriteCachingEnabled()) {
@@ -108,12 +140,30 @@ public class SpriteCache {
             return cachedFrames;
         }
         
+        // Check if already loading in background
+        java.util.concurrent.Future<List<Image>> loadingTask = loadingTasks.get(cacheKey);
+        if (loadingTask != null) {
+            try {
+                List<Image> frames = loadingTask.get(100, java.util.concurrent.TimeUnit.MILLISECONDS);
+                if (frames != null) {
+                    cacheHits++;
+                    updateAccessOrder(cacheKey);
+                    logger.fine("Background egg load completed for: " + cacheKey);
+                    return frames;
+                }
+            } catch (java.util.concurrent.TimeoutException e) {
+                logger.fine("Background egg loading timeout for: " + cacheKey + ", loading synchronously");
+            } catch (Exception e) {
+                logger.warning("Background egg loading failed for: " + cacheKey + " - " + e.getMessage());
+            }
+        }
+        
         cacheMisses++;
         logger.fine("Cache miss for egg: " + cacheKey + " - loading sprites");
         
         List<Image> frames = AnimationUtils.loadPokemonEggSpriteFramesForStageDirect(species, eggStage, state);
         
-        if (AppConfig.isLazyLoadingEnabled()) {
+        if (AppConfig.isLazyLoadingEnabled() && frames != null && !frames.isEmpty()) {
             putInCache(cacheKey, frames);
         }
         
@@ -121,42 +171,81 @@ public class SpriteCache {
     }
     
     /**
-     * Puts sprite frames in cache with LRU eviction.
+     * Puts sprite frames in cache with strict LRU eviction and size monitoring.
      */
     private void putInCache(String cacheKey, List<Image> frames) {
         if (frames == null || frames.isEmpty()) {
             return;
         }
         
-        // Check if we need to evict old entries
+        // Enforce strict cache size limits with automatic cleanup
         int maxCacheSize = AppConfig.getMaxCachedSprites();
+        
+        // Perform aggressive eviction if we're at or near the limit
         while (spriteCache.size() >= maxCacheSize) {
-            evictLeastRecentlyUsed();
+            if (!evictLeastRecentlyUsed()) {
+                // If eviction fails, we can't add more items
+                logger.warning("Cache eviction failed, cannot add new entry: " + cacheKey);
+                return;
+            }
         }
         
+        // Add to cache and update access order
         spriteCache.put(cacheKey, frames);
         updateAccessOrder(cacheKey);
         
-        logger.fine("Cached sprites for: " + cacheKey + " (cache size: " + spriteCache.size() + ")");
+        logger.fine("Cached sprites for: " + cacheKey + " (cache size: " + spriteCache.size() + "/" + maxCacheSize + ")");
+        
+        // Monitor cache size and trigger cleanup if needed
+        monitorCacheSize();
     }
     
     /**
-     * Updates the access order for LRU tracking.
+     * Updates the access order for strict LRU tracking.
+     * Ensures proper ordering for eviction decisions.
      */
     private void updateAccessOrder(String cacheKey) {
-        // Remove from current position and add to end
+        // Remove from current position and add to end (most recently used)
         accessOrder.remove(cacheKey);
         accessOrder.offer(cacheKey);
     }
     
     /**
-     * Evicts the least recently used cache entry.
+     * Evicts the least recently used cache entry with proper cleanup.
+     * Returns true if eviction was successful, false otherwise.
      */
-    private void evictLeastRecentlyUsed() {
+    private boolean evictLeastRecentlyUsed() {
         String lruKey = accessOrder.poll();
         if (lruKey != null) {
-            spriteCache.remove(lruKey);
-            logger.fine("Evicted LRU cache entry: " + lruKey);
+            List<Image> evictedFrames = spriteCache.remove(lruKey);
+            if (evictedFrames != null) {
+                evictions++;
+                logger.fine("Evicted LRU cache entry: " + lruKey + " (" + evictedFrames.size() + " frames)");
+                
+                // Help GC by clearing references
+                evictedFrames.clear();
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Monitors cache size and triggers automatic cleanup when needed.
+     */
+    private void monitorCacheSize() {
+        int currentSize = spriteCache.size();
+        int maxSize = AppConfig.getMaxCachedSprites();
+        
+        // Trigger proactive cleanup if cache is getting full (80% threshold)
+        if (currentSize > maxSize * 0.8) {
+            logger.fine("Cache size approaching limit (" + currentSize + "/" + maxSize + "), triggering proactive cleanup");
+            
+            // Evict 20% of cache entries to make room
+            int targetEvictions = Math.max(1, (int) (currentSize * 0.2));
+            for (int i = 0; i < targetEvictions && !accessOrder.isEmpty(); i++) {
+                evictLeastRecentlyUsed();
+            }
         }
     }
     
@@ -175,33 +264,140 @@ public class SpriteCache {
     }
     
     /**
-     * Preloads commonly used sprites to improve performance.
-     * Should be called during application startup.
+     * Preloads only essential sprites to improve performance during startup.
+     * Optimized strategy: loads only the most commonly used sprites.
+     * Requirements: 4.1, 4.2 - lazy loading for faster startup
      */
-    public void preloadCommonSprites() {
+    public void preloadEssentialSprites() {
         if (!AppConfig.isSpriteCachingEnabled()) {
             return;
         }
         
-        logger.info("Preloading common sprites...");
+        logger.info("Preloading essential sprites only...");
         
-        // Preload egg sprites for all starter Pokemon (most commonly used)
+        // Only preload the most essential sprites for immediate use
         PokemonSpecies[] starters = PokemonSelectionData.getStarterOptions();
         
-        for (PokemonSpecies starter : starters) {
-            // Preload egg stages 1-4 for each starter
-            for (int stage = 1; stage <= 4; stage++) {
-                int xp = (stage - 1) * 15; // Approximate XP for each stage
-                getSpriteFrames(starter, EvolutionStage.EGG, PokemonState.CONTENT);
-                getEggSpriteFrames(starter, xp, PokemonState.CONTENT);
-            }
+        // Limit to first 3 starters to minimize startup time
+        int maxStartersToPreload = Math.min(3, starters.length);
+        
+        for (int i = 0; i < maxStartersToPreload; i++) {
+            PokemonSpecies starter = starters[i];
             
-            // Preload basic Pokemon form
+            // Preload only stage 1 egg (most common initial state)
+            getSpriteFrames(starter, EvolutionStage.EGG, PokemonState.CONTENT);
+            getEggSpriteFrames(starter, 0, PokemonState.CONTENT); // Stage 1 egg
+            
+            // Preload basic Pokemon form (for immediate evolution)
             getSpriteFrames(starter, EvolutionStage.BASIC, PokemonState.CONTENT);
-            getSpriteFrames(starter, EvolutionStage.BASIC, PokemonState.HAPPY);
         }
         
-        logger.info("Preloading completed. Cache size: " + spriteCache.size());
+        logger.info("Essential preloading completed. Cache size: " + spriteCache.size());
+    }
+    
+    /**
+     * Preloads sprites in the background for smooth user experience.
+     * Loads non-essential sprites without blocking the UI.
+     * Requirements: 4.1, 4.4 - background loading for smooth experience
+     */
+    public void preloadSpritesInBackground(PokemonSpecies species) {
+        if (!AppConfig.isSpriteCachingEnabled() || !AppConfig.isLazyLoadingEnabled()) {
+            return;
+        }
+        
+        // Submit background loading tasks for all stages of this species
+        backgroundLoader.submit(() -> {
+            try {
+                // Load all egg stages for this species
+                for (int stage = 1; stage <= 4; stage++) {
+                    String eggKey = createEggCacheKey(species, stage, PokemonState.CONTENT);
+                    if (!spriteCache.containsKey(eggKey)) {
+                        List<Image> frames = AnimationUtils.loadPokemonEggSpriteFramesForStageDirect(species, stage, PokemonState.CONTENT);
+                        if (frames != null && !frames.isEmpty()) {
+                            putInCache(eggKey, frames);
+                        }
+                    }
+                }
+                
+                // Load basic and evolved forms
+                String basicKey = createCacheKey(species, EvolutionStage.BASIC, PokemonState.CONTENT);
+                if (!spriteCache.containsKey(basicKey)) {
+                    List<Image> frames = AnimationUtils.loadSpriteFramesDirect(species, EvolutionStage.BASIC, PokemonState.CONTENT);
+                    if (frames != null && !frames.isEmpty()) {
+                        putInCache(basicKey, frames);
+                    }
+                }
+                
+                logger.fine("Background preloading completed for: " + species);
+            } catch (Exception e) {
+                logger.warning("Background preloading failed for " + species + ": " + e.getMessage());
+            }
+        });
+    }
+    
+    /**
+     * Loads sprites asynchronously and returns a Future.
+     * Enables non-blocking sprite loading for better performance.
+     */
+    public java.util.concurrent.Future<List<Image>> loadSpritesAsync(PokemonSpecies species, EvolutionStage stage, PokemonState state) {
+        String cacheKey = createCacheKey(species, stage, state);
+        
+        // Check if already loading
+        java.util.concurrent.Future<List<Image>> existingTask = loadingTasks.get(cacheKey);
+        if (existingTask != null && !existingTask.isDone()) {
+            return existingTask;
+        }
+        
+        // Submit new loading task
+        java.util.concurrent.Future<List<Image>> loadingTask = backgroundLoader.submit(() -> {
+            try {
+                List<Image> frames = AnimationUtils.loadSpriteFramesDirect(species, stage, state);
+                if (frames != null && !frames.isEmpty()) {
+                    putInCache(cacheKey, frames);
+                }
+                return frames;
+            } finally {
+                // Remove from loading tasks when complete
+                loadingTasks.remove(cacheKey);
+            }
+        });
+        
+        loadingTasks.put(cacheKey, loadingTask);
+        return loadingTask;
+    }
+    
+    /**
+     * Disposes of sprites that are no longer needed to free memory.
+     * Requirements: 4.4 - sprite disposal when no longer needed
+     */
+    public void disposeUnusedSprites(java.util.Set<String> activeKeys) {
+        if (!AppConfig.isSpriteCachingEnabled()) {
+            return;
+        }
+        
+        java.util.List<String> keysToRemove = new java.util.ArrayList<>();
+        
+        // Find keys that are not in the active set
+        for (String key : spriteCache.keySet()) {
+            if (!activeKeys.contains(key)) {
+                keysToRemove.add(key);
+            }
+        }
+        
+        // Remove unused sprites
+        int disposedCount = 0;
+        for (String key : keysToRemove) {
+            List<Image> frames = spriteCache.remove(key);
+            if (frames != null) {
+                accessOrder.remove(key);
+                frames.clear(); // Help GC
+                disposedCount++;
+            }
+        }
+        
+        if (disposedCount > 0) {
+            logger.info("Disposed " + disposedCount + " unused sprite entries. Cache size: " + spriteCache.size());
+        }
     }
     
     /**
@@ -326,18 +522,44 @@ public class SpriteCache {
     }
     
     /**
-     * Clears the entire sprite cache.
+     * Clears the entire sprite cache and shuts down background loading.
      */
     public void clearCache() {
+        // Cancel all pending background loading tasks
+        for (java.util.concurrent.Future<List<Image>> task : loadingTasks.values()) {
+            task.cancel(true);
+        }
+        loadingTasks.clear();
+        
+        // Clear cache and statistics
         spriteCache.clear();
         accessOrder.clear();
         cacheHits = 0;
         cacheMisses = 0;
-        logger.info("Sprite cache cleared");
+        evictions = 0;
+        
+        logger.info("Sprite cache cleared and background tasks cancelled");
     }
     
     /**
-     * Gets cache statistics for monitoring.
+     * Shuts down the background loading executor.
+     * Should be called when the application is closing.
+     */
+    public void shutdown() {
+        backgroundLoader.shutdown();
+        try {
+            if (!backgroundLoader.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                backgroundLoader.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            backgroundLoader.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+        logger.info("SpriteCache background loader shut down");
+    }
+    
+    /**
+     * Gets comprehensive cache statistics for monitoring.
      */
     public CacheStats getCacheStats() {
         return new CacheStats(
@@ -345,7 +567,9 @@ public class SpriteCache {
             AppConfig.getMaxCachedSprites(),
             cacheHits,
             cacheMisses,
-            calculateHitRatio()
+            evictions,
+            calculateHitRatio(),
+            loadingTasks.size()
         );
     }
     
@@ -358,27 +582,52 @@ public class SpriteCache {
     }
     
     /**
-     * Cache statistics data class.
+     * Enhanced cache statistics data class with comprehensive monitoring.
      */
     public static class CacheStats {
         public final int currentSize;
         public final int maxSize;
         public final long hits;
         public final long misses;
+        public final long evictions;
         public final double hitRatio;
+        public final int backgroundTasks;
         
-        public CacheStats(int currentSize, int maxSize, long hits, long misses, double hitRatio) {
+        public CacheStats(int currentSize, int maxSize, long hits, long misses, long evictions, double hitRatio, int backgroundTasks) {
             this.currentSize = currentSize;
             this.maxSize = maxSize;
             this.hits = hits;
             this.misses = misses;
+            this.evictions = evictions;
             this.hitRatio = hitRatio;
+            this.backgroundTasks = backgroundTasks;
+        }
+        
+        /**
+         * Gets the cache utilization percentage.
+         */
+        public double getUtilization() {
+            return maxSize > 0 ? (double) currentSize / maxSize : 0.0;
+        }
+        
+        /**
+         * Gets the total number of cache accesses.
+         */
+        public long getTotalAccesses() {
+            return hits + misses;
+        }
+        
+        /**
+         * Checks if the cache is under memory pressure.
+         */
+        public boolean isUnderPressure() {
+            return getUtilization() > 0.8; // 80% threshold
         }
         
         @Override
         public String toString() {
-            return String.format("CacheStats{size=%d/%d, hits=%d, misses=%d, hitRatio=%.2f%%}", 
-                               currentSize, maxSize, hits, misses, hitRatio * 100);
+            return String.format("CacheStats{size=%d/%d (%.1f%%), hits=%d, misses=%d, evictions=%d, hitRatio=%.2f%%, backgroundTasks=%d}", 
+                               currentSize, maxSize, getUtilization() * 100, hits, misses, evictions, hitRatio * 100, backgroundTasks);
         }
     }
 }

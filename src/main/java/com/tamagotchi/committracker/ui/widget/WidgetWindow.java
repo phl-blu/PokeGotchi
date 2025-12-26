@@ -158,7 +158,8 @@ public class WidgetWindow {
         if (selectionData.hasSelectedStarter()) {
             PokemonSpecies selectedSpecies = selectionData.getSelectedStarter();
             
-            // Create Pokemon display component (starts as egg, will evolve based on initial scan)
+            // Always start as EGG - the correct stage will be determined by XP/streak
+            // from the initial commit scan. Don't rely on saved stage.
             pokemonDisplay = new PokemonDisplayComponent(
                 selectedSpecies, EvolutionStage.EGG, PokemonState.CONTENT
             );
@@ -1019,14 +1020,21 @@ public class WidgetWindow {
             
             // Save Pokemon selection if available
             if (pokemonDisplay != null) {
-                props.setProperty("pokemon.species", pokemonDisplay.getCurrentSpecies().name());
-                props.setProperty("pokemon.stage", pokemonDisplay.getCurrentStage().name());
-                props.setProperty("pokemon.state", pokemonDisplay.getCurrentState().name());
+                String speciesName = pokemonDisplay.getCurrentSpecies().name();
+                String stageName = pokemonDisplay.getCurrentStage().name();
+                String stateName = pokemonDisplay.getCurrentState().name();
+                
+                props.setProperty("pokemon.species", speciesName);
+                props.setProperty("pokemon.stage", stageName);
+                props.setProperty("pokemon.state", stateName);
+                
+                System.out.println("💾 Saving Pokemon state: species=" + speciesName + ", stage=" + stageName + ", state=" + stateName);
             }
             
             // Save XP and streak data
             if (xpSystem != null) {
                 props.setProperty("xp.current", String.valueOf(xpSystem.getCurrentXP()));
+                System.out.println("💾 Saving XP: " + xpSystem.getCurrentXP());
             }
             
             if (commitHistory != null) {
@@ -1034,7 +1042,7 @@ public class WidgetWindow {
             }
             
             FileUtils.saveProperties(props, POSITION_FILE);
-            System.out.println("💾 Window state saved successfully");
+            System.out.println("💾 Window state saved successfully to " + POSITION_FILE);
             
         } catch (IOException e) {
             System.err.println("⚠️ Failed to save window state: " + e.getMessage());
@@ -1061,6 +1069,61 @@ public class WidgetWindow {
             // No saved state found - use defaults
             System.out.println("📝 No saved window state found - using defaults");
         }
+    }
+    
+    /**
+     * Loads the saved evolution stage from persistent storage.
+     * Returns EGG if no saved stage is found.
+     * 
+     * @return The saved evolution stage, or EGG if not found
+     */
+    private EvolutionStage loadSavedEvolutionStage() {
+        try {
+            Properties props = FileUtils.loadProperties(POSITION_FILE);
+            String savedStage = props.getProperty("pokemon.stage");
+            
+            System.out.println("🔍 Loading saved stage from properties: '" + savedStage + "'");
+            
+            if (savedStage != null && !savedStage.isEmpty()) {
+                try {
+                    EvolutionStage stage = EvolutionStage.valueOf(savedStage);
+                    System.out.println("✅ Loaded saved evolution stage: " + stage);
+                    return stage;
+                } catch (IllegalArgumentException e) {
+                    System.out.println("⚠️ Invalid saved stage '" + savedStage + "', defaulting to EGG");
+                }
+            } else {
+                System.out.println("📝 No pokemon.stage property found in saved state");
+            }
+        } catch (IOException e) {
+            System.out.println("📝 No saved evolution stage found - starting as EGG (file not found)");
+        }
+        return EvolutionStage.EGG;
+    }
+    
+    /**
+     * Loads the saved XP from persistent storage.
+     * Returns 0 if no saved XP is found.
+     * 
+     * @return The saved XP value, or 0 if not found
+     */
+    private int loadSavedXP() {
+        try {
+            Properties props = FileUtils.loadProperties(POSITION_FILE);
+            String savedXP = props.getProperty("xp.current");
+            
+            if (savedXP != null && !savedXP.isEmpty()) {
+                try {
+                    int xp = Integer.parseInt(savedXP);
+                    return Math.max(0, xp); // Ensure non-negative
+                } catch (NumberFormatException e) {
+                    System.out.println("⚠️ Invalid saved XP '" + savedXP + "', defaulting to 0");
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("📝 No saved XP found - starting at 0");
+        }
+        return 0;
     }
     
     /**

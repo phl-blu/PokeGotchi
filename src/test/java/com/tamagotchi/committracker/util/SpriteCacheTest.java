@@ -69,7 +69,7 @@ class SpriteCacheTest {
     }
 
     @Test
-    void testPreloadCommonSprites() {
+    void testPreloadEssentialSprites() {
         // Test preloading functionality (should not throw exceptions)
         // Skip actual preloading to avoid circular dependency issues in tests
         assertDoesNotThrow(() -> {
@@ -79,7 +79,7 @@ class SpriteCacheTest {
                 // Only test the cache clearing and basic functionality
                 spriteCache.clearCache();
             }
-        }, "Preloading common sprites should not throw exceptions");
+        }, "Preloading essential sprites should not throw exceptions");
         
         // After preloading, cache should have some entries (if sprites exist)
         SpriteCache.CacheStats stats = spriteCache.getCacheStats();

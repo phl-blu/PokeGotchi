@@ -28,9 +28,15 @@ import java.util.logging.Logger;
  * Orchestrates repository monitoring and data collection.
  * Manages 5-minute polling cycle and processes new commits.
  * Implements graceful error handling and retry mechanisms for resilience.
+ * 
+ * Requirements: 1.5, 3.1 - Proper resource cleanup and configurable timeouts
  */
 public class CommitService {
     private static final Logger logger = Logger.getLogger(CommitService.class.getName());
+    
+    // Timeout constants for cleanup operations
+    private static final int SHUTDOWN_TIMEOUT_SECONDS = 10;
+    private static final int TASK_TIMEOUT_SECONDS = 30;
     
     private final RepositoryScanner repositoryScanner;
     private final ScheduledExecutorService scheduler;
@@ -40,6 +46,7 @@ public class CommitService {
     private final RetryMechanism retryMechanism;
     
     private volatile boolean isMonitoring = false;
+    private volatile boolean isShutdown = false;
     private ScheduledFuture<?> pollingTask;
     
     public CommitService() {
@@ -108,38 +115,93 @@ public class CommitService {
     }
     
     /**
-     * Stops the monitoring service.
+     * Stops the monitoring service and performs comprehensive cleanup.
+     * Ensures all resources are properly released to prevent memory leaks.
+     * 
+     * Requirements: 1.5 - Clean up all resources including threads, caches, and file handles
      */
     public void stopMonitoring() {
-        if (!isMonitoring) {
+        if (!isMonitoring && !isShutdown) {
             return;
         }
         
         logger.info("Stopping commit monitoring service");
         isMonitoring = false;
+        isShutdown = true;
         
+        // Cancel the polling task first
         if (pollingTask != null) {
             pollingTask.cancel(false);
+            pollingTask = null;
         }
         
-        scheduler.shutdown();
-        scanExecutor.shutdown();
-        retryMechanism.shutdown();
+        // Shutdown scheduler with timeout
+        shutdownExecutorService(scheduler, "scheduler");
+        
+        // Shutdown scan executor with timeout
+        shutdownExecutorService(scanExecutor, "scanExecutor");
+        
+        // Shutdown retry mechanism
+        if (retryMechanism != null) {
+            retryMechanism.shutdown();
+        }
+        
+        // Clear all listeners to prevent memory leaks from listener references
+        clearListeners();
+        
+        // Unregister from ResourceManager
+        ResourceManager resourceManager = ResourceManager.getInstance();
+        resourceManager.cleanupResource("commitService-scheduler");
+        resourceManager.cleanupResource("commitService-scanExecutor");
+        
+        logger.info("Commit monitoring stopped and all resources cleaned up");
+    }
+    
+    /**
+     * Shuts down an ExecutorService with proper timeout handling.
+     * 
+     * @param executor The executor service to shutdown
+     * @param name Name for logging purposes
+     */
+    private void shutdownExecutorService(ExecutorService executor, String name) {
+        if (executor == null || executor.isShutdown()) {
+            return;
+        }
+        
+        logger.fine("Shutting down " + name);
+        executor.shutdown();
         
         try {
-            if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
-                scheduler.shutdownNow();
-            }
-            if (!scanExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
-                scanExecutor.shutdownNow();
+            if (!executor.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                logger.warning(name + " did not terminate gracefully, forcing shutdown");
+                List<Runnable> pendingTasks = executor.shutdownNow();
+                if (!pendingTasks.isEmpty()) {
+                    logger.warning(name + " had " + pendingTasks.size() + " pending tasks that were cancelled");
+                }
+                
+                // Wait a bit more for tasks to respond to being cancelled
+                if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    logger.severe(name + " did not terminate after forced shutdown");
+                }
             }
         } catch (InterruptedException e) {
-            scheduler.shutdownNow();
-            scanExecutor.shutdownNow();
+            logger.warning(name + " shutdown interrupted, forcing immediate shutdown");
+            executor.shutdownNow();
             Thread.currentThread().interrupt();
         }
-        
-        logger.info("Commit monitoring stopped");
+    }
+    
+    /**
+     * Clears all registered listeners to prevent memory leaks.
+     */
+    private void clearListeners() {
+        synchronized (listeners) {
+            int listenerCount = listeners.size();
+            listeners.clear();
+            if (listenerCount > 0) {
+                logger.fine("Cleared " + listenerCount + " commit listeners");
+            }
+        }
     }
     
     /**
@@ -194,9 +256,11 @@ public class CommitService {
     /**
      * Scans all repositories for new commits.
      * Implements retry mechanism for transient failures and graceful error handling.
+     * 
+     * Requirements: 3.1 - Use configurable timeouts to prevent hanging operations
      */
     public void scanAllRepositories() {
-        if (!isMonitoring) {
+        if (!isMonitoring || isShutdown) {
             return;
         }
         
@@ -207,8 +271,13 @@ public class CommitService {
             List<Future<List<Commit>>> futures = new ArrayList<>();
             
             for (Repository repo : repositories) {
-                if (repo.isAccessible()) {
+                if (repo.isAccessible() && !isShutdown) {
                     Future<List<Commit>> future = scanExecutor.submit(() -> {
+                        // Check for shutdown before starting work
+                        if (isShutdown) {
+                            return Collections.<Commit>emptyList();
+                        }
+                        
                         try {
                             LocalDateTime since = repo.getLastScanned() != null ? 
                                 repo.getLastScanned() : LocalDateTime.now().minusHours(6);
@@ -229,33 +298,43 @@ public class CommitService {
                                     ErrorHandler.handleGitAuthenticationError(repo.getName(), result.getLastError());
                                 }
                                 repo.setAccessible(false);
-                                return Collections.emptyList();
+                                return Collections.<Commit>emptyList();
                             }
                             
                         } catch (Exception e) {
                             logger.log(Level.WARNING, "Failed to scan repository: " + repo.getName(), e);
                             repo.setAccessible(false);
-                            return Collections.emptyList();
+                            return Collections.<Commit>emptyList();
                         }
                     });
                     futures.add(future);
                 }
             }
             
-            // Collect results
+            // Collect results with timeout to prevent hanging
             List<Commit> newCommits = new ArrayList<>();
             for (Future<List<Commit>> future : futures) {
+                if (isShutdown) {
+                    // Cancel remaining futures if shutting down
+                    future.cancel(true);
+                    continue;
+                }
+                
                 try {
-                    newCommits.addAll(future.get(30, TimeUnit.SECONDS));
+                    List<Commit> commits = future.get(TASK_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                    newCommits.addAll(commits);
                 } catch (TimeoutException e) {
-                    logger.log(Level.WARNING, "Repository scan task timed out");
+                    logger.log(Level.WARNING, "Repository scan task timed out after " + TASK_TIMEOUT_SECONDS + " seconds");
+                    future.cancel(true); // Cancel the timed-out task
                     ErrorHandler.handleNetworkError("repository scan", e, false);
+                } catch (CancellationException e) {
+                    logger.fine("Repository scan task was cancelled");
                 } catch (Exception e) {
                     logger.log(Level.WARNING, "Repository scan task failed", e);
                 }
             }
             
-            if (!newCommits.isEmpty()) {
+            if (!newCommits.isEmpty() && !isShutdown) {
                 processNewCommits(newCommits);
                 logger.info("Periodic scan found " + newCommits.size() + " new commits");
             }
@@ -382,21 +461,38 @@ public class CommitService {
      * Adds a commit listener.
      */
     public void addCommitListener(CommitListener listener) {
-        listeners.add(listener);
+        if (listener != null && !isShutdown) {
+            synchronized (listeners) {
+                listeners.add(listener);
+            }
+        }
     }
     
     /**
      * Removes a commit listener.
      */
     public void removeCommitListener(CommitListener listener) {
-        listeners.remove(listener);
+        if (listener != null) {
+            synchronized (listeners) {
+                listeners.remove(listener);
+            }
+        }
     }
     
     /**
      * Notifies all listeners of new commits.
      */
     private void notifyListeners(List<Commit> newCommits) {
-        for (CommitListener listener : listeners) {
+        if (isShutdown) {
+            return;
+        }
+        
+        List<CommitListener> listenersCopy;
+        synchronized (listeners) {
+            listenersCopy = new ArrayList<>(listeners);
+        }
+        
+        for (CommitListener listener : listenersCopy) {
             try {
                 listener.onNewCommits(newCommits);
             } catch (Exception e) {
@@ -409,7 +505,14 @@ public class CommitService {
      * Checks if the service is currently monitoring.
      */
     public boolean isMonitoring() {
-        return isMonitoring;
+        return isMonitoring && !isShutdown;
+    }
+    
+    /**
+     * Checks if the service has been shutdown.
+     */
+    public boolean isShutdown() {
+        return isShutdown;
     }
     
     /**

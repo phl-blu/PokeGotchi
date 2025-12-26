@@ -79,6 +79,15 @@ public class PokemonDisplayComponent extends StackPane {
     private boolean isEvolutionInProgress;
     private List<Image> currentFrames;
     
+    // Track the stage that was loaded from persistence to prevent re-evolution on startup
+    private EvolutionStage loadedStage;
+    private boolean hasCheckedInitialEvolution;
+    
+    // Track pending evolution target for multi-stage evolution
+    private EvolutionStage pendingTargetStage;
+    private int lastKnownXP;
+    private int lastKnownStreak;
+    
     // Reset listener for notifying when Pokemon is reset
     // TODO: REMOVE THIS FIELD BEFORE PRODUCTION - See TODO.md
     private ResetListener resetListener;
@@ -102,22 +111,41 @@ public class PokemonDisplayComponent extends StackPane {
         this.currentStage = EvolutionStage.EGG;
         this.currentState = PokemonState.CONTENT;
         this.isEvolutionInProgress = false;
+        this.loadedStage = EvolutionStage.EGG;
+        this.hasCheckedInitialEvolution = false;
         
         // Don't load animation - no species selected yet
     }
     
     /**
      * Creates a Pokemon Display Component with specific Pokemon.
+     * Always starts at the specified stage - evolution will be determined by XP/streak.
      */
     public PokemonDisplayComponent(PokemonSpecies species, EvolutionStage stage, PokemonState state) {
         initializeComponent();
         
-        this.currentSpecies = species;
         this.currentStage = stage;
         this.currentState = state;
         this.isEvolutionInProgress = false;
+        this.loadedStage = stage;
+        this.hasCheckedInitialEvolution = false;
+        this.currentSpecies = species;
+        
+        System.out.println("🥚 Initialized Pokemon: " + species + " at stage " + stage);
         
         loadAndStartAnimation();
+    }
+    
+    /**
+     * Gets the correct evolved species for a given base species and stage.
+     * This is used during initialization to ensure the correct sprite is displayed.
+     */
+    private PokemonSpecies getEvolvedSpeciesForStage(PokemonSpecies baseSpecies, EvolutionStage stage) {
+        // Get the base starter species first
+        PokemonSpecies starter = getBaseSpecies(baseSpecies);
+        
+        // Then get the evolved form for that stage
+        return getEvolvedSpecies(starter, stage);
     }
     
     /**
@@ -515,44 +543,217 @@ public class PokemonDisplayComponent extends StackPane {
     
     /**
      * Checks if the Pokemon meets evolution requirements and triggers evolution if so.
+     * Determines the correct stage based on XP and streak, then evolves to that stage.
      * 
      * @param xpLevel Current XP level
      * @param streakDays Current commit streak in days
      * @return true if evolution was triggered, false otherwise
      */
     public boolean checkEvolutionRequirements(int xpLevel, int streakDays) {
+        return checkEvolutionRequirements(xpLevel, streakDays, false);
+    }
+    
+    /**
+     * Checks if the Pokemon meets evolution requirements and triggers evolution if so.
+     * Determines the correct stage based on XP and streak, then evolves to that stage.
+     * 
+     * @param xpLevel Current XP level
+     * @param streakDays Current commit streak in days
+     * @param instant If true, skip animation and instantly set to target stage (for initial setup)
+     * @return true if evolution was triggered, false otherwise
+     */
+    public boolean checkEvolutionRequirements(int xpLevel, int streakDays, boolean instant) {
+        System.out.println("🔍 Checking evolution: currentStage=" + currentStage + ", XP=" + xpLevel + ", streak=" + streakDays + " days" + (instant ? " (INSTANT)" : ""));
+        
         if (isEvolutionInProgress) {
+            System.out.println("⏳ Evolution already in progress, skipping check");
             return false;
         }
         
+        // Store values for potential multi-stage evolution
+        this.lastKnownXP = xpLevel;
+        this.lastKnownStreak = streakDays;
+        
+        // Determine the correct stage based on XP and streak
+        EvolutionStage targetStage = calculateTargetStage(xpLevel, streakDays);
+        this.pendingTargetStage = targetStage;
+        System.out.println("🎯 Target stage based on XP/streak: " + targetStage + " (current: " + currentStage + ")");
+        
+        // If we're already at or past the target stage, no evolution needed
+        if (getStageLevel(currentStage) >= getStageLevel(targetStage)) {
+            System.out.println("✅ Already at or past target stage, no evolution needed");
+            return false;
+        }
+        
+        // For instant mode, skip directly to target stage without animation
+        if (instant) {
+            System.out.println("⚡ Instant evolution to " + targetStage);
+            setStageInstantly(targetStage);
+            return true;
+        }
+        
+        // Evolve to the next stage (one step at a time for animation)
         EvolutionStage nextStage = getNextEvolutionStage();
-        if (nextStage == null) {
-            return false; // Already at max evolution
-        }
-        
-        // Check evolution criteria based on design document
-        boolean canEvolve = false;
-        switch (nextStage) {
-            case BASIC:
-                // Hatch from egg: EITHER 4+ day streak OR 60+ XP (whichever comes first)
-                canEvolve = (streakDays >= 4 || xpLevel >= 60);
-                break;
-            case STAGE_1:
-                // First evolution: ONLY 11+ day streak (XP doesn't matter after hatching)
-                canEvolve = (streakDays >= 11);
-                break;
-            case STAGE_2:
-                // Final evolution: ONLY 22+ day streak (XP doesn't matter after hatching)
-                canEvolve = (streakDays >= 22);
-                break;
-        }
-        
-        if (canEvolve) {
+        if (nextStage != null) {
+            System.out.println("✨ Evolving from " + currentStage + " to " + nextStage + " (target: " + targetStage + ")");
             triggerEvolution(nextStage);
             return true;
         }
         
         return false;
+    }
+    
+    /**
+     * Plays a fast evolution sequence to the target stage.
+     * Shows a quick silhouette transition animation before revealing the final Pokemon.
+     */
+    private void setStageInstantly(EvolutionStage targetStage) {
+        // Stop any current animation
+        if (currentAnimation != null) {
+            stopAndCleanupAnimation();
+        }
+        
+        // Get the evolved species for the target stage
+        PokemonSpecies evolvedSpecies = getEvolvedSpecies(currentSpecies, targetStage);
+        
+        System.out.println("⚡ Fast evolution: " + currentSpecies + " (" + currentStage + ") -> " + evolvedSpecies + " (" + targetStage + ")");
+        
+        // Mark evolution in progress
+        this.isEvolutionInProgress = true;
+        this.pendingTargetStage = null;
+        
+        // Play a quick evolution effect animation
+        playFastEvolutionEffect(evolvedSpecies, targetStage);
+    }
+    
+    /**
+     * Plays a fast evolution effect - shows silhouette glow then reveals the Pokemon.
+     */
+    private void playFastEvolutionEffect(PokemonSpecies targetSpecies, EvolutionStage targetStage) {
+        // Load the target Pokemon frames
+        List<Image> targetFrames = AnimationUtils.loadSpriteFrames(targetSpecies, targetStage, PokemonState.CONTENT);
+        
+        if (targetFrames.isEmpty()) {
+            // Fallback: just set directly
+            System.out.println("⚠️ No frames found for fast evolution, completing directly");
+            completeFastEvolution(targetSpecies, targetStage);
+            return;
+        }
+        
+        // Create a quick flash/glow effect using the silhouette
+        Image targetImage = targetFrames.get(0);
+        
+        System.out.println("🌟 Playing fast evolution effect for " + targetSpecies);
+        
+        // Ensure we're on the JavaFX thread
+        Platform.runLater(() -> {
+            // Set the target image first
+            pokemonImageView.setImage(targetImage);
+            
+            // Start with white flash
+            pokemonImageView.setEffect(new javafx.scene.effect.ColorAdjust(0, 0, 1.0, 0));
+            
+            // Create evolution effect: flash white -> glow -> reveal Pokemon
+            Timeline evolutionEffect = new Timeline();
+            
+            // Phase 1: Bright white flash (0ms - 200ms)
+            evolutionEffect.getKeyFrames().add(new javafx.animation.KeyFrame(
+                javafx.util.Duration.millis(200),
+                e -> {
+                    System.out.println("🌟 Phase 1: Strong glow");
+                    pokemonImageView.setEffect(new javafx.scene.effect.Glow(1.0));
+                }
+            ));
+            
+            // Phase 2: Pulsing glow (200ms - 500ms)
+            evolutionEffect.getKeyFrames().add(new javafx.animation.KeyFrame(
+                javafx.util.Duration.millis(500),
+                e -> {
+                    System.out.println("🌟 Phase 2: Medium glow");
+                    pokemonImageView.setEffect(new javafx.scene.effect.Glow(0.6));
+                }
+            ));
+            
+            // Phase 3: Fade glow (500ms - 800ms)
+            evolutionEffect.getKeyFrames().add(new javafx.animation.KeyFrame(
+                javafx.util.Duration.millis(800),
+                e -> {
+                    System.out.println("🌟 Phase 3: Fade glow");
+                    pokemonImageView.setEffect(new javafx.scene.effect.Glow(0.2));
+                }
+            ));
+            
+            // Phase 4: Remove effect and complete (1000ms)
+            evolutionEffect.getKeyFrames().add(new javafx.animation.KeyFrame(
+                javafx.util.Duration.millis(1000),
+                e -> {
+                    System.out.println("🌟 Phase 4: Complete");
+                    pokemonImageView.setEffect(null);
+                    completeFastEvolution(targetSpecies, targetStage);
+                }
+            ));
+            
+            evolutionEffect.setCycleCount(1);
+            evolutionEffect.play();
+        });
+    }
+    
+    /**
+     * Completes the fast evolution and starts normal animation.
+     */
+    private void completeFastEvolution(PokemonSpecies targetSpecies, EvolutionStage targetStage) {
+        System.out.println("✅ Fast evolution complete: " + targetSpecies + " at " + targetStage);
+        
+        // Update state
+        this.currentSpecies = targetSpecies;
+        this.currentStage = targetStage;
+        this.currentState = PokemonState.HAPPY;
+        this.isEvolutionInProgress = false;
+        
+        // Load the new sprite animation
+        loadAndStartAnimation();
+        
+        // Notify listener
+        if (evolutionListener != null) {
+            Platform.runLater(() -> {
+                evolutionListener.onEvolutionComplete(targetSpecies, targetStage);
+            });
+        }
+    }
+    
+    /**
+     * Calculates the target evolution stage based on XP and streak.
+     * Uses OR logic - either XP OR streak threshold triggers evolution.
+     */
+    private EvolutionStage calculateTargetStage(int xpLevel, int streakDays) {
+        // Check from highest to lowest
+        // STAGE_2: 22+ days OR 1200+ XP
+        if (streakDays >= 22 || xpLevel >= 1200) {
+            return EvolutionStage.STAGE_2;
+        }
+        // STAGE_1: 11+ days OR 500+ XP
+        if (streakDays >= 11 || xpLevel >= 500) {
+            return EvolutionStage.STAGE_1;
+        }
+        // BASIC: 4+ days OR 60+ XP
+        if (streakDays >= 4 || xpLevel >= 60) {
+            return EvolutionStage.BASIC;
+        }
+        // Default: EGG
+        return EvolutionStage.EGG;
+    }
+    
+    /**
+     * Gets the numeric level of a stage for comparison.
+     */
+    private int getStageLevel(EvolutionStage stage) {
+        switch (stage) {
+            case EGG: return 0;
+            case BASIC: return 1;
+            case STAGE_1: return 2;
+            case STAGE_2: return 3;
+            default: return 0;
+        }
     }
     
     /**
@@ -783,8 +984,22 @@ public class PokemonDisplayComponent extends StackPane {
             });
         }
         
-        // Process any queued evolutions
-        processEvolutionQueue();
+        // Check if we need to continue evolving to reach the target stage
+        if (pendingTargetStage != null && getStageLevel(currentStage) < getStageLevel(pendingTargetStage)) {
+            System.out.println("🔄 More evolution needed: current=" + currentStage + ", target=" + pendingTargetStage);
+            // Schedule the next evolution after a short delay to let the animation settle
+            Platform.runLater(() -> {
+                try {
+                    Thread.sleep(500); // Brief pause between evolutions
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                checkEvolutionRequirements(lastKnownXP, lastKnownStreak);
+            });
+        } else {
+            // Process any queued evolutions
+            processEvolutionQueue();
+        }
     }
     
     /**
@@ -1040,6 +1255,10 @@ public class PokemonDisplayComponent extends StackPane {
         this.currentStage = EvolutionStage.EGG;
         this.currentState = PokemonState.CONTENT;
         this.isEvolutionInProgress = false;
+        
+        // Reset the loaded stage tracking so evolution can happen again
+        this.loadedStage = EvolutionStage.EGG;
+        this.hasCheckedInitialEvolution = false;
         
         // Load egg animation with 0 XP (stage 1 egg - no cracks)
         loadAndStartAnimationWithXP(0);

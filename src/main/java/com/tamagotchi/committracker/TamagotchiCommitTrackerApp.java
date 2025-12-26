@@ -37,7 +37,7 @@ public class TamagotchiCommitTrackerApp extends Application {
         // Initialize sprite cache and preload common sprites for better performance
         if (AppConfig.isSpriteCachingEnabled()) {
             System.out.println("🖼️ Initializing sprite cache...");
-            SpriteCache.getInstance().preloadCommonSprites();
+            SpriteCache.getInstance().preloadEssentialSprites();
             System.out.println("✅ Sprite cache initialized: " + SpriteCache.getInstance().getCacheStats());
             
             // Preload evolution effects for smooth evolution animations
@@ -261,7 +261,8 @@ public class TamagotchiCommitTrackerApp extends Application {
                 widgetWindow.getPokemonDisplay().updateState(pokemonState);
                 
                 // Check for evolution based on XP and streak
-                boolean evolved = widgetWindow.getPokemonDisplay().checkEvolutionRequirements(currentXP, currentStreak);
+                // Use instant mode for initial scan to skip animation and set directly to target stage
+                boolean evolved = widgetWindow.getPokemonDisplay().checkEvolutionRequirements(currentXP, currentStreak, isInitialScan);
                 if (evolved) {
                     var newStage = widgetWindow.getPokemonDisplay().getCurrentStage();
                     if (isInitialScan && currentStage == com.tamagotchi.committracker.pokemon.EvolutionStage.EGG) {
