@@ -29,7 +29,8 @@ import java.util.logging.Logger;
  * Manages 5-minute polling cycle and processes new commits.
  * Implements graceful error handling and retry mechanisms for resilience.
  * 
- * Requirements: 1.5, 3.1 - Proper resource cleanup and configurable timeouts
+ * Requirements: 1.5, 3.1, 4.3, 4.5 - Proper resource cleanup, configurable timeouts,
+ * and background repository discovery with progress reporting
  */
 public class CommitService {
     private static final Logger logger = Logger.getLogger(CommitService.class.getName());
@@ -39,18 +40,34 @@ public class CommitService {
     private static final int TASK_TIMEOUT_SECONDS = 30;
     
     private final RepositoryScanner repositoryScanner;
+    private final BackgroundRepositoryDiscoveryService discoveryService;
     private final ScheduledExecutorService scheduler;
     private final ExecutorService scanExecutor;
     private final CommitHistory commitHistory;
     private final List<CommitListener> listeners;
     private final RetryMechanism retryMechanism;
     
+    // Progress listener for UI updates during discovery
+    private DiscoveryProgressListener discoveryProgressListener;
+    
     private volatile boolean isMonitoring = false;
     private volatile boolean isShutdown = false;
     private ScheduledFuture<?> pollingTask;
     
+    /**
+     * Listener interface for discovery progress updates.
+     * Allows UI to show progress during repository scanning.
+     * 
+     * Requirements: 4.3 - Add progress reporting for long-running operations
+     */
+    public interface DiscoveryProgressListener {
+        void onProgressUpdate(int directoriesScanned, int repositoriesFound, 
+                            String currentPath, boolean isComplete);
+    }
+    
     public CommitService() {
         this.repositoryScanner = new RepositoryScanner();
+        this.discoveryService = new BackgroundRepositoryDiscoveryService(repositoryScanner);
         this.scheduler = Executors.newScheduledThreadPool(1);
         this.scanExecutor = Executors.newFixedThreadPool(4);
         this.commitHistory = new CommitHistory();
@@ -66,10 +83,14 @@ public class CommitService {
         ResourceManager resourceManager = ResourceManager.getInstance();
         resourceManager.registerExecutorService("commitService-scheduler", scheduler);
         resourceManager.registerExecutorService("commitService-scanExecutor", scanExecutor);
+        
+        // Set up discovery progress forwarding
+        setupDiscoveryProgressForwarding();
     }
     
     public CommitService(RepositoryScanner repositoryScanner) {
         this.repositoryScanner = repositoryScanner;
+        this.discoveryService = new BackgroundRepositoryDiscoveryService(repositoryScanner);
         this.scheduler = Executors.newScheduledThreadPool(1);
         this.scanExecutor = Executors.newFixedThreadPool(4);
         this.commitHistory = new CommitHistory();
@@ -85,6 +106,38 @@ public class CommitService {
         ResourceManager resourceManager = ResourceManager.getInstance();
         resourceManager.registerExecutorService("commitService-scheduler", scheduler);
         resourceManager.registerExecutorService("commitService-scanExecutor", scanExecutor);
+        
+        // Set up discovery progress forwarding
+        setupDiscoveryProgressForwarding();
+    }
+    
+    /**
+     * Sets up progress forwarding from the discovery service.
+     * 
+     * Requirements: 4.3 - Add progress reporting for long-running operations
+     */
+    private void setupDiscoveryProgressForwarding() {
+        discoveryService.setProgressCallback(progress -> {
+            if (discoveryProgressListener != null) {
+                discoveryProgressListener.onProgressUpdate(
+                    progress.getDirectoriesScanned(),
+                    progress.getRepositoriesFound(),
+                    progress.getCurrentPath(),
+                    progress.isComplete()
+                );
+            }
+        });
+    }
+    
+    /**
+     * Sets the discovery progress listener for UI updates.
+     * 
+     * @param listener Listener to receive progress updates
+     * 
+     * Requirements: 4.3 - Add progress reporting for long-running operations
+     */
+    public void setDiscoveryProgressListener(DiscoveryProgressListener listener) {
+        this.discoveryProgressListener = listener;
     }
     
     /**
@@ -133,6 +186,17 @@ public class CommitService {
         if (pollingTask != null) {
             pollingTask.cancel(false);
             pollingTask = null;
+        }
+        
+        // Cancel any ongoing repository discovery
+        if (discoveryService != null) {
+            discoveryService.shutdown();
+        }
+        
+        // Also shutdown the scanner directly (in case it was used independently)
+        if (repositoryScanner != null) {
+            repositoryScanner.cancelDiscovery();
+            repositoryScanner.shutdown();
         }
         
         // Shutdown scheduler with timeout
@@ -206,33 +270,61 @@ public class CommitService {
     
     /**
      * Performs initial repository discovery and commit scanning with timeout.
+     * Uses background threads to keep UI responsive.
+     * 
+     * Requirements: 4.3, 4.5 - Perform initial scanning in background threads
+     *                         with progress reporting
      */
     private void performInitialScan() {
-        logger.info("Performing initial repository scan");
+        logger.info("Performing initial repository scan in background");
         
-        try {
-            // Use configurable timeout for repository discovery
-            int timeoutSeconds = AppConfig.getScanTimeoutSeconds();
-            CompletableFuture<List<Repository>> discoveryFuture = CompletableFuture.supplyAsync(
-                () -> repositoryScanner.discoverRepositories(),
-                scanExecutor
-            );
-            
-            List<Repository> repositories = discoveryFuture.get(timeoutSeconds, TimeUnit.SECONDS);
-            
-            // Limit repositories to prevent performance issues
-            int maxRepos = AppConfig.getMaxRepositories();
-            if (repositories.size() > maxRepos) {
-                logger.info("Found " + repositories.size() + " repositories, limiting to " + maxRepos + " for performance");
-                repositories = repositories.subList(0, maxRepos);
-            }
-            
-            logger.info("Discovered " + repositories.size() + " repositories");
-            
+        // Use configurable timeout for repository discovery
+        int timeoutSeconds = AppConfig.getScanTimeoutSeconds();
+        
+        // Use the background discovery service for non-blocking discovery
+        discoveryService.startDiscoveryWithTimeout(timeoutSeconds)
+            .thenAccept(repositories -> {
+                if (isShutdown) {
+                    return;
+                }
+                
+                // Limit repositories to prevent performance issues
+                int maxRepos = AppConfig.getMaxRepositories();
+                List<Repository> limitedRepos = repositories;
+                if (repositories.size() > maxRepos) {
+                    logger.info("Found " + repositories.size() + " repositories, limiting to " + maxRepos + " for performance");
+                    limitedRepos = repositories.subList(0, maxRepos);
+                }
+                
+                logger.info("Discovered " + limitedRepos.size() + " repositories");
+                
+                // Process commits in background to keep UI responsive
+                processRepositoriesInBackground(limitedRepos);
+            })
+            .exceptionally(e -> {
+                logger.log(Level.SEVERE, "Initial scan failed", e);
+                return null;
+            });
+    }
+    
+    /**
+     * Processes repositories in background threads to avoid blocking UI.
+     * 
+     * Requirements: 4.3, 4.5 - Background processing with progress reporting
+     */
+    private void processRepositoriesInBackground(List<Repository> repositories) {
+        if (isShutdown || repositories.isEmpty()) {
+            return;
+        }
+        
+        CompletableFuture.runAsync(() -> {
             List<Commit> allCommits = new ArrayList<>();
             LocalDateTime since = LocalDateTime.now().minusDays(30); // Get last 30 days of commits
             
             for (Repository repo : repositories) {
+                if (isShutdown) {
+                    break;
+                }
                 try {
                     List<Commit> repoCommits = getCommitsSince(repo, since);
                     allCommits.addAll(repoCommits);
@@ -243,14 +335,14 @@ public class CommitService {
                 }
             }
             
-            processNewCommits(allCommits);
-            logger.info("Initial scan completed. Found " + allCommits.size() + " commits");
-            
-        } catch (TimeoutException e) {
-            logger.log(Level.WARNING, "Initial repository discovery timed out after " + AppConfig.getScanTimeoutSeconds() + " seconds", e);
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Initial scan failed", e);
-        }
+            if (!isShutdown) {
+                processNewCommits(allCommits);
+                logger.info("Initial scan completed. Found " + allCommits.size() + " commits");
+            }
+        }, scanExecutor).exceptionally(e -> {
+            logger.log(Level.WARNING, "Background repository processing failed", e);
+            return null;
+        });
     }
     
     /**
@@ -520,6 +612,16 @@ public class CommitService {
      */
     public RepositoryScanner getRepositoryScanner() {
         return repositoryScanner;
+    }
+    
+    /**
+     * Gets the background repository discovery service.
+     * Useful for monitoring discovery progress.
+     * 
+     * Requirements: 4.3 - Add progress reporting for long-running operations
+     */
+    public BackgroundRepositoryDiscoveryService getDiscoveryService() {
+        return discoveryService;
     }
     
     /**
