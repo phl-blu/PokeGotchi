@@ -36,6 +36,8 @@ import com.tamagotchi.committracker.pokemon.EvolutionStage;
 import com.tamagotchi.committracker.pokemon.XPSystem;
 import com.tamagotchi.committracker.pokemon.PokemonStateManager;
 import com.tamagotchi.committracker.ui.theme.UITheme;
+import com.tamagotchi.committracker.ui.animation.AnimationController;
+import com.tamagotchi.committracker.ui.animation.UITransitionManager;
 
 import java.io.IOException;
 import java.util.List;
@@ -70,6 +72,10 @@ public class WidgetWindow {
     private XPSystem xpSystem;
     private PokemonStateManager pokemonStateManager;
     
+    // Animation and transition management
+    private AnimationController animationController;
+    private UITransitionManager transitionManager;
+    
     // Reference to commit service for manual scanning
     private com.tamagotchi.committracker.git.CommitService commitService;
     
@@ -94,6 +100,11 @@ public class WidgetWindow {
         this.selectionData = new PokemonSelectionData();
         this.xpSystem = new XPSystem();
         this.pokemonStateManager = new PokemonStateManager();
+        
+        // Initialize animation and transition management
+        this.animationController = new AnimationController();
+        this.transitionManager = new UITransitionManager(animationController);
+        
         initialize();
     }
     
@@ -109,6 +120,11 @@ public class WidgetWindow {
         this.onPokemonSelected = onPokemonSelected;
         this.xpSystem = new XPSystem();
         this.pokemonStateManager = new PokemonStateManager();
+        
+        // Initialize animation and transition management
+        this.animationController = new AnimationController();
+        this.transitionManager = new UITransitionManager(animationController);
+        
         initialize();
     }
     
@@ -128,6 +144,11 @@ public class WidgetWindow {
         this.onPokemonSelected = onPokemonSelected;
         this.xpSystem = xpSystem != null ? xpSystem : new XPSystem();
         this.pokemonStateManager = pokemonStateManager != null ? pokemonStateManager : new PokemonStateManager();
+        
+        // Initialize animation and transition management
+        this.animationController = new AnimationController();
+        this.transitionManager = new UITransitionManager(animationController);
+        
         initialize();
     }
     
@@ -201,6 +222,15 @@ public class WidgetWindow {
             System.out.println("🚪 Close button pressed - saving state and exiting");
             savePosition();
             saveWindowState();
+            
+            // Clean up animation and transition resources
+            if (animationController != null) {
+                animationController.cleanup();
+            }
+            if (transitionManager != null) {
+                transitionManager.cleanup();
+            }
+            
             Platform.exit();
             System.exit(0); // Force exit to ensure clean shutdown
         });
@@ -268,6 +298,15 @@ public class WidgetWindow {
                     System.out.println("🚪 ESC pressed - closing application");
                     savePosition();
                     saveWindowState();
+                    
+                    // Clean up animation and transition resources
+                    if (animationController != null) {
+                        animationController.cleanup();
+                    }
+                    if (transitionManager != null) {
+                        transitionManager.cleanup();
+                    }
+                    
                     Platform.exit();
                     System.exit(0);
                     break;
@@ -354,6 +393,15 @@ public class WidgetWindow {
             System.out.println("🚪 Close button clicked - saving state and exiting");
             savePosition();
             saveWindowState();
+            
+            // Clean up animation and transition resources
+            if (animationController != null) {
+                animationController.cleanup();
+            }
+            if (transitionManager != null) {
+                transitionManager.cleanup();
+            }
+            
             Platform.exit();
             System.exit(0);
         });
@@ -380,24 +428,52 @@ public class WidgetWindow {
      * Switch between compact and expanded modes.
      * Compact mode shows only the Pokemon animation.
      * Expanded mode shows Pokemon status and commit history.
+     * Uses smooth transitions to prevent animation glitches.
      */
     public void toggleMode() {
+        // Prevent mode switching during transitions
+        if (transitionManager.isTransitioning()) {
+            System.out.println("⏳ Mode switch blocked - transition in progress");
+            return;
+        }
+        
         if (isCompactMode) {
-            // Switch to expanded mode
+            // Switch to expanded mode with smooth transition
             switchToExpandedMode();
         } else {
-            // Switch to compact mode
+            // Switch to compact mode with smooth transition
             switchToCompactMode();
         }
     }
     
     /**
      * Switches to expanded mode (320x450px) showing commit history.
-     * Fixed to prevent Pokemon position glitch during transition.
+     * Uses smooth transition animation to prevent Pokemon position glitches.
      */
     private void switchToExpandedMode() {
-        // Use immediate mode to prevent glitching
-        switchToExpandedModeImmediate();
+        if (isCompactMode) {
+            System.out.println("📖 Switching to expanded mode with smooth transition");
+            
+            transitionManager.transitionToExpandedMode(
+                stage, root, pokemonDisplay, expandedLayout, pokemonStatusBox,
+                () -> {
+                    // Transition completion callback
+                    isCompactMode = false;
+                    updateAllTabsWithLatestData();
+                    
+                    // Get current Pokemon state for logging
+                    PokemonSpecies currentSpecies = pokemonDisplay != null ? pokemonDisplay.getCurrentSpecies() : PokemonSpecies.CHARMANDER;
+                    EvolutionStage currentStage = pokemonDisplay != null ? pokemonDisplay.getCurrentStage() : EvolutionStage.EGG;
+                    int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+                    int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+                    
+                    System.out.println("📖 Expanded mode transition complete - Stage: " + currentStage + ", XP: " + realXP + ", Streak: " + realStreak + " days");
+                }
+            );
+        } else {
+            // Already in expanded mode, just update data
+            switchToExpandedModeImmediate();
+        }
     }
     
     /**
@@ -451,11 +527,33 @@ public class WidgetWindow {
     
     /**
      * Switches to compact mode (80x80px) showing only Pokemon with smooth transition.
-     * Fixed to prevent Pokemon position glitch during transition.
+     * Uses transition manager to prevent Pokemon position glitches.
      */
     private void switchToCompactMode() {
-        // Use immediate mode to prevent glitching - animations cause position issues
-        switchToCompactModeImmediate();
+        if (!isCompactMode) {
+            System.out.println("📦 Switching to compact mode with smooth transition");
+            
+            transitionManager.transitionToCompactMode(
+                stage, root, pokemonDisplay, expandedLayout, pokemonStatusBox,
+                () -> {
+                    // Transition completion callback
+                    isCompactMode = true;
+                    
+                    // Ensure completely transparent background in compact mode
+                    root.setStyle("-fx-background-color: transparent;");
+                    
+                    // Also ensure the scene background is transparent
+                    if (scene != null) {
+                        scene.setFill(Color.TRANSPARENT);
+                    }
+                    
+                    System.out.println("📦 Compact mode transition complete");
+                }
+            );
+        } else {
+            // Already in compact mode, just update styling
+            switchToCompactModeImmediate();
+        }
     }
     
     /**
@@ -753,6 +851,24 @@ public class WidgetWindow {
      */
     public PokemonStateManager getPokemonStateManager() {
         return pokemonStateManager;
+    }
+    
+    /**
+     * Gets the animation controller for external access.
+     * 
+     * @return The AnimationController instance
+     */
+    public AnimationController getAnimationController() {
+        return animationController;
+    }
+    
+    /**
+     * Gets the UI transition manager for external access.
+     * 
+     * @return The UITransitionManager instance
+     */
+    public UITransitionManager getTransitionManager() {
+        return transitionManager;
     }
     
     /**
