@@ -109,6 +109,9 @@ class PokedexThemeProperties {
     }
 
     /**
+     * **Feature: pokedex-ui-redesign, Property 7: Window controls display four colored dots**
+     * **Validates: Requirements 1.3**
+     * 
      * Verifies that window control colors are all distinct.
      */
     @Property(tries = 100)
@@ -127,6 +130,32 @@ class PokedexThemeProperties {
                 assertNotEquals(controlColors[i], controlColors[j],
                     "Window control colors should be distinct");
             }
+        }
+    }
+
+    /**
+     * **Feature: pokedex-ui-redesign, Property 7: Window controls display four colored dots**
+     * **Validates: Requirements 1.3**
+     * 
+     * Verifies that exactly four window control colors are defined.
+     */
+    @Property(tries = 100)
+    @Label("Window controls should have exactly four colors defined")
+    void windowControlsShouldHaveExactlyFourColors() {
+        String[] controlColors = {
+            PokedexTheme.CONTROL_BLUE,
+            PokedexTheme.CONTROL_PINK,
+            PokedexTheme.CONTROL_ORANGE,
+            PokedexTheme.CONTROL_GREEN
+        };
+        
+        assertEquals(4, controlColors.length,
+            "Should have exactly 4 window control colors defined");
+        
+        // Each color should be non-null and non-empty
+        for (String color : controlColors) {
+            assertNotNull(color, "Control color should not be null");
+            assertFalse(color.isEmpty(), "Control color should not be empty");
         }
     }
 

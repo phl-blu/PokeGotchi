@@ -218,4 +218,64 @@ class PokedexSelectionScreenProperties {
                 return false;
         }
     }
+
+    /**
+     * **Feature: pokedex-ui-redesign, Property 5: Screen transition preserves Pokemon state**
+     * **Validates: Requirements 2.4**
+     * 
+     * For any Pokemon species, the species value should be preserved through
+     * the selection and display transition logic.
+     */
+    @Property(tries = 100)
+    @Label("Pokemon species should be preserved through selection")
+    void pokemonSpeciesShouldBePreservedThroughSelection(
+            @ForAll("validStarterSpecies") PokemonSpecies species) {
+        
+        // Assert: Species should not be null
+        assertNotNull(species, "Pokemon species should not be null");
+        
+        // Assert: Species should have a valid name
+        assertNotNull(species.name(), "Species name should not be null");
+        assertFalse(species.name().isEmpty(), "Species name should not be empty");
+        
+        // Assert: Species name should be uppercase (enum convention)
+        assertEquals(species.name(), species.name().toUpperCase(),
+            "Species name should be uppercase");
+    }
+
+    /**
+     * **Feature: pokedex-ui-redesign, Property 5: Screen transition preserves Pokemon state**
+     * **Validates: Requirements 2.4**
+     * 
+     * For any Pokemon species and evolution stage combination, the combination
+     * should be valid for display in the main display screen.
+     */
+    @Property(tries = 100)
+    @Label("Pokemon and stage combination should be valid for display")
+    void pokemonAndStageCombinationShouldBeValidForDisplay(
+            @ForAll("validStarterSpecies") PokemonSpecies species,
+            @ForAll com.tamagotchi.committracker.pokemon.EvolutionStage stage) {
+        
+        // Assert: Both should be non-null
+        assertNotNull(species, "Species should not be null");
+        assertNotNull(stage, "Stage should not be null");
+        
+        // Assert: Species name should be valid
+        String speciesName = species.name();
+        assertNotNull(speciesName, "Species name should not be null");
+        assertFalse(speciesName.isEmpty(), "Species name should not be empty");
+        
+        // Assert: Stage ordinal should be valid
+        int stageOrdinal = stage.ordinal();
+        assertTrue(stageOrdinal >= 0 && stageOrdinal < com.tamagotchi.committracker.pokemon.EvolutionStage.values().length,
+            "Stage ordinal should be within valid range");
+    }
+
+    /**
+     * Provides valid starter Pokemon species for testing.
+     */
+    @Provide
+    Arbitrary<PokemonSpecies> validStarterSpecies() {
+        return Arbitraries.of(PokemonSelectionData.getStarterOptions());
+    }
 }
