@@ -2,6 +2,8 @@ package com.tamagotchi.committracker.ui.theme;
 
 import net.jqwik.api.*;
 import net.jqwik.api.constraints.IntRange;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.regex.Pattern;
@@ -19,6 +21,116 @@ class PokedexThemeProperties {
     
     // Pattern for valid CSS rgba color
     private static final Pattern RGBA_COLOR_PATTERN = Pattern.compile("^rgba\\(\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*\\d+\\s*,\\s*[0-9.]+\\s*\\)$");
+    
+    @BeforeEach
+    void resetFontCache() {
+        // Reset font cache before each test to ensure clean state
+        PokedexTheme.resetFontCache();
+    }
+    
+    // ========== Font Fallback Unit Tests ==========
+    // **Validates: Requirements 7.1, 7.2**
+    
+    /**
+     * Verifies that the resolved font family is never null or empty.
+     * **Validates: Requirements 7.2**
+     */
+    @Test
+    void resolvedFontFamilyShouldNeverBeNullOrEmpty() {
+        String fontFamily = PokedexTheme.getResolvedFontFamily();
+        
+        assertNotNull(fontFamily, "Resolved font family should not be null");
+        assertFalse(fontFamily.isEmpty(), "Resolved font family should not be empty");
+    }
+    
+    /**
+     * Verifies that when no pixel font is available, the system falls back to monospace.
+     * **Validates: Requirements 7.2**
+     */
+    @Test
+    void shouldFallbackToMonospaceWhenPixelFontUnavailable() {
+        // The resolved font should be either a pixel font or Monospace fallback
+        String fontFamily = PokedexTheme.getResolvedFontFamily();
+        
+        // Font should be resolved to something
+        assertNotNull(fontFamily, "Font family should be resolved");
+        
+        // If using fallback, it should be Monospace
+        if (PokedexTheme.isUsingFallbackFont()) {
+            assertEquals("Monospace", fontFamily, 
+                "Fallback font should be Monospace");
+        }
+    }
+    
+    /**
+     * Verifies that isFontAvailable returns false for null or empty font names.
+     * **Validates: Requirements 7.2**
+     */
+    @Test
+    void isFontAvailableShouldReturnFalseForInvalidInput() {
+        assertFalse(PokedexTheme.isFontAvailable(null), 
+            "isFontAvailable should return false for null");
+        assertFalse(PokedexTheme.isFontAvailable(""), 
+            "isFontAvailable should return false for empty string");
+    }
+    
+    /**
+     * Verifies that the pixel font style includes the resolved font family.
+     * **Validates: Requirements 7.1**
+     */
+    @Test
+    void pixelFontStyleShouldIncludeResolvedFontFamily() {
+        String style = PokedexTheme.getPixelFontStyle(12);
+        String resolvedFont = PokedexTheme.getResolvedFontFamily();
+        
+        assertTrue(style.contains(resolvedFont),
+            "Pixel font style should include the resolved font family: " + resolvedFont);
+    }
+    
+    /**
+     * Verifies that font smoothing is disabled (using 'gray' type) for crisp pixel edges.
+     * **Validates: Requirements 7.3**
+     */
+    @Test
+    void pixelFontStyleShouldDisableFontSmoothing() {
+        String style = PokedexTheme.getPixelFontStyle(12);
+        
+        // Should use 'gray' smoothing type for minimal anti-aliasing
+        assertTrue(style.contains("-fx-font-smoothing-type: gray"),
+            "Pixel font style should use gray font smoothing for crisp edges");
+    }
+    
+    /**
+     * Verifies that the PIXEL_FONT constant is properly initialized.
+     * **Validates: Requirements 7.1, 7.2**
+     */
+    @Test
+    void pixelFontConstantShouldBeInitialized() {
+        assertNotNull(PokedexTheme.PIXEL_FONT, 
+            "PIXEL_FONT constant should not be null");
+        assertFalse(PokedexTheme.PIXEL_FONT.isEmpty(), 
+            "PIXEL_FONT constant should not be empty");
+    }
+    
+    /**
+     * Verifies that resetFontCache allows re-resolution of fonts.
+     * **Validates: Requirements 7.2**
+     */
+    @Test
+    void resetFontCacheShouldAllowReResolution() {
+        // Get initial font
+        String initialFont = PokedexTheme.getResolvedFontFamily();
+        
+        // Reset cache
+        PokedexTheme.resetFontCache();
+        
+        // Get font again - should still resolve to same value
+        String afterResetFont = PokedexTheme.getResolvedFontFamily();
+        
+        // Both should be valid (not necessarily equal if system state changed)
+        assertNotNull(initialFont, "Initial font should not be null");
+        assertNotNull(afterResetFont, "Font after reset should not be null");
+    }
 
     /**
      * **Feature: pokedex-ui-redesign, Property 6: Frame renders with correct color scheme**

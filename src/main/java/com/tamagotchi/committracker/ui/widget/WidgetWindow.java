@@ -198,6 +198,9 @@ public class WidgetWindow {
             // Get reference to Pokemon display for updates
             pokemonDisplay = pokedexFrame.getPokemonDisplay();
             
+            // Set up evolution listener on PokedexFrame for UI updates
+            setupPokedexEvolutionListener();
+            
             // Update stats with saved data
             int savedXP = loadSavedXP();
             int savedStreak = commitHistory.getCurrentStreak();
@@ -213,6 +216,9 @@ public class WidgetWindow {
                 
                 // Get reference to Pokemon display
                 pokemonDisplay = pokedexFrame.getPokemonDisplay();
+                
+                // Set up evolution listener on PokedexFrame for UI updates
+                setupPokedexEvolutionListener();
                 
                 // Initialize stats
                 int initialXP = 0;
@@ -427,6 +433,61 @@ public class WidgetWindow {
             return com.tamagotchi.committracker.ui.components.PokedexNameLabel.getPokemonNameForStage(species, stage);
         }
         return "???";
+    }
+    
+    /**
+     * Sets up the evolution listener on the PokedexFrame to update UI when evolution completes.
+     * This ensures the Pokemon name label and stats are updated after evolution.
+     * 
+     * Requirements: 9.2
+     */
+    private void setupPokedexEvolutionListener() {
+        if (pokedexFrame != null) {
+            pokedexFrame.setEvolutionListener((newSpecies, newStage) -> {
+                System.out.println("🌟 PokedexFrame evolution complete: " + newSpecies + " -> " + newStage);
+                
+                // Update the Pokemon name label with the evolved Pokemon name
+                String newName = com.tamagotchi.committracker.ui.components.PokedexNameLabel.getPokemonNameForStage(newSpecies, newStage);
+                pokedexFrame.updatePokemonName(newName);
+                
+                // Update stats display with new stage
+                Platform.runLater(() -> {
+                    updatePokedexFrameStats();
+                    System.out.println("📊 PokedexFrame stats updated after evolution");
+                });
+            });
+            System.out.println("🔔 PokedexFrame evolution listener set up");
+        }
+    }
+    
+    /**
+     * Triggers a commit animation on the PokedexFrame.
+     * For eggs: plays shake animation
+     * For Pokemon: plays happy animation
+     * 
+     * Requirements: 9.1
+     * 
+     * @param totalXP Total accumulated XP
+     * @param streakDays Current commit streak in days
+     */
+    public void triggerPokedexCommitAnimation(int totalXP, int streakDays) {
+        if (pokedexFrame != null) {
+            pokedexFrame.triggerCommitAnimation(totalXP, streakDays);
+        }
+    }
+    
+    /**
+     * Updates the Pokemon state on the PokedexFrame.
+     * Triggers the appropriate animation based on the new state.
+     * 
+     * Requirements: 9.3
+     * 
+     * @param state The new Pokemon state (HAPPY, SAD, THRIVING, CONTENT)
+     */
+    public void updatePokedexPokemonState(PokemonState state) {
+        if (pokedexFrame != null && state != null) {
+            pokedexFrame.updatePokemonState(state);
+        }
     }
     
     /**
@@ -1140,6 +1201,9 @@ public class WidgetWindow {
             
             // Get reference to new Pokemon display
             pokemonDisplay = pokedexFrame.getPokemonDisplay();
+            
+            // Set up evolution listener for the new Pokemon
+            setupPokedexEvolutionListener();
             
             // Update stats
             int initialXP = 0;

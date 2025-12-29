@@ -1210,6 +1210,11 @@ public class PokemonDisplayComponent extends StackPane {
             isEvolutionInProgress = false;
         }
         
+        // Clear pending target stage to prevent auto-evolution to higher stages
+        this.pendingTargetStage = null;
+        this.lastKnownXP = 0;
+        this.lastKnownStreak = 0;
+        
         EvolutionStage nextStage = getNextEvolutionStage();
         if (nextStage != null) {
             System.out.println("🧪 TESTING: Forcing evolution from " + currentStage + " to " + nextStage);
@@ -1260,6 +1265,11 @@ public class PokemonDisplayComponent extends StackPane {
         this.loadedStage = EvolutionStage.EGG;
         this.hasCheckedInitialEvolution = false;
         
+        // IMPORTANT: Reset pending evolution state to prevent auto-evolution
+        this.pendingTargetStage = null;
+        this.lastKnownXP = 0;
+        this.lastKnownStreak = 0;
+        
         // Load egg animation with 0 XP (stage 1 egg - no cracks)
         loadAndStartAnimationWithXP(0);
         
@@ -1293,6 +1303,8 @@ public class PokemonDisplayComponent extends StackPane {
     /**
      * Schedules a timeout task to cleanup stuck animations.
      * This ensures animations don't run indefinitely if they get stuck.
+     * NOTE: Does NOT schedule timeout for continuous animations (INDEFINITE cycle count)
+     * as those are intentionally infinite (e.g., Pokemon idle animations).
      * 
      * Requirements: 1.2, 2.1
      */
@@ -1300,7 +1312,14 @@ public class PokemonDisplayComponent extends StackPane {
         // Cancel any existing timeout task
         cancelAnimationTimeout();
         
-        // Schedule new timeout task
+        // Don't schedule timeout for continuous/indefinite animations
+        // These are intentionally infinite (Pokemon idle animations)
+        if (currentAnimation != null && currentAnimation.getCycleCount() == javafx.animation.Animation.INDEFINITE) {
+            logger.fine("Skipping timeout for continuous animation (INDEFINITE cycle count)");
+            return;
+        }
+        
+        // Schedule new timeout task only for finite animations (evolution, single-cycle, etc.)
         currentTimeoutTask = timeoutExecutor.schedule(() -> {
             logger.warning("Animation timeout reached - forcing cleanup");
             Platform.runLater(() -> {

@@ -371,4 +371,78 @@ public class PokedexFrame extends StackPane {
             mainDisplay.cleanup();
         }
     }
+    
+    /**
+     * Updates the Pokemon state animation (happy, sad, thriving, content).
+     * Triggers the appropriate animation based on the new state.
+     * 
+     * Requirements: 9.3
+     * 
+     * @param state The new Pokemon state
+     */
+    public void updatePokemonState(com.tamagotchi.committracker.pokemon.PokemonState state) {
+        if (mainDisplay != null && state != null) {
+            mainDisplay.updatePokemonState(state);
+        }
+    }
+    
+    /**
+     * Triggers a commit animation on the Pokemon display.
+     * For eggs: plays shake animation
+     * For Pokemon: plays happy animation
+     * 
+     * Requirements: 9.1
+     * 
+     * @param totalXP Total accumulated XP
+     * @param streakDays Current commit streak in days
+     */
+    public void triggerCommitAnimation(int totalXP, int streakDays) {
+        if (mainDisplay != null) {
+            mainDisplay.triggerCommitAnimation(totalXP, streakDays);
+        }
+    }
+    
+    /**
+     * Checks evolution requirements and triggers evolution if conditions are met.
+     * Updates the current stage if evolution occurs.
+     * 
+     * Requirements: 9.2
+     * 
+     * @param xpLevel Current XP level
+     * @param streakDays Current commit streak in days
+     * @return true if evolution was triggered
+     */
+    public boolean checkEvolutionRequirements(int xpLevel, int streakDays) {
+        if (mainDisplay != null) {
+            boolean evolved = mainDisplay.checkEvolutionRequirements(xpLevel, streakDays);
+            if (evolved) {
+                this.currentStage = mainDisplay.getCurrentStage();
+                this.currentSpecies = mainDisplay.getCurrentSpecies();
+            }
+            return evolved;
+        }
+        return false;
+    }
+    
+    /**
+     * Sets the evolution listener to be notified when evolution completes.
+     * The listener is called after the evolution animation finishes and
+     * the Pokemon name label has been updated.
+     * 
+     * @param listener The evolution listener
+     */
+    public void setEvolutionListener(PokemonDisplayComponent.EvolutionListener listener) {
+        if (mainDisplay != null) {
+            mainDisplay.setEvolutionListener((newSpecies, newStage) -> {
+                // Update internal state
+                this.currentSpecies = newSpecies;
+                this.currentStage = newStage;
+                
+                // Notify external listener
+                if (listener != null) {
+                    listener.onEvolutionComplete(newSpecies, newStage);
+                }
+            });
+        }
+    }
 }

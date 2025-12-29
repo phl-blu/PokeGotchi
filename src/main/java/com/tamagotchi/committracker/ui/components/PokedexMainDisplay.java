@@ -225,6 +225,80 @@ public class PokedexMainDisplay extends BorderPane {
     }
     
     /**
+     * Updates the Pokemon state animation (happy, sad, thriving, content).
+     * Triggers the appropriate animation based on the new state.
+     * 
+     * Requirements: 9.3
+     * 
+     * @param state The new Pokemon state
+     */
+    public void updatePokemonState(PokemonState state) {
+        if (pokemonDisplay != null && state != null) {
+            pokemonDisplay.updateState(state);
+        }
+    }
+    
+    /**
+     * Triggers a commit animation on the Pokemon display.
+     * For eggs: plays shake animation
+     * For Pokemon: plays happy animation
+     * 
+     * Requirements: 9.1
+     * 
+     * @param totalXP Total accumulated XP
+     * @param streakDays Current commit streak in days
+     */
+    public void triggerCommitAnimation(int totalXP, int streakDays) {
+        if (pokemonDisplay != null) {
+            pokemonDisplay.triggerCommitAnimation(totalXP, streakDays);
+        }
+    }
+    
+    /**
+     * Checks evolution requirements and triggers evolution if conditions are met.
+     * 
+     * Requirements: 9.2
+     * 
+     * @param xpLevel Current XP level
+     * @param streakDays Current commit streak in days
+     * @return true if evolution was triggered
+     */
+    public boolean checkEvolutionRequirements(int xpLevel, int streakDays) {
+        if (pokemonDisplay != null) {
+            boolean evolved = pokemonDisplay.checkEvolutionRequirements(xpLevel, streakDays);
+            if (evolved) {
+                // Update current stage and name after evolution
+                this.currentStage = pokemonDisplay.getCurrentStage();
+                this.currentSpecies = pokemonDisplay.getCurrentSpecies();
+                updateNameFromStage();
+            }
+            return evolved;
+        }
+        return false;
+    }
+    
+    /**
+     * Sets the evolution listener to be notified when evolution completes.
+     * 
+     * @param listener The evolution listener
+     */
+    public void setEvolutionListener(PokemonDisplayComponent.EvolutionListener listener) {
+        if (pokemonDisplay != null) {
+            pokemonDisplay.setEvolutionListener((newSpecies, newStage) -> {
+                // Update internal state
+                this.currentSpecies = newSpecies;
+                this.currentStage = newStage;
+                updateNameFromStage();
+                
+                // Notify external listener
+                if (listener != null) {
+                    listener.onEvolutionComplete(newSpecies, newStage);
+                }
+            });
+        }
+    }
+    
+    /**
      * Cleans up resources when the display is no longer needed.
      */
     public void cleanup() {

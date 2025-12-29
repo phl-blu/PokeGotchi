@@ -1,11 +1,37 @@
 package com.tamagotchi.committracker.ui.theme;
 
+import javafx.scene.text.Font;
+import java.io.InputStream;
+import java.util.List;
+
 /**
  * Centralized styling constants for the Pokedex-style UI aesthetic.
  * Provides color definitions, font styling, and CSS helper methods
  * for creating a retro handheld gaming device appearance.
  */
 public class PokedexTheme {
+    
+    // ========== Font Configuration ==========
+    /** Primary pixel font name to attempt loading */
+    private static final String PIXEL_FONT_PRIMARY = "Press Start 2P";
+    
+    /** Secondary pixel font options to try */
+    private static final String[] PIXEL_FONT_ALTERNATIVES = {
+        "VT323",
+        "Silkscreen", 
+        "Pixelify Sans",
+        "Courier New",
+        "Consolas"
+    };
+    
+    /** Fallback monospace font */
+    private static final String MONOSPACE_FALLBACK = "Monospace";
+    
+    /** The resolved font family to use (cached after first resolution) */
+    private static String resolvedFontFamily = null;
+    
+    /** Flag indicating if font resolution has been attempted */
+    private static boolean fontResolutionAttempted = false;
     
     // ========== Frame Colors ==========
     /** Primary red color for the Pokedex frame */
@@ -48,8 +74,8 @@ public class PokedexTheme {
     public static final String CELL_SELECTED = "#4A90D9";
     
     // ========== Text Styling ==========
-    /** Pixel font family (monospace fallback) */
-    public static final String PIXEL_FONT = "Monospace";
+    /** Pixel font family (resolved at runtime with fallback) */
+    public static final String PIXEL_FONT = getResolvedFontFamily();
     
     /** Default pixel font size */
     public static final int PIXEL_FONT_SIZE = 10;
@@ -103,17 +129,135 @@ public class PokedexTheme {
     // ========== Helper Methods ==========
     
     /**
+     * Resolves the best available pixel font family.
+     * Attempts to find a pixel-style font, falling back to monospace if none available.
+     * The result is cached for subsequent calls.
+     * 
+     * @return The resolved font family name
+     */
+    public static String getResolvedFontFamily() {
+        if (!fontResolutionAttempted) {
+            fontResolutionAttempted = true;
+            resolvedFontFamily = resolveFontFamily();
+        }
+        return resolvedFontFamily != null ? resolvedFontFamily : MONOSPACE_FALLBACK;
+    }
+    
+    /**
+     * Attempts to resolve a pixel font from available system fonts.
+     * 
+     * @return The name of an available pixel font, or null if none found
+     */
+    private static String resolveFontFamily() {
+        // First try the primary pixel font
+        if (isFontAvailable(PIXEL_FONT_PRIMARY)) {
+            return PIXEL_FONT_PRIMARY;
+        }
+        
+        // Try alternative pixel fonts
+        for (String fontName : PIXEL_FONT_ALTERNATIVES) {
+            if (isFontAvailable(fontName)) {
+                return fontName;
+            }
+        }
+        
+        // Fall back to monospace
+        return MONOSPACE_FALLBACK;
+    }
+    
+    /**
+     * Checks if a font is available on the system.
+     * 
+     * @param fontName The name of the font to check
+     * @return true if the font is available, false otherwise
+     */
+    public static boolean isFontAvailable(String fontName) {
+        if (fontName == null || fontName.isEmpty()) {
+            return false;
+        }
+        
+        try {
+            List<String> fontFamilies = Font.getFamilies();
+            for (String family : fontFamilies) {
+                if (family.equalsIgnoreCase(fontName)) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            // Font system not available (e.g., headless environment)
+            return false;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Attempts to load a custom font from resources.
+     * 
+     * @param resourcePath The path to the font resource (e.g., "/fonts/pixel.ttf")
+     * @param size The font size
+     * @return The loaded Font, or null if loading failed
+     */
+    public static Font loadCustomFont(String resourcePath, double size) {
+        try {
+            InputStream fontStream = PokedexTheme.class.getResourceAsStream(resourcePath);
+            if (fontStream != null) {
+                Font font = Font.loadFont(fontStream, size);
+                fontStream.close();
+                return font;
+            }
+        } catch (Exception e) {
+            // Font loading failed, will use fallback
+        }
+        return null;
+    }
+    
+    /**
+     * Checks if the current font is the monospace fallback.
+     * 
+     * @return true if using monospace fallback, false if using a pixel font
+     */
+    public static boolean isUsingFallbackFont() {
+        return MONOSPACE_FALLBACK.equals(getResolvedFontFamily());
+    }
+    
+    /**
      * Gets the CSS style for pixel font with specified size.
-     * Disables font smoothing for crisp pixel edges.
+     * Disables font smoothing for crisp pixel edges using gray font smoothing type.
      * 
      * @param size The font size in pixels
      * @return CSS style string for pixel font
      */
     public static String getPixelFontStyle(int size) {
+        // Use 'gray' smoothing type for crisper pixel edges (less anti-aliasing than 'lcd')
+        // Also disable sub-pixel rendering for authentic pixel look
         return String.format(
-            "-fx-font-family: '%s'; -fx-font-size: %dpx; -fx-font-smoothing-type: lcd;",
-            PIXEL_FONT, size
+            "-fx-font-family: '%s'; -fx-font-size: %dpx; -fx-font-smoothing-type: gray;",
+            getResolvedFontFamily(), size
         );
+    }
+    
+    /**
+     * Gets the CSS style for pixel font with disabled smoothing for maximum crispness.
+     * This variant completely disables font smoothing for the most authentic pixel look.
+     * 
+     * @param size The font size in pixels
+     * @return CSS style string for pixel font with no smoothing
+     */
+    public static String getPixelFontStyleNoSmoothing(int size) {
+        // Use gray smoothing (minimal anti-aliasing) for crisp pixel edges
+        return String.format(
+            "-fx-font-family: '%s'; -fx-font-size: %dpx; -fx-font-smoothing-type: gray;",
+            getResolvedFontFamily(), size
+        );
+    }
+    
+    /**
+     * Resets the font resolution cache. Useful for testing.
+     */
+    public static void resetFontCache() {
+        fontResolutionAttempted = false;
+        resolvedFontFamily = null;
     }
     
     /**
