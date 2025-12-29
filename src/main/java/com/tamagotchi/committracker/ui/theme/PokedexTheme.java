@@ -8,11 +8,11 @@ package com.tamagotchi.committracker.ui.theme;
 public class PokedexTheme {
     
     // ========== Frame Colors ==========
-    /** Primary red/coral color for the Pokedex frame */
-    public static final String FRAME_PRIMARY = "#E8475C";
+    /** Primary red color for the Pokedex frame */
+    public static final String FRAME_PRIMARY = "#CB2343";
     
-    /** Dark navy border color for the frame */
-    public static final String FRAME_BORDER = "#2D3436";
+    /** Black border color for the frame */
+    public static final String FRAME_BORDER = "#000000";
     
     /** Highlight color for frame accents */
     public static final String FRAME_HIGHLIGHT = "#FF6B7A";
@@ -21,8 +21,8 @@ public class PokedexTheme {
     /** Gray/purple background for the main screen area */
     public static final String SCREEN_BG = "#6B7B8C";
     
-    /** Dark border color for the screen area */
-    public static final String SCREEN_BORDER = "#3D4852";
+    /** Black border color for the screen area */
+    public static final String SCREEN_BORDER = "#000000";
     
     // ========== Window Control Colors ==========
     /** Blue dot color for window controls */
@@ -79,26 +79,26 @@ public class PokedexTheme {
     public static final String DPAD_SHADOW = "#CCCCCC";
     
     // ========== Dimensions ==========
-    /** Frame width in pixels */
-    public static final int FRAME_WIDTH = 280;
+    /** Frame width in pixels - compact to fit eggs/Pokemon */
+    public static final int FRAME_WIDTH = 200;
     
-    /** Frame height in pixels */
-    public static final int FRAME_HEIGHT = 400;
+    /** Frame height in pixels - compact to fit eggs/Pokemon */
+    public static final int FRAME_HEIGHT = 260;
     
     /** Screen width in pixels */
-    public static final int SCREEN_WIDTH = 240;
+    public static final int SCREEN_WIDTH = 170;
     
     /** Screen height in pixels */
-    public static final int SCREEN_HEIGHT = 280;
+    public static final int SCREEN_HEIGHT = 180;
     
     /** Border width in pixels */
     public static final int BORDER_WIDTH = 4;
     
-    /** Cell size for selection grid */
-    public static final int CELL_SIZE = 40;
+    /** Cell size for selection grid - bigger for better visibility */
+    public static final int CELL_SIZE = 50;
     
     /** Spacing between grid cells */
-    public static final int CELL_SPACING = 4;
+    public static final int CELL_SPACING = 6;
     
     // ========== Helper Methods ==========
     
@@ -118,13 +118,17 @@ public class PokedexTheme {
     
     /**
      * Gets the CSS style for the main Pokedex frame.
+     * Uses layered backgrounds: transparent outer layer, black middle layer with rounded corners,
+     * orange inner layer with rounded corners, properly inset.
      * 
      * @return CSS style string for frame background and border
      */
     public static String getFrameStyle() {
+        // Three-layer approach: transparent base, black border layer, orange fill
+        // The transparent base ensures corners outside the rounded area are see-through
         return String.format(
-            "-fx-background-color: %s; -fx-border-color: %s; -fx-border-width: %d; -fx-background-radius: 15; -fx-border-radius: 15;",
-            FRAME_PRIMARY, FRAME_BORDER, BORDER_WIDTH
+            "-fx-background-color: transparent, %s, %s; -fx-background-radius: 0, 13, 13; -fx-background-insets: 0, 0, %d;",
+            FRAME_BORDER, FRAME_PRIMARY, BORDER_WIDTH
         );
     }
     
@@ -135,7 +139,7 @@ public class PokedexTheme {
      */
     public static String getScreenStyle() {
         return String.format(
-            "-fx-background-color: %s; -fx-border-color: %s; -fx-border-width: 2; -fx-background-radius: 5; -fx-border-radius: 5;",
+            "-fx-background-color: %s; -fx-border-color: %s; -fx-border-width: 2; -fx-background-radius: 10; -fx-border-radius: 10;",
             SCREEN_BG, SCREEN_BORDER
         );
     }
@@ -176,13 +180,14 @@ public class PokedexTheme {
     
     /**
      * Gets the CSS style for the name label at the bottom.
+     * Uses the same semi-transparent background as the stats corner.
      * 
      * @return CSS style string for name label
      */
     public static String getNameLabelStyle() {
         return String.format(
-            "-fx-background-color: %s; -fx-padding: 4 8 4 8; -fx-background-radius: 3;",
-            NAME_LABEL_BG
+            "-fx-background-color: %s; -fx-padding: 4 8 4 8; -fx-background-radius: 5;",
+            STATS_BG
         );
     }
     

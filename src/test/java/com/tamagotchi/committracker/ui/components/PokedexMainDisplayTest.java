@@ -41,7 +41,7 @@ class PokedexMainDisplayTest {
     }
     
     /**
-     * Verify stats corner is positioned in the top-left area.
+     * Verify stats corner is positioned in the top-left area (overlaid on center StackPane).
      * 
      * Requirements: 4.1
      */
@@ -59,23 +59,22 @@ class PokedexMainDisplayTest {
                 PokedexStatsCorner statsCorner = display.getStatsCorner();
                 assertNotNull(statsCorner, "Stats corner should not be null");
                 
-                // Stats corner should be in the top region of BorderPane
-                Node topNode = display.getTop();
-                assertNotNull(topNode, "Top region should not be null");
+                // Stats corner should be in the center StackPane (overlaid)
+                Node centerNode = display.getCenter();
+                assertNotNull(centerNode, "Center region should not be null");
                 
-                // Top node should be a container with the stats corner
-                assertTrue(topNode instanceof StackPane, 
-                    "Top region should be a StackPane container");
+                assertTrue(centerNode instanceof StackPane, 
+                    "Center region should be a StackPane container");
                 
-                StackPane topContainer = (StackPane) topNode;
+                StackPane centerContainer = (StackPane) centerNode;
                 
-                // Container should have TOP_LEFT alignment
-                assertEquals(Pos.TOP_LEFT, topContainer.getAlignment(),
-                    "Stats corner container should have TOP_LEFT alignment");
+                // Stats corner should be a child of the center container
+                assertTrue(centerContainer.getChildren().contains(statsCorner),
+                    "Stats corner should be in the center container (overlaid)");
                 
-                // Stats corner should be a child of the top container
-                assertTrue(topContainer.getChildren().contains(statsCorner),
-                    "Stats corner should be in the top container");
+                // Stats corner should have TOP_LEFT alignment
+                assertEquals(Pos.TOP_LEFT, StackPane.getAlignment(statsCorner),
+                    "Stats corner should have TOP_LEFT alignment");
                 
                 testPassed[0] = true;
             } finally {
@@ -135,7 +134,7 @@ class PokedexMainDisplayTest {
     }
     
     /**
-     * Verify name label is positioned at the bottom.
+     * Verify name label is positioned at the bottom-right (overlaid on center StackPane).
      * 
      * Requirements: 5.1
      */
@@ -153,23 +152,22 @@ class PokedexMainDisplayTest {
                 PokedexNameLabel nameLabel = display.getNameLabel();
                 assertNotNull(nameLabel, "Name label should not be null");
                 
-                // Name label should be in the bottom region of BorderPane
-                Node bottomNode = display.getBottom();
-                assertNotNull(bottomNode, "Bottom region should not be null");
+                // Name label should be in the center StackPane (overlaid)
+                Node centerNode = display.getCenter();
+                assertNotNull(centerNode, "Center region should not be null");
                 
-                // Bottom node should be a container with the name label
-                assertTrue(bottomNode instanceof StackPane, 
-                    "Bottom region should be a StackPane container");
+                assertTrue(centerNode instanceof StackPane, 
+                    "Center region should be a StackPane container");
                 
-                StackPane bottomContainer = (StackPane) bottomNode;
+                StackPane centerContainer = (StackPane) centerNode;
                 
-                // Container should have CENTER alignment (bottom-center)
-                assertEquals(Pos.CENTER, bottomContainer.getAlignment(),
-                    "Name label container should have CENTER alignment");
+                // Name label should be a child of the center container
+                assertTrue(centerContainer.getChildren().contains(nameLabel),
+                    "Name label should be in the center container (overlaid)");
                 
-                // Name label should be a child of the bottom container
-                assertTrue(bottomContainer.getChildren().contains(nameLabel),
-                    "Name label should be in the bottom container");
+                // Name label should have BOTTOM_RIGHT alignment
+                assertEquals(Pos.BOTTOM_RIGHT, StackPane.getAlignment(nameLabel),
+                    "Name label should have BOTTOM_RIGHT alignment");
                 
                 testPassed[0] = true;
             } finally {
@@ -182,7 +180,7 @@ class PokedexMainDisplayTest {
     }
     
     /**
-     * Verify the main display uses BorderPane layout.
+     * Verify the main display uses BorderPane layout with center StackPane for overlays.
      * 
      * Requirements: 3.1, 4.1, 5.1
      */
@@ -200,10 +198,23 @@ class PokedexMainDisplayTest {
                 assertTrue(display instanceof BorderPane, 
                     "PokedexMainDisplay should extend BorderPane");
                 
-                // Should have top, center, and bottom regions populated
-                assertNotNull(display.getTop(), "Top region should be populated");
+                // Should have center region populated (contains all overlaid components)
                 assertNotNull(display.getCenter(), "Center region should be populated");
-                assertNotNull(display.getBottom(), "Bottom region should be populated");
+                
+                // Center should be a StackPane containing Pokemon, stats, and name
+                Node centerNode = display.getCenter();
+                assertTrue(centerNode instanceof StackPane, 
+                    "Center region should be a StackPane");
+                
+                StackPane centerStack = (StackPane) centerNode;
+                
+                // Should contain Pokemon display, stats corner, and name label
+                assertTrue(centerStack.getChildren().contains(display.getPokemonDisplay()),
+                    "Center should contain Pokemon display");
+                assertTrue(centerStack.getChildren().contains(display.getStatsCorner()),
+                    "Center should contain stats corner");
+                assertTrue(centerStack.getChildren().contains(display.getNameLabel()),
+                    "Center should contain name label");
                 
                 testPassed[0] = true;
             } finally {

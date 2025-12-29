@@ -27,6 +27,7 @@ import com.tamagotchi.committracker.ui.components.HistoryTab;
 import com.tamagotchi.committracker.ui.components.StatisticsTab;
 import com.tamagotchi.committracker.ui.components.PokemonDisplayComponent;
 import com.tamagotchi.committracker.ui.components.PokemonSelectionScreen;
+import com.tamagotchi.committracker.ui.components.PokedexFrame;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.Tab;
 import com.tamagotchi.committracker.pokemon.PokemonSelectionData;
@@ -36,6 +37,7 @@ import com.tamagotchi.committracker.pokemon.EvolutionStage;
 import com.tamagotchi.committracker.pokemon.XPSystem;
 import com.tamagotchi.committracker.pokemon.PokemonStateManager;
 import com.tamagotchi.committracker.ui.theme.UITheme;
+import com.tamagotchi.committracker.ui.theme.PokedexTheme;
 import com.tamagotchi.committracker.ui.animation.AnimationController;
 import com.tamagotchi.committracker.ui.animation.UITransitionManager;
 
@@ -48,6 +50,7 @@ import java.util.function.Consumer;
  * Main UI container with transparent background and drag functionality.
  * Handles switching between compact and expanded modes.
  * Enhanced with Windows system integration for native behavior.
+ * Now uses PokedexFrame for the retro Pokedex-style UI.
  */
 public class WidgetWindow {
     private Stage stage;
@@ -55,10 +58,13 @@ public class WidgetWindow {
     private StackPane root;
     private boolean isCompactMode = false; // Start in expanded mode by default
     
-    // Pokemon display component
+    // Pokedex frame - the main UI container
+    private PokedexFrame pokedexFrame;
+    
+    // Pokemon display component (accessed through PokedexFrame)
     private PokemonDisplayComponent pokemonDisplay;
     
-    // Expanded mode components
+    // Expanded mode components (legacy - kept for compatibility)
     private BorderPane expandedLayout;
     private HistoryTab historyTab;
     private StatisticsTab statisticsTab;
@@ -153,7 +159,8 @@ public class WidgetWindow {
     }
     
     /**
-     * Set up transparent stage and initial pet display with Windows integration
+     * Set up transparent stage and initial pet display with Windows integration.
+     * Uses PokedexFrame for the retro Pokedex-style UI.
      */
     public void initialize() {
         // Configure stage properties
@@ -166,38 +173,74 @@ public class WidgetWindow {
         
         // Create root container
         root = new StackPane();
-        root.setStyle(UITheme.getTransparentStyle());
+        root.setStyle("-fx-background-color: transparent;");
         
         // Initialize commit history
         commitHistory = new CommitHistory();
         
-        // Initialize expanded mode components
+        // Initialize expanded mode components (legacy - kept for compatibility)
         initializeExpandedModeComponents();
         
-        // Only create Pokemon display if user has already selected a starter
-        // For first-time users, the display will be created after selection
+        // Create the PokedexFrame as the main UI container
+        pokedexFrame = new PokedexFrame();
+        
+        // Check if user has already selected a starter
         if (selectionData.hasSelectedStarter()) {
+            // Returning user - show main display with their Pokemon
             PokemonSpecies selectedSpecies = selectionData.getSelectedStarter();
+            EvolutionStage savedStage = loadSavedEvolutionStage();
             
-            // Always start as EGG - the correct stage will be determined by XP/streak
-            // from the initial commit scan. Don't rely on saved stage.
-            pokemonDisplay = new PokemonDisplayComponent(
-                selectedSpecies, EvolutionStage.EGG, PokemonState.CONTENT
-            );
+            System.out.println("🎮 Returning user - showing " + selectedSpecies + " at stage " + savedStage);
             
-            // Start in expanded mode by default - add Pokemon to status box
-            pokemonStatusBox.getChildren().clear();
-            pokemonStatusBox.getChildren().add(pokemonDisplay);
+            // Show main display with saved Pokemon
+            pokedexFrame.showMainDisplay(selectedSpecies, savedStage);
             
-            // Add expanded layout to root (start in expanded mode)
-            root.getChildren().add(expandedLayout);
+            // Get reference to Pokemon display for updates
+            pokemonDisplay = pokedexFrame.getPokemonDisplay();
+            
+            // Update stats with saved data
+            int savedXP = loadSavedXP();
+            int savedStreak = commitHistory.getCurrentStreak();
+            int nextThreshold = getNextEvolutionThreshold(savedStage);
+            pokedexFrame.updateStats(savedXP, nextThreshold, savedStreak, savedStage);
         } else {
-            // For first-time users, start in expanded mode but without Pokemon
-            // The Pokemon will be added after selection
-            root.getChildren().add(expandedLayout);
+            // First-time user - show selection screen
+            System.out.println("🎮 First-time user - showing Pokemon selection screen");
+            
+            pokedexFrame.showSelectionScreen(selectedSpecies -> {
+                // Save the selection
+                selectionData.saveSelection(selectedSpecies);
+                
+                // Get reference to Pokemon display
+                pokemonDisplay = pokedexFrame.getPokemonDisplay();
+                
+                // Initialize stats
+                int initialXP = 0;
+                int initialStreak = 0;
+                int nextThreshold = getNextEvolutionThreshold(EvolutionStage.EGG);
+                pokedexFrame.updateStats(initialXP, nextThreshold, initialStreak, EvolutionStage.EGG);
+                
+                // Notify callback if set
+                if (onPokemonSelected != null) {
+                    onPokemonSelected.accept(selectedSpecies);
+                }
+                
+                System.out.println("🎉 Pokemon selection complete! Starting with " + 
+                    PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
+            });
         }
         
-        // Create scene with transparent background - start in expanded mode
+        // Add PokedexFrame to root
+        root.getChildren().add(pokedexFrame);
+        
+        // Apply rounded corner clipping to root to prevent corner artifacts
+        javafx.scene.shape.Rectangle rootClip = new javafx.scene.shape.Rectangle(
+            PokedexTheme.FRAME_WIDTH, PokedexTheme.FRAME_HEIGHT);
+        rootClip.setArcWidth(26); // 2x the corner radius (13px)
+        rootClip.setArcHeight(26);
+        root.setClip(rootClip);
+        
+        // Create scene with transparent background using Pokedex dimensions
         scene = new Scene(root, AppConfig.EXPANDED_WIDTH, AppConfig.EXPANDED_HEIGHT);
         scene.setFill(Color.TRANSPARENT);
         
@@ -230,6 +273,9 @@ public class WidgetWindow {
             if (transitionManager != null) {
                 transitionManager.cleanup();
             }
+            if (pokedexFrame != null) {
+                pokedexFrame.cleanup();
+            }
             
             Platform.exit();
             System.exit(0); // Force exit to ensure clean shutdown
@@ -247,11 +293,20 @@ public class WidgetWindow {
         // Add keyboard shortcuts for testing
         // TODO: REMOVE THESE TESTING SHORTCUTS BEFORE PRODUCTION - See TODO.md
         scene.setOnKeyPressed(event -> {
+            // Always get the latest Pokemon display from PokedexFrame
+            if (pokedexFrame != null) {
+                pokemonDisplay = pokedexFrame.getPokemonDisplay();
+            }
+            
             switch (event.getCode()) {
                 case E: // Press 'E' to force evolution for testing
                     if (pokemonDisplay != null) {
                         System.out.println("🧪 TESTING: 'E' pressed - Forcing evolution");
                         pokemonDisplay.forceEvolutionForTesting();
+                        // Update PokedexFrame stats after evolution
+                        updatePokedexFrameStats();
+                    } else {
+                        System.out.println("⚠️ TESTING: No Pokemon display available - select a Pokemon first");
                     }
                     break;
                 case R: // Press 'R' to reset Pokemon to egg stage for testing
@@ -259,6 +314,10 @@ public class WidgetWindow {
                         System.out.println("🧪 TESTING: 'R' pressed - Resetting Pokemon to egg stage");
                         pokemonDisplay.forceDeevolutionToEggForTesting();
                         resetTestingXP(); // Also reset the testing XP accumulator
+                        // Update PokedexFrame stats after reset
+                        updatePokedexFrameStats();
+                    } else {
+                        System.out.println("⚠️ TESTING: No Pokemon display available - select a Pokemon first");
                     }
                     break;
                 case C: // Press 'C' to simulate a commit for testing egg animations
@@ -268,18 +327,24 @@ public class WidgetWindow {
                     if (pokemonDisplay != null) {
                         pokemonDisplay.updateState(PokemonState.HAPPY);
                         System.out.println("🧪 TESTING: 'H' pressed - Pokemon state changed to HAPPY");
+                    } else {
+                        System.out.println("⚠️ TESTING: No Pokemon display available - select a Pokemon first");
                     }
                     break;
                 case S: // Press 'S' to make Pokemon sad
                     if (pokemonDisplay != null) {
                         pokemonDisplay.updateState(PokemonState.SAD);
                         System.out.println("🧪 TESTING: 'S' pressed - Pokemon state changed to SAD");
+                    } else {
+                        System.out.println("⚠️ TESTING: No Pokemon display available - select a Pokemon first");
                     }
                     break;
                 case T: // Press 'T' to make Pokemon thriving
                     if (pokemonDisplay != null) {
                         pokemonDisplay.updateState(PokemonState.THRIVING);
                         System.out.println("🧪 TESTING: 'T' pressed - Pokemon state changed to THRIVING");
+                    } else {
+                        System.out.println("⚠️ TESTING: No Pokemon display available - select a Pokemon first");
                     }
                     break;
                 case I: // Press 'I' to show Pokemon info
@@ -306,12 +371,62 @@ public class WidgetWindow {
                     if (transitionManager != null) {
                         transitionManager.cleanup();
                     }
+                    if (pokedexFrame != null) {
+                        pokedexFrame.cleanup();
+                    }
                     
                     Platform.exit();
                     System.exit(0);
                     break;
             }
         });
+    }
+    
+    /**
+     * Gets the XP threshold for the next evolution stage.
+     * 
+     * @param currentStage The current evolution stage
+     * @return XP needed for next evolution
+     */
+    private int getNextEvolutionThreshold(EvolutionStage currentStage) {
+        int[] thresholds = AppConfig.EVOLUTION_XP_THRESHOLDS;
+        int stageIndex = currentStage.ordinal();
+        if (stageIndex + 1 < thresholds.length) {
+            return thresholds[stageIndex + 1];
+        }
+        return thresholds[thresholds.length - 1]; // Max stage
+    }
+    
+    /**
+     * Updates the PokedexFrame stats display with current data.
+     */
+    private void updatePokedexFrameStats() {
+        if (pokedexFrame != null && pokemonDisplay != null) {
+            int currentXP = xpSystem != null ? xpSystem.getCurrentXP() : testingAccumulatedXP;
+            int currentStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+            EvolutionStage currentStage = pokemonDisplay.getCurrentStage();
+            int nextThreshold = getNextEvolutionThreshold(currentStage);
+            
+            pokedexFrame.updateStats(currentXP, nextThreshold, currentStreak, currentStage);
+            
+            // Also update the Pokemon name if it changed due to evolution
+            String pokemonName = getPokemonNameForCurrentStage();
+            pokedexFrame.updatePokemonName(pokemonName);
+        }
+    }
+    
+    /**
+     * Gets the Pokemon name for the current evolution stage.
+     * 
+     * @return The Pokemon name
+     */
+    private String getPokemonNameForCurrentStage() {
+        if (pokemonDisplay != null) {
+            PokemonSpecies species = pokemonDisplay.getCurrentSpecies();
+            EvolutionStage stage = pokemonDisplay.getCurrentStage();
+            return com.tamagotchi.committracker.ui.components.PokedexNameLabel.getPokemonNameForStage(species, stage);
+        }
+        return "???";
     }
     
     /**
@@ -426,53 +541,50 @@ public class WidgetWindow {
     
     /**
      * Switch between compact and expanded modes.
-     * Compact mode shows only the Pokemon animation.
-     * Expanded mode shows Pokemon status and commit history.
-     * Uses smooth transitions to prevent animation glitches.
+     * Compact mode shows only the Pokemon animation with transparent background.
+     * Expanded mode shows the PokedexFrame with Pokemon and stats.
      */
     public void toggleMode() {
-        // Prevent mode switching during transitions
-        if (transitionManager.isTransitioning()) {
-            System.out.println("⏳ Mode switch blocked - transition in progress");
-            return;
-        }
-        
         if (isCompactMode) {
-            // Switch to expanded mode with smooth transition
+            // Switch to expanded mode - show PokedexFrame
             switchToExpandedMode();
         } else {
-            // Switch to compact mode with smooth transition
+            // Switch to compact mode - show only Pokemon
             switchToCompactMode();
         }
     }
     
     /**
-     * Switches to expanded mode (320x450px) showing commit history.
-     * Uses smooth transition animation to prevent Pokemon position glitches.
+     * Switches to expanded mode showing the PokedexFrame.
      */
     private void switchToExpandedMode() {
         if (isCompactMode) {
-            System.out.println("📖 Switching to expanded mode with smooth transition");
+            System.out.println("📖 Switching to expanded mode (PokedexFrame)");
             
-            transitionManager.transitionToExpandedMode(
-                stage, root, pokemonDisplay, expandedLayout, pokemonStatusBox,
-                () -> {
-                    // Transition completion callback
-                    isCompactMode = false;
-                    updateAllTabsWithLatestData();
-                    
-                    // Get current Pokemon state for logging
-                    PokemonSpecies currentSpecies = pokemonDisplay != null ? pokemonDisplay.getCurrentSpecies() : PokemonSpecies.CHARMANDER;
-                    EvolutionStage currentStage = pokemonDisplay != null ? pokemonDisplay.getCurrentStage() : EvolutionStage.EGG;
-                    int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
-                    int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
-                    
-                    System.out.println("📖 Expanded mode transition complete - Stage: " + currentStage + ", XP: " + realXP + ", Streak: " + realStreak + " days");
-                }
-            );
-        } else {
-            // Already in expanded mode, just update data
-            switchToExpandedModeImmediate();
+            // Resize window to expanded size
+            stage.setWidth(AppConfig.EXPANDED_WIDTH);
+            stage.setHeight(AppConfig.EXPANDED_HEIGHT);
+            root.setPrefSize(AppConfig.EXPANDED_WIDTH, AppConfig.EXPANDED_HEIGHT);
+            
+            // Clear root and add PokedexFrame
+            root.getChildren().clear();
+            root.getChildren().add(pokedexFrame);
+            
+            // Apply rounded corner clipping to root
+            javafx.scene.shape.Rectangle rootClip = new javafx.scene.shape.Rectangle(
+                PokedexTheme.FRAME_WIDTH, PokedexTheme.FRAME_HEIGHT);
+            rootClip.setArcWidth(26);
+            rootClip.setArcHeight(26);
+            root.setClip(rootClip);
+            
+            // Update Pokemon display reference from PokedexFrame
+            pokemonDisplay = pokedexFrame.getPokemonDisplay();
+            
+            // Update stats
+            updatePokedexFrameStats();
+            
+            isCompactMode = false;
+            System.out.println("📖 Expanded mode active - showing PokedexFrame");
         }
     }
     
@@ -486,73 +598,72 @@ public class WidgetWindow {
         stage.setHeight(AppConfig.EXPANDED_HEIGHT);
         root.setPrefSize(AppConfig.EXPANDED_WIDTH, AppConfig.EXPANDED_HEIGHT);
         
-        // Move Pokemon display to expanded layout
-        if (pokemonDisplay != null) {
-            root.getChildren().remove(pokemonDisplay);
-            pokemonStatusBox.getChildren().clear();
-            pokemonStatusBox.getChildren().add(pokemonDisplay);
-        }
-        
-        // Add expanded layout to root
+        // Clear root and add PokedexFrame
         root.getChildren().clear();
-        root.getChildren().add(expandedLayout);
+        root.getChildren().add(pokedexFrame);
         
-        // Get CURRENT Pokemon state directly from the display component
-        PokemonSpecies currentSpecies = pokemonDisplay != null ? pokemonDisplay.getCurrentSpecies() : PokemonSpecies.CHARMANDER;
-        EvolutionStage currentStage = pokemonDisplay != null ? pokemonDisplay.getCurrentStage() : EvolutionStage.EGG;
-        int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
-        int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+        // Apply rounded corner clipping to root
+        javafx.scene.shape.Rectangle rootClip = new javafx.scene.shape.Rectangle(
+            PokedexTheme.FRAME_WIDTH, PokedexTheme.FRAME_HEIGHT);
+        rootClip.setArcWidth(26);
+        rootClip.setArcHeight(26);
+        root.setClip(rootClip);
         
-        // Update Pokemon status in history tab with CURRENT real data
-        if (historyTab != null) {
-            historyTab.updatePokemonStatus(currentSpecies, currentStage, realXP, realStreak);
-            
-            // Update statistics tab with commit data
-            if (statisticsTab != null) {
-                List<Commit> commits = commitHistory != null ? commitHistory.getRecentCommits() : List.of();
-                statisticsTab.updateStatistics(commits, currentSpecies, currentStage, realStreak);
-                
-                System.out.println("📊 Statistics tab updated on mode switch with " + commits.size() + " commits");
-            }
-        }
+        // Update Pokemon display reference from PokedexFrame
+        pokemonDisplay = pokedexFrame.getPokemonDisplay();
         
-        // Update commit history display
-        if (historyTab != null) {
-            historyTab.updateCommitHistory(commitHistory);
-        }
+        // Update stats
+        updatePokedexFrameStats();
         
         isCompactMode = false;
-        System.out.println("📖 Switched to expanded mode - Stage: " + currentStage + ", XP: " + realXP + ", Streak: " + realStreak + " days");
+        System.out.println("📖 Switched to expanded mode (PokedexFrame)");
     }
     
     /**
-     * Switches to compact mode (80x80px) showing only Pokemon with smooth transition.
-     * Uses transition manager to prevent Pokemon position glitches.
+     * Switches to compact mode (80x80px) showing only Pokemon with transparent background.
      */
     private void switchToCompactMode() {
         if (!isCompactMode) {
-            System.out.println("📦 Switching to compact mode with smooth transition");
+            System.out.println("📦 Switching to compact mode (Pokemon only)");
             
-            transitionManager.transitionToCompactMode(
-                stage, root, pokemonDisplay, expandedLayout, pokemonStatusBox,
-                () -> {
-                    // Transition completion callback
-                    isCompactMode = true;
-                    
-                    // Ensure completely transparent background in compact mode
-                    root.setStyle("-fx-background-color: transparent;");
-                    
-                    // Also ensure the scene background is transparent
-                    if (scene != null) {
-                        scene.setFill(Color.TRANSPARENT);
-                    }
-                    
-                    System.out.println("📦 Compact mode transition complete");
-                }
-            );
-        } else {
-            // Already in compact mode, just update styling
-            switchToCompactModeImmediate();
+            // First resize the window to compact size
+            stage.setWidth(AppConfig.COMPACT_WIDTH);
+            stage.setHeight(AppConfig.COMPACT_HEIGHT);
+            root.setPrefSize(AppConfig.COMPACT_WIDTH, AppConfig.COMPACT_HEIGHT);
+            
+            // Get Pokemon display from PokedexFrame if needed
+            if (pokemonDisplay == null && pokedexFrame != null) {
+                pokemonDisplay = pokedexFrame.getPokemonDisplay();
+            }
+            
+            // Clear root and add only the Pokemon display
+            root.getChildren().clear();
+            if (pokemonDisplay != null) {
+                // Create a new display component for compact mode to avoid parent issues
+                PokemonSpecies species = pokemonDisplay.getCurrentSpecies();
+                EvolutionStage stage = pokemonDisplay.getCurrentStage();
+                PokemonState state = pokemonDisplay.getCurrentState();
+                
+                PokemonDisplayComponent compactDisplay = new PokemonDisplayComponent(species, stage, state);
+                root.getChildren().add(compactDisplay);
+                
+                // Center the Pokemon in the compact view
+                StackPane.setAlignment(compactDisplay, Pos.CENTER);
+            }
+            
+            // Remove clipping in compact mode
+            root.setClip(null);
+            
+            // Ensure completely transparent background in compact mode
+            root.setStyle("-fx-background-color: transparent;");
+            
+            // Also ensure the scene background is transparent
+            if (scene != null) {
+                scene.setFill(Color.TRANSPARENT);
+            }
+            
+            isCompactMode = true;
+            System.out.println("📦 Compact mode active - transparent background");
         }
     }
     
@@ -566,17 +677,28 @@ public class WidgetWindow {
         stage.setHeight(AppConfig.COMPACT_HEIGHT);
         root.setPrefSize(AppConfig.COMPACT_WIDTH, AppConfig.COMPACT_HEIGHT);
         
-        // Then move Pokemon display back to root
+        // Get Pokemon display from PokedexFrame if needed
+        if (pokemonDisplay == null && pokedexFrame != null) {
+            pokemonDisplay = pokedexFrame.getPokemonDisplay();
+        }
+        
+        // Clear root and add only the Pokemon display
+        root.getChildren().clear();
         if (pokemonDisplay != null) {
-            pokemonStatusBox.getChildren().remove(pokemonDisplay);
-            root.getChildren().clear();
-            root.getChildren().add(pokemonDisplay);
+            // Create a new display component for compact mode to avoid parent issues
+            PokemonSpecies species = pokemonDisplay.getCurrentSpecies();
+            EvolutionStage stage = pokemonDisplay.getCurrentStage();
+            PokemonState state = pokemonDisplay.getCurrentState();
+            
+            PokemonDisplayComponent compactDisplay = new PokemonDisplayComponent(species, stage, state);
+            root.getChildren().add(compactDisplay);
             
             // Center the Pokemon in the compact view
-            StackPane.setAlignment(pokemonDisplay, Pos.CENTER);
-        } else {
-            root.getChildren().clear();
+            StackPane.setAlignment(compactDisplay, Pos.CENTER);
         }
+        
+        // Remove clipping in compact mode
+        root.setClip(null);
         
         // Ensure completely transparent background in compact mode
         root.setStyle("-fx-background-color: transparent;");
@@ -716,7 +838,20 @@ public class WidgetWindow {
      * Get the Pokemon display component for external access
      */
     public PokemonDisplayComponent getPokemonDisplay() {
+        // If using PokedexFrame, get display from there
+        if (pokedexFrame != null && pokedexFrame.getPokemonDisplay() != null) {
+            return pokedexFrame.getPokemonDisplay();
+        }
         return pokemonDisplay;
+    }
+    
+    /**
+     * Gets the PokedexFrame component for external access.
+     * 
+     * @return The PokedexFrame instance
+     */
+    public PokedexFrame getPokedexFrame() {
+        return pokedexFrame;
     }
     
     /**
@@ -769,6 +904,7 @@ public class WidgetWindow {
     
     /**
      * Updates all tabs (history and statistics) with the latest commit data.
+     * Also updates the PokedexFrame stats display.
      * This ensures real-time updates across the entire UI REGARDLESS of mode.
      * Updates happen even in compact mode so data is ready when user expands.
      * Runs on JavaFX Application Thread to ensure UI updates work properly.
@@ -788,6 +924,18 @@ public class WidgetWindow {
         int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
         
         System.out.println("🔄 Updating all tabs - Species: " + currentSpecies + ", Stage: " + currentStage + ", XP: " + realXP + ", Streak: " + realStreak);
+        
+        // Update PokedexFrame stats display
+        if (pokedexFrame != null) {
+            int nextThreshold = getNextEvolutionThreshold(currentStage);
+            pokedexFrame.updateStats(realXP, nextThreshold, realStreak, currentStage);
+            
+            // Update Pokemon name if needed
+            String pokemonName = getPokemonNameForCurrentStage();
+            pokedexFrame.updatePokemonName(pokemonName);
+            
+            System.out.println("📊 PokedexFrame stats updated: XP=" + realXP + "/" + nextThreshold + ", Streak=" + realStreak);
+        }
         
         // Update history tab with CURRENT Pokemon state (always update, even if no commit history)
         if (historyTab != null) {
@@ -985,25 +1133,40 @@ public class WidgetWindow {
         
         System.out.println("🔄 Setting Pokemon to: " + PokemonSelectionData.getDisplayName(newSpecies));
         
-        // Remove old Pokemon display if it exists
-        if (pokemonDisplay != null) {
-            pokemonDisplay.cleanup();
-            pokemonStatusBox.getChildren().remove(pokemonDisplay);
-            root.getChildren().remove(pokemonDisplay);
-        }
-        
-        // Create new Pokemon display with selected species (starts as egg)
-        pokemonDisplay = new PokemonDisplayComponent(
-            newSpecies, EvolutionStage.EGG, PokemonState.CONTENT
-        );
-        
-        // Since we start in expanded mode, add to status box
-        if (!isCompactMode) {
-            pokemonStatusBox.getChildren().clear();
-            pokemonStatusBox.getChildren().add(pokemonDisplay);
+        // If using PokedexFrame, update through it
+        if (pokedexFrame != null) {
+            // Show main display with new species (starts as egg)
+            pokedexFrame.showMainDisplay(newSpecies, EvolutionStage.EGG);
+            
+            // Get reference to new Pokemon display
+            pokemonDisplay = pokedexFrame.getPokemonDisplay();
+            
+            // Update stats
+            int initialXP = 0;
+            int initialStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+            int nextThreshold = getNextEvolutionThreshold(EvolutionStage.EGG);
+            pokedexFrame.updateStats(initialXP, nextThreshold, initialStreak, EvolutionStage.EGG);
         } else {
-            // If in compact mode, add directly to root
-            root.getChildren().add(0, pokemonDisplay);
+            // Legacy path - remove old Pokemon display if it exists
+            if (pokemonDisplay != null) {
+                pokemonDisplay.cleanup();
+                pokemonStatusBox.getChildren().remove(pokemonDisplay);
+                root.getChildren().remove(pokemonDisplay);
+            }
+            
+            // Create new Pokemon display with selected species (starts as egg)
+            pokemonDisplay = new PokemonDisplayComponent(
+                newSpecies, EvolutionStage.EGG, PokemonState.CONTENT
+            );
+            
+            // Since we start in expanded mode, add to status box
+            if (!isCompactMode) {
+                pokemonStatusBox.getChildren().clear();
+                pokemonStatusBox.getChildren().add(pokemonDisplay);
+            } else {
+                // If in compact mode, add directly to root
+                root.getChildren().add(0, pokemonDisplay);
+            }
         }
         
         // Reset testing XP when changing Pokemon
@@ -1314,6 +1477,11 @@ public class WidgetWindow {
      * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
      */
     private void simulateCommitForTesting() {
+        // Always get the latest Pokemon display from PokedexFrame
+        if (pokedexFrame != null) {
+            pokemonDisplay = pokedexFrame.getPokemonDisplay();
+        }
+        
         if (pokemonDisplay != null) {
             // Generate random XP between 6-10 to simulate different commit quality/size
             int commitXP = 6 + (int) (Math.random() * 5); // Random between 6-10
@@ -1351,12 +1519,17 @@ public class WidgetWindow {
                     // Trigger animation with accumulated XP (this determines egg stage visually)
                     pokemonDisplay.triggerCommitAnimation(testingAccumulatedXP);
                     
+                    // Update PokedexFrame stats
+                    updatePokedexFrameStats();
+                    
                     // Auto-evolve when XP reaches 60 (XP evolution condition)
                     // Evolution can happen via: 4+ day streak OR 60+ XP
                     if (testingAccumulatedXP >= 60) {
                         System.out.println("🎉 TESTING: Egg has reached 60 XP! Hatching now!");
                         // Use checkEvolutionRequirements which handles both XP and streak conditions
                         pokemonDisplay.checkEvolutionRequirements(testingAccumulatedXP, 0); // 0 streak, but 60+ XP triggers evolution
+                        // Update stats after evolution
+                        updatePokedexFrameStats();
                     }
                     break;
                     
@@ -1366,39 +1539,73 @@ public class WidgetWindow {
                     // For evolved Pokemon, trigger commit animation
                     System.out.println("🐣 TESTING: Commit gives +" + commitXP + " XP - Pokemon should animate");
                     pokemonDisplay.triggerCommitAnimation(commitXP, 1); // This commit's XP, 1 day streak
+                    // Update PokedexFrame stats
+                    updatePokedexFrameStats();
                     break;
             }
+        } else {
+            System.out.println("⚠️ TESTING: No Pokemon display available - select a Pokemon first");
         }
     }
     
     /**
      * FOR TESTING ONLY: Shows the Pokemon selection screen to pick a different Pokemon egg.
      * This allows testing different Pokemon evolution lines without restarting the app.
-     * Uses the same selection screen as first-time users see.
+     * Uses the PokedexFrame selection screen for consistency.
      * TODO: REMOVE THIS METHOD BEFORE PRODUCTION - See TODO.md
      */
     private void showPokemonPickerForTesting() {
         System.out.println("🧪 TESTING: Opening Pokemon selection screen");
         
-        // Use the actual Pokemon selection screen (same as first launch)
-        PokemonSelectionScreen selectionScreen = new PokemonSelectionScreen(stage, selectedSpecies -> {
-            System.out.println("🧪 TESTING: Switching to " + PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
+        // Use PokedexFrame's selection screen if available
+        if (pokedexFrame != null) {
+            pokedexFrame.showSelectionScreen(selectedSpecies -> {
+                System.out.println("🧪 TESTING: Switching to " + PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
+                
+                // Reset XP
+                testingAccumulatedXP = 0;
+                if (xpSystem != null) {
+                    xpSystem.resetForTesting();
+                }
+                
+                // Save the selection
+                selectionData.saveSelection(selectedSpecies);
+                
+                // Get reference to new Pokemon display
+                pokemonDisplay = pokedexFrame.getPokemonDisplay();
+                
+                // Update stats
+                int initialXP = 0;
+                int initialStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+                int nextThreshold = getNextEvolutionThreshold(EvolutionStage.EGG);
+                pokedexFrame.updateStats(initialXP, nextThreshold, initialStreak, EvolutionStage.EGG);
+                
+                // Update the UI
+                updatePokemonStatusDisplay();
+                
+                System.out.println("🥚 TESTING: Now testing " + PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
+            });
+        } else {
+            // Legacy path - use the actual Pokemon selection screen (same as first launch)
+            PokemonSelectionScreen selectionScreen = new PokemonSelectionScreen(stage, selectedSpecies -> {
+                System.out.println("🧪 TESTING: Switching to " + PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
+                
+                // Reset XP and change Pokemon
+                testingAccumulatedXP = 0;
+                if (xpSystem != null) {
+                    xpSystem.resetForTesting();
+                }
+                
+                // Change the Pokemon species (this resets to egg stage)
+                changePokemonSpecies(selectedSpecies);
+                
+                // Update the UI
+                updatePokemonStatusDisplay();
+                
+                System.out.println("🥚 TESTING: Now testing " + PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
+            });
             
-            // Reset XP and change Pokemon
-            testingAccumulatedXP = 0;
-            if (xpSystem != null) {
-                xpSystem.resetForTesting();
-            }
-            
-            // Change the Pokemon species (this resets to egg stage)
-            changePokemonSpecies(selectedSpecies);
-            
-            // Update the UI
-            updatePokemonStatusDisplay();
-            
-            System.out.println("🥚 TESTING: Now testing " + PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
-        });
-        
-        selectionScreen.show();
+            selectionScreen.show();
+        }
     }
 }

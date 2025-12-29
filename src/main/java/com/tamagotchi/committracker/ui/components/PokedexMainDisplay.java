@@ -52,14 +52,11 @@ public class PokedexMainDisplay extends BorderPane {
         this.setStyle(PokedexTheme.getScreenStyle());
         this.setPadding(new Insets(8));
         
-        // Create stats corner (top-left)
+        // Create stats corner (top-left) - don't span full width or height
         statsCorner = new PokedexStatsCorner();
-        
-        // Wrap stats corner in a StackPane for top-left alignment
-        StackPane topLeftContainer = new StackPane(statsCorner);
-        topLeftContainer.setAlignment(Pos.TOP_LEFT);
-        this.setTop(topLeftContainer);
-        BorderPane.setAlignment(topLeftContainer, Pos.TOP_LEFT);
+        // Set max width and height to prevent expanding beyond content
+        statsCorner.setMaxWidth(javafx.scene.layout.Region.USE_PREF_SIZE);
+        statsCorner.setMaxHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
         
         // Create Pokemon display (center)
         if (currentSpecies != null) {
@@ -73,21 +70,36 @@ public class PokedexMainDisplay extends BorderPane {
             pokemonDisplay = new PokemonDisplayComponent();
         }
         
-        // Center the Pokemon display
-        StackPane centerContainer = new StackPane(pokemonDisplay);
-        centerContainer.setAlignment(Pos.CENTER);
-        this.setCenter(centerContainer);
+        // Make Pokemon sprite larger
+        pokemonDisplay.setScaleX(1.3);
+        pokemonDisplay.setScaleY(1.3);
         
-        // Create name label (bottom)
+        // Create name label (bottom-right)
         nameLabel = new PokedexNameLabel();
         updateNameFromStage();
         
-        // Wrap name label in a StackPane for bottom-center alignment
-        StackPane bottomContainer = new StackPane(nameLabel);
-        bottomContainer.setAlignment(Pos.CENTER);
-        bottomContainer.setPadding(new Insets(4, 0, 0, 0));
-        this.setBottom(bottomContainer);
-        BorderPane.setAlignment(bottomContainer, Pos.CENTER);
+        // Use a StackPane as the center to layer stats corner over Pokemon
+        StackPane contentStack = new StackPane();
+        
+        // Add Pokemon display - position slightly lower to avoid stats overlap
+        contentStack.getChildren().add(pokemonDisplay);
+        StackPane.setAlignment(pokemonDisplay, Pos.CENTER);
+        StackPane.setMargin(pokemonDisplay, new Insets(28, 0, 0, 0)); // Push down 28px (moved up 3px)
+        
+        // Add stats corner in top-left (overlaid on Pokemon area)
+        contentStack.getChildren().add(statsCorner);
+        StackPane.setAlignment(statsCorner, Pos.TOP_LEFT);
+        StackPane.setMargin(statsCorner, new Insets(-2, 0, 0, 0)); // Move up 2px
+        
+        // Add name label in bottom-right (overlaid on Pokemon area, like stats corner)
+        nameLabel.setMaxWidth(javafx.scene.layout.Region.USE_PREF_SIZE);
+        nameLabel.setMaxHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
+        contentStack.getChildren().add(nameLabel);
+        StackPane.setAlignment(nameLabel, Pos.BOTTOM_RIGHT);
+        // Shift name label: down 3px (negative bottom margin), right margin reduced to -3px
+        StackPane.setMargin(nameLabel, new Insets(0, -3, -3, 0));
+        
+        this.setCenter(contentStack);
     }
     
     /**

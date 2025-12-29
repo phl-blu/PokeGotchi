@@ -38,7 +38,7 @@ public class PokedexSelectionScreen extends VBox {
     // Grid configuration from PokedexTheme
     private static final int CELL_SIZE = PokedexTheme.CELL_SIZE;
     private static final int CELL_SPACING = PokedexTheme.CELL_SPACING;
-    private static final int SPRITE_SIZE = 32; // Smaller sprites for grid cells
+    private static final int SPRITE_SIZE = 40; // Bigger sprites for better visibility
     
     /**
      * Creates a new Pokedex selection screen.

@@ -74,14 +74,22 @@ public class PokedexFrame extends StackPane {
         // Apply frame styling (red/coral background with dark borders)
         this.setStyle(PokedexTheme.getFrameStyle());
         
-        // Create main layout container
+        // Apply rounded corner clipping to prevent corner artifacts
+        javafx.scene.shape.Rectangle clip = new javafx.scene.shape.Rectangle(FRAME_WIDTH, FRAME_HEIGHT);
+        clip.setArcWidth(26); // 2x the corner radius (13px)
+        clip.setArcHeight(26);
+        this.setClip(clip);
+        
+        // Create main layout container with transparent background
         BorderPane mainLayout = new BorderPane();
         mainLayout.setPadding(new Insets(10));
+        mainLayout.setStyle("-fx-background-color: transparent;");
         
         // Create and add window controls (top-left)
         windowControls = createWindowControls();
         VBox topSection = new VBox(8);
         topSection.setAlignment(Pos.TOP_LEFT);
+        topSection.setStyle("-fx-background-color: transparent;");
         topSection.getChildren().add(windowControls);
         mainLayout.setTop(topSection);
         
@@ -94,6 +102,7 @@ public class PokedexFrame extends StackPane {
         controls = new PokedexControls();
         HBox bottomSection = new HBox();
         bottomSection.setAlignment(Pos.CENTER);
+        bottomSection.setStyle("-fx-background-color: transparent;");
         bottomSection.getChildren().add(controls);
         mainLayout.setBottom(bottomSection);
         

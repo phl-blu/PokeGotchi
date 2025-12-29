@@ -24,19 +24,19 @@ class PokedexThemeProperties {
      * **Feature: pokedex-ui-redesign, Property 6: Frame renders with correct color scheme**
      * **Validates: Requirements 1.1, 1.4**
      * 
-     * Verifies that the frame primary color is the specified red/coral (#E8475C)
-     * and the border color is dark navy (#2D3436).
+     * Verifies that the frame primary color is the specified orange-red (#E63900)
+     * and the border color is black (#000000).
      */
     @Property(tries = 100)
     @Label("Frame should use correct red/coral primary color and dark navy border")
     void frameShouldUseCorrectColorScheme() {
-        // Assert: Frame primary color must be exactly #E8475C (red/coral)
-        assertEquals("#E8475C", PokedexTheme.FRAME_PRIMARY,
-            "Frame primary color must be red/coral #E8475C");
+        // Assert: Frame primary color must be exactly #CB2343 (red)
+        assertEquals("#CB2343", PokedexTheme.FRAME_PRIMARY,
+            "Frame primary color must be red #CB2343");
         
-        // Assert: Frame border color must be exactly #2D3436 (dark navy)
-        assertEquals("#2D3436", PokedexTheme.FRAME_BORDER,
-            "Frame border color must be dark navy #2D3436");
+        // Assert: Frame border color must be exactly #000000 (black)
+        assertEquals("#000000", PokedexTheme.FRAME_BORDER,
+            "Frame border color must be black #000000");
         
         // Assert: Frame style should contain both colors
         String frameStyle = PokedexTheme.getFrameStyle();

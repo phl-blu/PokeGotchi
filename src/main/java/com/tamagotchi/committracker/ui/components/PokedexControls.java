@@ -22,18 +22,18 @@ import com.tamagotchi.committracker.ui.theme.PokedexTheme;
  */
 public class PokedexControls extends HBox {
     
-    // D-pad dimensions
-    private static final int DPAD_SIZE = 50;
-    private static final int DPAD_ARM_WIDTH = 16;
-    private static final int DPAD_ARM_LENGTH = 18;
+    // D-pad dimensions - smaller for compact frame
+    private static final int DPAD_SIZE = 35;
+    private static final int DPAD_ARM_WIDTH = 12;
+    private static final int DPAD_ARM_LENGTH = 14;
     
-    // Action button dimensions
-    private static final int BUTTON_SIZE = 18;
-    private static final int BUTTON_INNER_SIZE = 10;
-    private static final int BUTTON_SPACING = 8;
+    // Action button dimensions - smaller for compact frame
+    private static final int BUTTON_SIZE = 14;
+    private static final int BUTTON_INNER_SIZE = 8;
+    private static final int BUTTON_SPACING = 6;
     
     // Component spacing
-    private static final int CONTROLS_SPACING = 40;
+    private static final int CONTROLS_SPACING = 30;
     
     private Pane dPad;
     private HBox actionButtons;
