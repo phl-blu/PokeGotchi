@@ -1,24 +1,27 @@
 package com.tamagotchi.committracker.ui.components;
 
 import javafx.geometry.Pos;
+import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.input.MouseEvent;
 
 import com.tamagotchi.committracker.ui.theme.PokedexTheme;
 
 /**
- * Decorative D-pad and action buttons component for the Pokedex UI.
+ * Functional D-pad and action buttons component for the Pokedex UI.
  * Creates a retro handheld gaming device control layout with:
- * - A cross-shaped D-pad on the left
- * - Two circular action buttons on the right
+ * - A cross-shaped D-pad on the left for navigation
+ * - Two circular action buttons (A and B) on the right
  * 
- * These controls are purely decorative and do not have interactive functionality.
+ * The D-pad supports left/right navigation between screens.
+ * Button A confirms selections, Button B returns to the Pokemon screen.
  * 
- * Requirements: 6.1, 6.2, 6.3, 6.4
+ * Requirements: 6.1, 6.2, 6.3, 6.4, 7.4, 7.5, 7.6
  */
 public class PokedexControls extends HBox {
     
@@ -35,8 +38,30 @@ public class PokedexControls extends HBox {
     // Component spacing
     private static final int CONTROLS_SPACING = 30;
     
+    // D-pad pressed color
+    private static final String DPAD_PRESSED = "#E0E0E0";
+    private static final String DPAD_HOVER = "#FAFAFA";
+    
     private Pane dPad;
     private HBox actionButtons;
+    
+    // D-pad direction regions for click handling
+    private Rectangle leftRegion;
+    private Rectangle rightRegion;
+    private Rectangle upRegion;
+    private Rectangle downRegion;
+    
+    // Action buttons
+    private StackPane buttonA;
+    private StackPane buttonB;
+    
+    // Event handlers
+    private Runnable onLeftPressed;
+    private Runnable onRightPressed;
+    private Runnable onUpPressed;
+    private Runnable onDownPressed;
+    private Runnable onButtonAPressed;
+    private Runnable onButtonBPressed;
     
     /**
      * Creates a new PokedexControls component with D-pad and action buttons.
@@ -63,11 +88,12 @@ public class PokedexControls extends HBox {
     }
     
     /**
-     * Creates a cross-shaped D-pad control element.
+     * Creates a cross-shaped D-pad control element with clickable regions.
      * The D-pad consists of a horizontal and vertical rectangle
      * forming a plus/cross shape with white/light colored segments.
+     * Each direction (left, right, up, down) is clickable with visual feedback.
      * 
-     * Requirements: 6.1, 6.3
+     * Requirements: 6.1, 6.2, 7.5, 7.6
      * 
      * @return A Pane containing the D-pad shape
      */
@@ -96,18 +122,80 @@ public class PokedexControls extends HBox {
             PokedexTheme.DPAD_SHADOW
         ));
         
-        // Stack the arms to form a cross
-        dPadContainer.getChildren().addAll(horizontalArm, verticalArm, centerCircle);
+        // Create invisible clickable regions for each direction
+        // Left region
+        leftRegion = new Rectangle(DPAD_ARM_LENGTH, DPAD_ARM_WIDTH);
+        leftRegion.setStyle("-fx-fill: transparent;");
+        leftRegion.setTranslateX(-DPAD_SIZE / 2 + DPAD_ARM_LENGTH / 2);
+        setupDPadRegion(leftRegion, horizontalArm, () -> {
+            if (onLeftPressed != null) onLeftPressed.run();
+        });
+        
+        // Right region
+        rightRegion = new Rectangle(DPAD_ARM_LENGTH, DPAD_ARM_WIDTH);
+        rightRegion.setStyle("-fx-fill: transparent;");
+        rightRegion.setTranslateX(DPAD_SIZE / 2 - DPAD_ARM_LENGTH / 2);
+        setupDPadRegion(rightRegion, horizontalArm, () -> {
+            if (onRightPressed != null) onRightPressed.run();
+        });
+        
+        // Up region
+        upRegion = new Rectangle(DPAD_ARM_WIDTH, DPAD_ARM_LENGTH);
+        upRegion.setStyle("-fx-fill: transparent;");
+        upRegion.setTranslateY(-DPAD_SIZE / 2 + DPAD_ARM_LENGTH / 2);
+        setupDPadRegion(upRegion, verticalArm, () -> {
+            if (onUpPressed != null) onUpPressed.run();
+        });
+        
+        // Down region
+        downRegion = new Rectangle(DPAD_ARM_WIDTH, DPAD_ARM_LENGTH);
+        downRegion.setStyle("-fx-fill: transparent;");
+        downRegion.setTranslateY(DPAD_SIZE / 2 - DPAD_ARM_LENGTH / 2);
+        setupDPadRegion(downRegion, verticalArm, () -> {
+            if (onDownPressed != null) onDownPressed.run();
+        });
+        
+        // Stack the arms to form a cross, then add clickable regions on top
+        dPadContainer.getChildren().addAll(horizontalArm, verticalArm, centerCircle,
+            leftRegion, rightRegion, upRegion, downRegion);
         
         return dPadContainer;
     }
     
     /**
-     * Creates two circular action buttons.
-     * Each button has an outer circle and an inner detail circle
-     * for visual authenticity.
+     * Sets up a D-pad region with hover and click handlers.
      * 
-     * Requirements: 6.2, 6.4
+     * @param region The clickable region
+     * @param arm The visual arm to highlight
+     * @param action The action to run on click
+     */
+    private void setupDPadRegion(Rectangle region, Rectangle arm, Runnable action) {
+        region.setOnMouseEntered(e -> {
+            arm.setStyle(String.format("-fx-fill: %s;", DPAD_HOVER));
+            region.setCursor(javafx.scene.Cursor.HAND);
+        });
+        
+        region.setOnMouseExited(e -> {
+            arm.setStyle(getDPadArmStyle());
+            region.setCursor(javafx.scene.Cursor.DEFAULT);
+        });
+        
+        region.setOnMousePressed(e -> {
+            arm.setStyle(String.format("-fx-fill: %s;", DPAD_PRESSED));
+        });
+        
+        region.setOnMouseReleased(e -> {
+            arm.setStyle(String.format("-fx-fill: %s;", DPAD_HOVER));
+            if (action != null) action.run();
+        });
+    }
+    
+    /**
+     * Creates two circular action buttons labeled A and B.
+     * Each button has an outer circle, inner detail circle, and label.
+     * Buttons have hover and pressed state visual feedback.
+     * 
+     * Requirements: 6.3, 6.4, 7.4, 7.5
      * 
      * @return An HBox containing the two action buttons
      */
@@ -115,21 +203,27 @@ public class PokedexControls extends HBox {
         HBox buttonsContainer = new HBox(BUTTON_SPACING);
         buttonsContainer.setAlignment(Pos.CENTER);
         
-        // Create two action buttons
-        StackPane button1 = createActionButton();
-        StackPane button2 = createActionButton();
+        // Create two action buttons with labels
+        buttonA = createActionButton("A", () -> {
+            if (onButtonAPressed != null) onButtonAPressed.run();
+        });
+        buttonB = createActionButton("B", () -> {
+            if (onButtonBPressed != null) onButtonBPressed.run();
+        });
         
-        buttonsContainer.getChildren().addAll(button1, button2);
+        buttonsContainer.getChildren().addAll(buttonA, buttonB);
         
         return buttonsContainer;
     }
     
     /**
-     * Creates a single circular action button with inner detail.
+     * Creates a single circular action button with label and visual feedback.
      * 
-     * @return A StackPane containing the button circles
+     * @param label The button label (A or B)
+     * @param action The action to run on click
+     * @return A StackPane containing the button
      */
-    private StackPane createActionButton() {
+    private StackPane createActionButton(String label, Runnable action) {
         StackPane buttonContainer = new StackPane();
         buttonContainer.setPrefSize(BUTTON_SIZE, BUTTON_SIZE);
         buttonContainer.setMaxSize(BUTTON_SIZE, BUTTON_SIZE);
@@ -149,7 +243,34 @@ public class PokedexControls extends HBox {
             PokedexTheme.DPAD_SHADOW
         ));
         
-        buttonContainer.getChildren().addAll(outerCircle, innerCircle);
+        // Label for the button
+        Label buttonLabel = new Label(label);
+        buttonLabel.setStyle(String.format(
+            "-fx-font-size: 6px; -fx-font-weight: bold; -fx-text-fill: %s;",
+            PokedexTheme.TEXT_DARK
+        ));
+        
+        buttonContainer.getChildren().addAll(outerCircle, innerCircle, buttonLabel);
+        
+        // Add hover and click handlers
+        buttonContainer.setOnMouseEntered(e -> {
+            outerCircle.setStyle(String.format("-fx-fill: %s;", DPAD_HOVER));
+            buttonContainer.setCursor(javafx.scene.Cursor.HAND);
+        });
+        
+        buttonContainer.setOnMouseExited(e -> {
+            outerCircle.setStyle(String.format("-fx-fill: %s;", PokedexTheme.DPAD_COLOR));
+            buttonContainer.setCursor(javafx.scene.Cursor.DEFAULT);
+        });
+        
+        buttonContainer.setOnMousePressed(e -> {
+            outerCircle.setStyle(String.format("-fx-fill: %s;", DPAD_PRESSED));
+        });
+        
+        buttonContainer.setOnMouseReleased(e -> {
+            outerCircle.setStyle(String.format("-fx-fill: %s;", DPAD_HOVER));
+            if (action != null) action.run();
+        });
         
         return buttonContainer;
     }
@@ -191,5 +312,97 @@ public class PokedexControls extends HBox {
      */
     public int getActionButtonCount() {
         return actionButtons != null ? actionButtons.getChildren().size() : 0;
+    }
+    
+    // ========== Event Handler Setters ==========
+    
+    /**
+     * Sets the handler for D-pad left press.
+     * 
+     * @param handler The handler to run when left is pressed
+     */
+    public void setOnLeftPressed(Runnable handler) {
+        this.onLeftPressed = handler;
+    }
+    
+    /**
+     * Sets the handler for D-pad right press.
+     * 
+     * @param handler The handler to run when right is pressed
+     */
+    public void setOnRightPressed(Runnable handler) {
+        this.onRightPressed = handler;
+    }
+    
+    /**
+     * Sets the handler for D-pad up press.
+     * 
+     * @param handler The handler to run when up is pressed
+     */
+    public void setOnUpPressed(Runnable handler) {
+        this.onUpPressed = handler;
+    }
+    
+    /**
+     * Sets the handler for D-pad down press.
+     * 
+     * @param handler The handler to run when down is pressed
+     */
+    public void setOnDownPressed(Runnable handler) {
+        this.onDownPressed = handler;
+    }
+    
+    /**
+     * Sets the handler for Button A press.
+     * 
+     * @param handler The handler to run when Button A is pressed
+     */
+    public void setOnButtonAPressed(Runnable handler) {
+        this.onButtonAPressed = handler;
+    }
+    
+    /**
+     * Sets the handler for Button B press.
+     * 
+     * @param handler The handler to run when Button B is pressed
+     */
+    public void setOnButtonBPressed(Runnable handler) {
+        this.onButtonBPressed = handler;
+    }
+    
+    /**
+     * Gets Button A for testing purposes.
+     * 
+     * @return The Button A StackPane
+     */
+    public StackPane getButtonA() {
+        return buttonA;
+    }
+    
+    /**
+     * Gets Button B for testing purposes.
+     * 
+     * @return The Button B StackPane
+     */
+    public StackPane getButtonB() {
+        return buttonB;
+    }
+    
+    /**
+     * Gets the left D-pad region for testing purposes.
+     * 
+     * @return The left region Rectangle
+     */
+    public Rectangle getLeftRegion() {
+        return leftRegion;
+    }
+    
+    /**
+     * Gets the right D-pad region for testing purposes.
+     * 
+     * @return The right region Rectangle
+     */
+    public Rectangle getRightRegion() {
+        return rightRegion;
     }
 }

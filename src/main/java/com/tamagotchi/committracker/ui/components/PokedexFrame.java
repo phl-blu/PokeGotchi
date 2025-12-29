@@ -3,16 +3,21 @@ package com.tamagotchi.committracker.ui.components;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.control.Label;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
+import com.tamagotchi.committracker.domain.Commit;
+import com.tamagotchi.committracker.domain.CommitHistory;
 import com.tamagotchi.committracker.pokemon.EvolutionStage;
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.ui.theme.PokedexTheme;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -21,13 +26,20 @@ import java.util.function.Consumer;
  * - Red/coral frame with dark navy borders
  * - Window controls (4 colored dots) in top-left corner
  * - Screen area with gray/purple background
- * - D-pad and action buttons at the bottom
+ * - Screen indicator showing current screen name
+ * - D-pad and action buttons at the bottom for navigation
  * 
- * Supports two screen modes:
- * - Selection mode: Shows Pokemon selection grid
- * - Display mode: Shows selected Pokemon with stats
+ * Supports multiple screen modes:
+ * - Selection mode: Shows Pokemon selection grid (first-time only)
+ * - Pokemon mode: Shows selected Pokemon with stats
+ * - History mode: Shows commit history log
+ * - Statistics mode: Shows detailed statistics
  * 
- * Requirements: 1.1, 1.2, 1.3, 1.4, 2.5
+ * Navigation:
+ * - D-pad left/right: Cycle through screens (Pokemon → Statistics → History)
+ * - Button B: Return to Pokemon screen from any other screen
+ * 
+ * Requirements: 1.1, 1.2, 1.3, 1.4, 2.5, 6.1, 6.2, 6.4, 6.5, 6.6, 6.7
  */
 public class PokedexFrame extends StackPane {
     
@@ -45,15 +57,28 @@ public class PokedexFrame extends StackPane {
     private HBox windowControls;
     private StackPane screenArea;
     private PokedexControls controls;
+    private Label screenIndicator;
     
     // Screen content
     private Node currentScreen;
     private PokedexSelectionScreen selectionScreen;
     private PokedexMainDisplay mainDisplay;
+    private PokedexHistoryScreen historyScreen;
+    private PokedexStatisticsScreen statisticsScreen;
+    
+    // Current screen mode
+    private PokedexScreenMode currentMode = PokedexScreenMode.SELECTION;
     
     // Current Pokemon state
     private PokemonSpecies currentSpecies;
     private EvolutionStage currentStage;
+    
+    // Cached data for screen updates
+    private CommitHistory cachedCommitHistory;
+    private List<Commit> cachedCommits = new ArrayList<>();
+    private int cachedXP = 0;
+    private int cachedNextThreshold = 100;
+    private int cachedStreak = 0;
     
     /**
      * Creates a new PokedexFrame with default styling.
@@ -85,12 +110,19 @@ public class PokedexFrame extends StackPane {
         mainLayout.setPadding(new Insets(10));
         mainLayout.setStyle("-fx-background-color: transparent;");
         
-        // Create and add window controls (top-left)
+        // Create and add window controls and screen indicator (top)
         windowControls = createWindowControls();
+        screenIndicator = createScreenIndicator();
+        
+        HBox topRow = new HBox(10);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+        topRow.setStyle("-fx-background-color: transparent;");
+        topRow.getChildren().addAll(windowControls, screenIndicator);
+        
         VBox topSection = new VBox(8);
         topSection.setAlignment(Pos.TOP_LEFT);
         topSection.setStyle("-fx-background-color: transparent;");
-        topSection.getChildren().add(windowControls);
+        topSection.getChildren().add(topRow);
         mainLayout.setTop(topSection);
         
         // Create screen area (center)
@@ -100,6 +132,8 @@ public class PokedexFrame extends StackPane {
         
         // Create and add controls (bottom)
         controls = new PokedexControls();
+        wireNavigationHandlers();
+        
         HBox bottomSection = new HBox();
         bottomSection.setAlignment(Pos.CENTER);
         bottomSection.setStyle("-fx-background-color: transparent;");
@@ -108,6 +142,165 @@ public class PokedexFrame extends StackPane {
         
         // Add main layout to frame
         this.getChildren().add(mainLayout);
+    }
+    
+    /**
+     * Creates the screen indicator label showing current screen name.
+     * 
+     * Requirements: 6.5
+     * 
+     * @return Label showing current screen mode
+     */
+    private Label createScreenIndicator() {
+        Label indicator = new Label(currentMode.getDisplayName());
+        indicator.setStyle(PokedexTheme.combineStyles(
+            PokedexTheme.getPixelFontStyle(8),
+            PokedexTheme.getTextStyle(PokedexTheme.TEXT_WHITE),
+            "-fx-background-color: rgba(0, 0, 0, 0.4); -fx-padding: 2 6 2 6; -fx-background-radius: 3;"
+        ));
+        return indicator;
+    }
+    
+    /**
+     * Updates the screen indicator to show the current screen name.
+     */
+    private void updateScreenIndicator() {
+        if (screenIndicator != null) {
+            screenIndicator.setText(currentMode.getDisplayName());
+        }
+    }
+    
+    /**
+     * Wires up the D-pad and button handlers for screen navigation.
+     * 
+     * Requirements: 6.1, 6.2, 6.4
+     */
+    private void wireNavigationHandlers() {
+        // D-pad left: Navigate to previous screen
+        controls.setOnLeftPressed(this::navigateLeft);
+        
+        // D-pad right: Navigate to next screen
+        controls.setOnRightPressed(this::navigateRight);
+        
+        // Button B: Return to Pokemon screen
+        controls.setOnButtonBPressed(this::goToHome);
+    }
+    
+    /**
+     * Navigates to the previous screen in the cycle.
+     * Cycle: POKEMON → HISTORY → STATISTICS → POKEMON
+     * 
+     * Requirements: 6.1
+     */
+    public void navigateLeft() {
+        if (currentMode.isNavigable()) {
+            PokedexScreenMode newMode = currentMode.navigateLeft();
+            switchToScreen(newMode);
+        }
+    }
+    
+    /**
+     * Navigates to the next screen in the cycle.
+     * Cycle: POKEMON → STATISTICS → HISTORY → POKEMON
+     * 
+     * Requirements: 6.2
+     */
+    public void navigateRight() {
+        if (currentMode.isNavigable()) {
+            PokedexScreenMode newMode = currentMode.navigateRight();
+            switchToScreen(newMode);
+        }
+    }
+    
+    /**
+     * Returns to the Pokemon main display screen.
+     * Called when Button B is pressed.
+     * 
+     * Requirements: 6.4
+     */
+    public void goToHome() {
+        if (currentMode != PokedexScreenMode.SELECTION && currentMode != PokedexScreenMode.POKEMON) {
+            switchToScreen(PokedexScreenMode.POKEMON);
+        }
+    }
+    
+    /**
+     * Switches to the specified screen mode.
+     * Preserves Pokemon state when switching screens.
+     * 
+     * @param mode The screen mode to switch to
+     */
+    private void switchToScreen(PokedexScreenMode mode) {
+        if (mode == currentMode) {
+            return;
+        }
+        
+        currentMode = mode;
+        updateScreenIndicator();
+        
+        switch (mode) {
+            case POKEMON:
+                if (currentSpecies != null) {
+                    showMainDisplay(currentSpecies, currentStage);
+                }
+                break;
+            case HISTORY:
+                showHistoryScreen();
+                break;
+            case STATISTICS:
+                showStatisticsScreen();
+                break;
+            case SELECTION:
+                // Selection screen is handled separately
+                break;
+        }
+    }
+    
+    /**
+     * Shows the history screen with commit log.
+     * 
+     * Requirements: 6.6
+     */
+    public void showHistoryScreen() {
+        // Clear current screen
+        screenArea.getChildren().clear();
+        
+        // Create history screen if not exists
+        if (historyScreen == null) {
+            historyScreen = new PokedexHistoryScreen();
+        }
+        
+        // Always update with cached data (even if null/empty)
+        historyScreen.updateCommitHistory(cachedCommitHistory);
+        historyScreen.updatePokemonStatus(currentSpecies, currentStage, cachedXP, cachedStreak);
+        
+        currentScreen = historyScreen;
+        currentMode = PokedexScreenMode.HISTORY;
+        updateScreenIndicator();
+        screenArea.getChildren().add(historyScreen);
+    }
+    
+    /**
+     * Shows the statistics screen with detailed stats.
+     * 
+     * Requirements: 6.7
+     */
+    public void showStatisticsScreen() {
+        // Clear current screen
+        screenArea.getChildren().clear();
+        
+        // Create statistics screen if not exists
+        if (statisticsScreen == null) {
+            statisticsScreen = new PokedexStatisticsScreen();
+        }
+        
+        // Always update with cached data (even if null/empty)
+        statisticsScreen.updateStatistics(cachedCommits, currentSpecies, currentStage, cachedStreak);
+        
+        currentScreen = statisticsScreen;
+        currentMode = PokedexScreenMode.STATISTICS;
+        updateScreenIndicator();
+        screenArea.getChildren().add(statisticsScreen);
     }
     
     /**
@@ -192,6 +385,8 @@ public class PokedexFrame extends StackPane {
         });
         
         currentScreen = selectionScreen;
+        currentMode = PokedexScreenMode.SELECTION;
+        updateScreenIndicator();
         screenArea.getChildren().add(selectionScreen);
     }
     
@@ -224,12 +419,18 @@ public class PokedexFrame extends StackPane {
         // Create main display
         mainDisplay = new PokedexMainDisplay(species, stage);
         
+        // Update with cached stats
+        mainDisplay.updateStats(cachedXP, cachedNextThreshold, cachedStreak, stage);
+        
         currentScreen = mainDisplay;
+        currentMode = PokedexScreenMode.POKEMON;
+        updateScreenIndicator();
         screenArea.getChildren().add(mainDisplay);
     }
     
     /**
      * Updates the stats display on the main display screen.
+     * Also caches the values for use when switching screens.
      * 
      * @param xp Current XP amount
      * @param nextThreshold XP needed for next evolution
@@ -237,9 +438,40 @@ public class PokedexFrame extends StackPane {
      * @param stage Current evolution stage
      */
     public void updateStats(int xp, int nextThreshold, int streak, EvolutionStage stage) {
+        // Cache values for screen switching
+        this.cachedXP = xp;
+        this.cachedNextThreshold = nextThreshold;
+        this.cachedStreak = streak;
+        this.currentStage = stage;
+        
         if (mainDisplay != null) {
             mainDisplay.updateStats(xp, nextThreshold, streak, stage);
-            this.currentStage = stage;
+        }
+    }
+    
+    /**
+     * Updates the commit history data.
+     * Caches the history for use when switching to history screen.
+     * 
+     * @param history The commit history to cache and display
+     */
+    public void updateCommitHistory(CommitHistory history) {
+        this.cachedCommitHistory = history;
+        if (historyScreen != null) {
+            historyScreen.updateCommitHistory(history);
+        }
+    }
+    
+    /**
+     * Updates the commits list for statistics.
+     * Caches the commits for use when switching to statistics screen.
+     * 
+     * @param commits The list of commits to cache and display
+     */
+    public void updateCommits(List<Commit> commits) {
+        this.cachedCommits = commits != null ? new ArrayList<>(commits) : new ArrayList<>();
+        if (statisticsScreen != null && currentSpecies != null) {
+            statisticsScreen.updateStatistics(cachedCommits, currentSpecies, currentStage, cachedStreak);
         }
     }
     
@@ -351,6 +583,60 @@ public class PokedexFrame extends StackPane {
      */
     public boolean isShowingMainDisplay() {
         return currentScreen instanceof PokedexMainDisplay;
+    }
+    
+    /**
+     * Checks if the history screen is currently displayed.
+     * 
+     * @return true if showing history screen
+     */
+    public boolean isShowingHistoryScreen() {
+        return currentScreen instanceof PokedexHistoryScreen;
+    }
+    
+    /**
+     * Checks if the statistics screen is currently displayed.
+     * 
+     * @return true if showing statistics screen
+     */
+    public boolean isShowingStatisticsScreen() {
+        return currentScreen instanceof PokedexStatisticsScreen;
+    }
+    
+    /**
+     * Gets the current screen mode.
+     * 
+     * @return The current PokedexScreenMode
+     */
+    public PokedexScreenMode getCurrentMode() {
+        return currentMode;
+    }
+    
+    /**
+     * Gets the screen indicator label.
+     * 
+     * @return The screen indicator Label
+     */
+    public Label getScreenIndicator() {
+        return screenIndicator;
+    }
+    
+    /**
+     * Gets the history screen if it has been created.
+     * 
+     * @return The PokedexHistoryScreen, or null if not created
+     */
+    public PokedexHistoryScreen getHistoryScreen() {
+        return historyScreen;
+    }
+    
+    /**
+     * Gets the statistics screen if it has been created.
+     * 
+     * @return The PokedexStatisticsScreen, or null if not created
+     */
+    public PokedexStatisticsScreen getStatisticsScreen() {
+        return statisticsScreen;
     }
     
     /**

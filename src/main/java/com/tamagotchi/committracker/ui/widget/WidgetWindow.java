@@ -203,9 +203,17 @@ public class WidgetWindow {
             
             // Update stats with saved data
             int savedXP = loadSavedXP();
-            int savedStreak = commitHistory.getCurrentStreak();
+            int savedStreak = loadSavedStreak();
+            
+            // Also set the streak on commitHistory so it's available for other components
+            if (commitHistory != null) {
+                commitHistory.setCurrentStreak(savedStreak);
+            }
+            
             int nextThreshold = getNextEvolutionThreshold(savedStage);
             pokedexFrame.updateStats(savedXP, nextThreshold, savedStreak, savedStage);
+            
+            System.out.println("📊 Loaded saved stats - XP: " + savedXP + ", Streak: " + savedStreak + " days");
         } else {
             // First-time user - show selection screen
             System.out.println("🎮 First-time user - showing Pokemon selection screen");
@@ -986,7 +994,7 @@ public class WidgetWindow {
         
         System.out.println("🔄 Updating all tabs - Species: " + currentSpecies + ", Stage: " + currentStage + ", XP: " + realXP + ", Streak: " + realStreak);
         
-        // Update PokedexFrame stats display
+        // Update PokedexFrame stats display and commit data
         if (pokedexFrame != null) {
             int nextThreshold = getNextEvolutionThreshold(currentStage);
             pokedexFrame.updateStats(realXP, nextThreshold, realStreak, currentStage);
@@ -995,7 +1003,16 @@ public class WidgetWindow {
             String pokemonName = getPokemonNameForCurrentStage();
             pokedexFrame.updatePokemonName(pokemonName);
             
-            System.out.println("📊 PokedexFrame stats updated: XP=" + realXP + "/" + nextThreshold + ", Streak=" + realStreak);
+            // Update commit history for the History screen
+            if (commitHistory != null) {
+                pokedexFrame.updateCommitHistory(commitHistory);
+            }
+            
+            // Update commits list for the Statistics screen
+            List<Commit> commits = commitHistory != null ? commitHistory.getRecentCommits() : List.of();
+            pokedexFrame.updateCommits(commits);
+            
+            System.out.println("📊 PokedexFrame updated: XP=" + realXP + "/" + nextThreshold + ", Streak=" + realStreak + ", Commits=" + commits.size());
         }
         
         // Update history tab with CURRENT Pokemon state (always update, even if no commit history)
@@ -1465,6 +1482,31 @@ public class WidgetWindow {
             }
         } catch (IOException e) {
             System.out.println("📝 No saved XP found - starting at 0");
+        }
+        return 0;
+    }
+    
+    /**
+     * Loads the saved streak from persistent storage.
+     * Returns 0 if no saved streak is found.
+     * 
+     * @return The saved streak value, or 0 if not found
+     */
+    private int loadSavedStreak() {
+        try {
+            Properties props = FileUtils.loadProperties(POSITION_FILE);
+            String savedStreak = props.getProperty("streak.current");
+            
+            if (savedStreak != null && !savedStreak.isEmpty()) {
+                try {
+                    int streak = Integer.parseInt(savedStreak);
+                    return Math.max(0, streak); // Ensure non-negative
+                } catch (NumberFormatException e) {
+                    System.out.println("⚠️ Invalid saved streak '" + savedStreak + "', defaulting to 0");
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("📝 No saved streak found - starting at 0");
         }
         return 0;
     }
