@@ -413,10 +413,19 @@ public class WidgetWindow {
     
     /**
      * Updates the PokedexFrame stats display with current data.
+     * Recalculates XP from actual commits to ensure accuracy.
      */
     private void updatePokedexFrameStats() {
         if (pokedexFrame != null && pokemonDisplay != null) {
-            int currentXP = xpSystem != null ? xpSystem.getCurrentXP() : testingAccumulatedXP;
+            // Recalculate XP from actual commits
+            List<Commit> commits = commitHistory != null ? commitHistory.getRecentCommits() : List.of();
+            int currentXP = 0;
+            if (xpSystem != null && !commits.isEmpty()) {
+                currentXP = xpSystem.recalculateFromCommits(commits);
+            } else if (xpSystem != null) {
+                currentXP = xpSystem.getCurrentXP();
+            }
+            
             int currentStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
             EvolutionStage currentStage = pokemonDisplay.getCurrentStage();
             int nextThreshold = getNextEvolutionThreshold(currentStage);
@@ -989,7 +998,16 @@ public class WidgetWindow {
         // Get CURRENT Pokemon state directly from the display component
         PokemonSpecies currentSpecies = pokemonDisplay != null ? pokemonDisplay.getCurrentSpecies() : PokemonSpecies.CHARMANDER;
         EvolutionStage currentStage = pokemonDisplay != null ? pokemonDisplay.getCurrentStage() : EvolutionStage.EGG;
-        int realXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+        
+        // Recalculate XP from actual commits to ensure accuracy
+        List<Commit> commits = commitHistory != null ? commitHistory.getRecentCommits() : List.of();
+        int realXP = 0;
+        if (xpSystem != null && !commits.isEmpty()) {
+            realXP = xpSystem.recalculateFromCommits(commits);
+        } else if (xpSystem != null) {
+            realXP = xpSystem.getCurrentXP();
+        }
+        
         int realStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
         
         System.out.println("🔄 Updating all tabs - Species: " + currentSpecies + ", Stage: " + currentStage + ", XP: " + realXP + ", Streak: " + realStreak);
@@ -1009,7 +1027,6 @@ public class WidgetWindow {
             }
             
             // Update commits list for the Statistics screen
-            List<Commit> commits = commitHistory != null ? commitHistory.getRecentCommits() : List.of();
             pokedexFrame.updateCommits(commits);
             
             System.out.println("📊 PokedexFrame updated: XP=" + realXP + "/" + nextThreshold + ", Streak=" + realStreak + ", Commits=" + commits.size());
@@ -1027,7 +1044,6 @@ public class WidgetWindow {
         
         // Update statistics tab with latest commit data (including evolution history)
         if (statisticsTab != null) {
-            List<Commit> commits = commitHistory != null ? commitHistory.getRecentCommits() : List.of();
             statisticsTab.updateStatistics(commits, currentSpecies, currentStage, realStreak);
             
             System.out.println("📊 Statistics tab updated with " + commits.size() + " commits (mode: " + (isCompactMode ? "compact" : "expanded") + ")");
@@ -1036,12 +1052,32 @@ public class WidgetWindow {
     
     /**
      * Sets the commit history directly.
+     * Calculates the streak from the commit data to ensure it's up to date.
      * 
      * @param history The CommitHistory to set
      */
     public void setCommitHistory(CommitHistory history) {
         if (history != null) {
+            // Preserve the current streak if the new history has no commit data yet
+            // This handles the case where async commit loading hasn't completed
+            int preservedStreak = this.commitHistory != null ? this.commitHistory.getCurrentStreak() : 0;
+            
             this.commitHistory = history;
+            
+            // Only recalculate streak if there's actual commit data
+            // Otherwise, preserve the saved streak from initialization
+            if (!history.getDailyCommitCounts().isEmpty()) {
+                commitHistory.calculateCurrentStreak();
+                System.out.println("📊 Commit history set - Streak calculated from data: " + commitHistory.getCurrentStreak() + " days");
+            } else if (preservedStreak > 0) {
+                // No commit data yet, preserve the saved streak
+                commitHistory.setCurrentStreak(preservedStreak);
+                System.out.println("📊 Commit history set - Preserved saved streak: " + preservedStreak + " days");
+            } else {
+                System.out.println("📊 Commit history set - No commit data and no saved streak");
+            }
+            
+            commitHistory.calculateAverageCommitsPerDay();
             
             // REAL-TIME UPDATES: Update all tabs immediately when commit history is set
             updateAllTabsWithLatestData();

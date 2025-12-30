@@ -1,6 +1,7 @@
 package com.tamagotchi.committracker.pokemon;
 
 import com.tamagotchi.committracker.domain.Commit;
+import java.util.List;
 
 /**
  * Manages XP calculation and evolution thresholds for Pokemon.
@@ -87,6 +88,32 @@ public class XPSystem {
             currentXP += xp;
             level = calculateLevelFromXP(currentXP);
         }
+    }
+    
+    /**
+     * Recalculates XP from a list of commits.
+     * This replaces the current XP with the calculated value from actual commits.
+     * 
+     * @param commits List of commits to calculate XP from
+     * @return The total XP calculated from commits
+     */
+    public int recalculateFromCommits(List<Commit> commits) {
+        if (commits == null || commits.isEmpty()) {
+            currentXP = 0;
+            level = 0;
+            return 0;
+        }
+        
+        int totalXP = 0;
+        for (Commit commit : commits) {
+            totalXP += calculateXPFromCommit(commit);
+        }
+        
+        currentXP = totalXP;
+        level = calculateLevelFromXP(currentXP);
+        
+        System.out.println("📊 XP recalculated from " + commits.size() + " commits: " + totalXP + " XP");
+        return totalXP;
     }
     
     /**

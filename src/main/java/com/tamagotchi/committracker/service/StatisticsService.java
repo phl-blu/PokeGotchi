@@ -358,20 +358,48 @@ public class StatisticsService {
     /**
      * Calculates XP for a single commit.
      * Simple implementation - can be enhanced based on commit complexity.
+     * Uses the same formula as XPSystem for consistency.
      * 
      * @param commit The commit to calculate XP for
      * @return XP value
      */
     private int calculateXP(Commit commit) {
-        // Base XP per commit
-        int baseXP = 10;
-        
-        // Bonus for commit message length (encourages good commit messages)
-        if (commit.getMessage() != null && commit.getMessage().length() > 20) {
-            baseXP += 5;
+        if (commit == null || commit.getMessage() == null) {
+            return 0;
         }
         
-        return baseXP;
+        int baseXP = 6; // Minimum XP for any commit
+        int bonusXP = 0; // Up to 4 bonus XP (total max: 10)
+        
+        String message = commit.getMessage().toLowerCase().trim();
+        
+        // Bonus for meaningful commit messages (longer than 10 characters)
+        if (message.length() > 10) {
+            bonusXP += 1;
+        }
+        
+        // Bonus for conventional commit prefixes (high quality commits)
+        if (message.startsWith("feat:") || message.startsWith("feature:")) {
+            bonusXP += 2; // New features get more XP
+        } else if (message.startsWith("fix:") || message.startsWith("bugfix:")) {
+            bonusXP += 1; // Bug fixes get moderate XP
+        } else if (message.startsWith("docs:") || message.startsWith("doc:")) {
+            bonusXP += 1; // Documentation gets some XP
+        } else if (message.startsWith("refactor:") || message.startsWith("style:")) {
+            bonusXP += 1; // Code improvements get moderate XP
+        } else if (message.startsWith("test:") || message.startsWith("tests:")) {
+            bonusXP += 1; // Tests are valuable
+        }
+        
+        // Bonus for descriptive messages (contains common development keywords)
+        if (message.contains("implement") || message.contains("add") || 
+            message.contains("create") || message.contains("update")) {
+            bonusXP += 1;
+        }
+        
+        // Ensure XP stays within 6-10 range
+        int totalXP = baseXP + bonusXP;
+        return Math.min(totalXP, 10); // Cap at 10 XP maximum
     }
     
     /**
