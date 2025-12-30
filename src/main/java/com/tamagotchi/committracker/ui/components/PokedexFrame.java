@@ -4,11 +4,15 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
+import javafx.scene.control.Tooltip;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.util.Duration;
 
 import com.tamagotchi.committracker.domain.Commit;
 import com.tamagotchi.committracker.domain.CommitHistory;
@@ -53,11 +57,29 @@ public class PokedexFrame extends StackPane {
     private static final int CONTROL_DOT_SIZE = 8;
     private static final int CONTROL_DOT_SPACING = 4;
     
+    // Window control dot hover size (slightly larger)
+    private static final int CONTROL_DOT_HOVER_SIZE = 10;
+    
     // Components
     private HBox windowControls;
     private StackPane screenArea;
     private PokedexControls controls;
     private Label screenIndicator;
+    
+    // Window control dots (for state management)
+    private Region blueDot;
+    private Region pinkDot;
+    private Region orangeDot;
+    private Region greenDot;
+    
+    // Window control handlers
+    private Runnable onClosePressed;
+    private Runnable onAlwaysOnTopPressed;
+    private Runnable onSettingsPressed;
+    private Runnable onToggleModePressed;
+    
+    // Always-on-top state
+    private boolean isAlwaysOnTop = true;
     
     // Screen content
     private Node currentScreen;
@@ -304,10 +326,14 @@ public class PokedexFrame extends StackPane {
     }
     
     /**
-     * Creates the window controls (4 colored dots).
-     * Colors: blue, pink, orange, green
+     * Creates the window controls (4 colored dots) as functional buttons.
+     * Colors and functions:
+     * - Blue: Close application (save state first)
+     * - Pink: Toggle always-on-top mode
+     * - Orange: Open settings/preferences (future)
+     * - Green: Toggle compact/expanded mode
      * 
-     * Requirements: 1.3
+     * Requirements: 1.3, 9.1
      * 
      * @return HBox containing the window control dots
      */
@@ -315,11 +341,32 @@ public class PokedexFrame extends StackPane {
         HBox controlsBox = new HBox(CONTROL_DOT_SPACING);
         controlsBox.setAlignment(Pos.CENTER_LEFT);
         
-        // Create 4 colored dots
-        Region blueDot = createControlDot(PokedexTheme.CONTROL_BLUE);
-        Region pinkDot = createControlDot(PokedexTheme.CONTROL_PINK);
-        Region orangeDot = createControlDot(PokedexTheme.CONTROL_ORANGE);
-        Region greenDot = createControlDot(PokedexTheme.CONTROL_GREEN);
+        // Create 4 colored dots as functional buttons
+        blueDot = createFunctionalControlDot(PokedexTheme.CONTROL_BLUE, "Close", () -> {
+            if (onClosePressed != null) {
+                onClosePressed.run();
+            }
+        });
+        
+        pinkDot = createFunctionalControlDot(PokedexTheme.CONTROL_PINK, "Always on Top", () -> {
+            if (onAlwaysOnTopPressed != null) {
+                onAlwaysOnTopPressed.run();
+            }
+        });
+        // Update pink dot visual state based on always-on-top status
+        updateAlwaysOnTopIndicator();
+        
+        orangeDot = createFunctionalControlDot(PokedexTheme.CONTROL_ORANGE, "Settings (Coming Soon)", () -> {
+            if (onSettingsPressed != null) {
+                onSettingsPressed.run();
+            }
+        });
+        
+        greenDot = createFunctionalControlDot(PokedexTheme.CONTROL_GREEN, "Toggle Compact Mode", () -> {
+            if (onToggleModePressed != null) {
+                onToggleModePressed.run();
+            }
+        });
         
         controlsBox.getChildren().addAll(blueDot, pinkDot, orangeDot, greenDot);
         
@@ -327,15 +374,171 @@ public class PokedexFrame extends StackPane {
     }
     
     /**
-     * Creates a single control dot with the specified color.
+     * Creates a functional control dot with click handler, hover effects, and tooltip.
      * 
      * @param color The dot color (hex string)
-     * @return Region styled as a colored dot
+     * @param tooltipText The tooltip text to display on hover
+     * @param onClick The action to perform when clicked
+     * @return Region styled as a functional colored dot
      */
-    private Region createControlDot(String color) {
+    private Region createFunctionalControlDot(String color, String tooltipText, Runnable onClick) {
         Region dot = new Region();
         dot.setStyle(PokedexTheme.getControlDotStyle(color, CONTROL_DOT_SIZE));
+        dot.setCursor(javafx.scene.Cursor.HAND);
+        
+        // Create tooltip
+        Tooltip tooltip = new Tooltip(tooltipText);
+        tooltip.setShowDelay(Duration.millis(300));
+        tooltip.setStyle("-fx-font-size: 10px;");
+        Tooltip.install(dot, tooltip);
+        
+        // Store original color for state restoration
+        final String originalColor = color;
+        
+        // Hover effect - slight glow and size increase
+        dot.setOnMouseEntered(e -> {
+            // Create glow effect
+            DropShadow glow = new DropShadow();
+            glow.setColor(Color.web(originalColor));
+            glow.setRadius(6);
+            glow.setSpread(0.3);
+            dot.setEffect(glow);
+            
+            // Increase size slightly
+            dot.setStyle(PokedexTheme.getControlDotStyle(originalColor, CONTROL_DOT_HOVER_SIZE));
+        });
+        
+        dot.setOnMouseExited(e -> {
+            // Remove glow effect
+            dot.setEffect(null);
+            
+            // Restore original size
+            dot.setStyle(PokedexTheme.getControlDotStyle(originalColor, CONTROL_DOT_SIZE));
+            
+            // Re-apply always-on-top indicator if this is the pink dot
+            if (dot == pinkDot) {
+                updateAlwaysOnTopIndicator();
+            }
+        });
+        
+        // Pressed effect - darker color
+        dot.setOnMousePressed(e -> {
+            // Darken the color for pressed state
+            String pressedColor = darkenColor(originalColor);
+            dot.setStyle(PokedexTheme.getControlDotStyle(pressedColor, CONTROL_DOT_HOVER_SIZE));
+        });
+        
+        dot.setOnMouseReleased(e -> {
+            // Restore hover state (still hovering after release)
+            dot.setStyle(PokedexTheme.getControlDotStyle(originalColor, CONTROL_DOT_HOVER_SIZE));
+            
+            // Execute click action
+            if (onClick != null) {
+                onClick.run();
+            }
+        });
+        
         return dot;
+    }
+    
+    /**
+     * Darkens a hex color for pressed state effect.
+     * 
+     * @param hexColor The original hex color (e.g., "#4A90D9")
+     * @return A darker version of the color
+     */
+    private String darkenColor(String hexColor) {
+        try {
+            Color color = Color.web(hexColor);
+            Color darker = color.darker();
+            return String.format("#%02X%02X%02X",
+                (int) (darker.getRed() * 255),
+                (int) (darker.getGreen() * 255),
+                (int) (darker.getBlue() * 255));
+        } catch (Exception e) {
+            return hexColor; // Return original if parsing fails
+        }
+    }
+    
+    /**
+     * Updates the visual indicator for always-on-top state on the pink dot.
+     * When enabled: Shows a bright white glow/ring effect that stands out against the red frame.
+     * When disabled: Shows a darker, muted appearance to indicate it's off.
+     */
+    private void updateAlwaysOnTopIndicator() {
+        if (pinkDot != null) {
+            if (isAlwaysOnTop) {
+                // Show bright white glow when always-on-top is active
+                // White stands out well against the red frame
+                DropShadow ring = new DropShadow();
+                ring.setColor(Color.WHITE);
+                ring.setRadius(6);
+                ring.setSpread(0.7);
+                pinkDot.setEffect(ring);
+                // Keep the pink color bright
+                pinkDot.setStyle(PokedexTheme.getControlDotStyle(PokedexTheme.CONTROL_PINK, CONTROL_DOT_SIZE));
+            } else {
+                // Show muted/darker appearance when always-on-top is disabled
+                pinkDot.setEffect(null);
+                // Use a darker, grayed-out pink to indicate disabled state
+                pinkDot.setStyle(PokedexTheme.getControlDotStyle("#9A6B7A", CONTROL_DOT_SIZE));
+            }
+        }
+    }
+    
+    /**
+     * Sets the always-on-top state and updates the visual indicator.
+     * 
+     * @param alwaysOnTop true if window should stay on top
+     */
+    public void setAlwaysOnTop(boolean alwaysOnTop) {
+        this.isAlwaysOnTop = alwaysOnTop;
+        updateAlwaysOnTopIndicator();
+    }
+    
+    /**
+     * Gets the current always-on-top state.
+     * 
+     * @return true if always-on-top is enabled
+     */
+    public boolean isAlwaysOnTop() {
+        return isAlwaysOnTop;
+    }
+    
+    /**
+     * Sets the handler for the close (blue) button.
+     * 
+     * @param handler The action to perform when close is pressed
+     */
+    public void setOnClosePressed(Runnable handler) {
+        this.onClosePressed = handler;
+    }
+    
+    /**
+     * Sets the handler for the always-on-top toggle (pink) button.
+     * 
+     * @param handler The action to perform when always-on-top is toggled
+     */
+    public void setOnAlwaysOnTopPressed(Runnable handler) {
+        this.onAlwaysOnTopPressed = handler;
+    }
+    
+    /**
+     * Sets the handler for the settings (orange) button.
+     * 
+     * @param handler The action to perform when settings is pressed
+     */
+    public void setOnSettingsPressed(Runnable handler) {
+        this.onSettingsPressed = handler;
+    }
+    
+    /**
+     * Sets the handler for the toggle mode (green) button.
+     * 
+     * @param handler The action to perform when toggle mode is pressed
+     */
+    public void setOnToggleModePressed(Runnable handler) {
+        this.onToggleModePressed = handler;
     }
     
     /**

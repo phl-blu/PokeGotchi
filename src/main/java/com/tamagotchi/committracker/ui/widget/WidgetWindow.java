@@ -184,6 +184,9 @@ public class WidgetWindow {
         // Create the PokedexFrame as the main UI container
         pokedexFrame = new PokedexFrame();
         
+        // Wire up window control handlers
+        setupWindowControlHandlers();
+        
         // Check if user has already selected a starter
         if (selectionData.hasSelectedStarter()) {
             // Returning user - show main display with their Pokemon
@@ -475,6 +478,68 @@ public class WidgetWindow {
             });
             System.out.println("🔔 PokedexFrame evolution listener set up");
         }
+    }
+    
+    /**
+     * Sets up the window control handlers for the PokedexFrame.
+     * Connects the colored dots to actual window operations:
+     * - Blue: Close application (save state first)
+     * - Pink: Toggle always-on-top mode
+     * - Orange: Open settings/preferences (future)
+     * - Green: Toggle compact/expanded mode
+     * 
+     * Requirements: 9.1 (close saves state)
+     */
+    private void setupWindowControlHandlers() {
+        if (pokedexFrame == null) {
+            return;
+        }
+        
+        // Blue dot: Close application (save state first)
+        pokedexFrame.setOnClosePressed(() -> {
+            System.out.println("🔵 Close button pressed - saving state and exiting");
+            savePosition();
+            saveWindowState();
+            
+            // Clean up animation and transition resources
+            if (animationController != null) {
+                animationController.cleanup();
+            }
+            if (transitionManager != null) {
+                transitionManager.cleanup();
+            }
+            if (pokedexFrame != null) {
+                pokedexFrame.cleanup();
+            }
+            
+            Platform.exit();
+            System.exit(0);
+        });
+        
+        // Pink dot: Toggle always-on-top
+        pokedexFrame.setOnAlwaysOnTopPressed(() -> {
+            boolean newState = !stage.isAlwaysOnTop();
+            stage.setAlwaysOnTop(newState);
+            pokedexFrame.setAlwaysOnTop(newState);
+            System.out.println("🩷 Always-on-top toggled: " + (newState ? "ON" : "OFF"));
+        });
+        
+        // Orange dot: Settings (placeholder for future)
+        pokedexFrame.setOnSettingsPressed(() -> {
+            System.out.println("🟠 Settings button pressed - feature coming soon");
+            // TODO: Implement settings dialog in future
+        });
+        
+        // Green dot: Toggle compact/expanded mode
+        pokedexFrame.setOnToggleModePressed(() -> {
+            System.out.println("🟢 Toggle mode button pressed - switching mode");
+            toggleMode();
+        });
+        
+        // Initialize always-on-top state from stage
+        pokedexFrame.setAlwaysOnTop(stage.isAlwaysOnTop());
+        
+        System.out.println("🎮 Window control handlers set up");
     }
     
     /**
