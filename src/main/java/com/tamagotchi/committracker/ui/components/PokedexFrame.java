@@ -64,7 +64,6 @@ public class PokedexFrame extends StackPane {
     private HBox windowControls;
     private StackPane screenArea;
     private PokedexControls controls;
-    private Label screenIndicator;
     
     // Window control dots (for state management)
     private Region blueDot;
@@ -132,14 +131,13 @@ public class PokedexFrame extends StackPane {
         mainLayout.setPadding(new Insets(10));
         mainLayout.setStyle("-fx-background-color: transparent;");
         
-        // Create and add window controls and screen indicator (top)
+        // Create and add window controls (top)
         windowControls = createWindowControls();
-        screenIndicator = createScreenIndicator();
         
         HBox topRow = new HBox(10);
         topRow.setAlignment(Pos.CENTER_LEFT);
         topRow.setStyle("-fx-background-color: transparent;");
-        topRow.getChildren().addAll(windowControls, screenIndicator);
+        topRow.getChildren().add(windowControls);
         
         VBox topSection = new VBox(8);
         topSection.setAlignment(Pos.TOP_LEFT);
@@ -164,32 +162,6 @@ public class PokedexFrame extends StackPane {
         
         // Add main layout to frame
         this.getChildren().add(mainLayout);
-    }
-    
-    /**
-     * Creates the screen indicator label showing current screen name.
-     * 
-     * Requirements: 6.5
-     * 
-     * @return Label showing current screen mode
-     */
-    private Label createScreenIndicator() {
-        Label indicator = new Label(currentMode.getDisplayName());
-        indicator.setStyle(PokedexTheme.combineStyles(
-            PokedexTheme.getPixelFontStyle(8),
-            PokedexTheme.getTextStyle(PokedexTheme.TEXT_WHITE),
-            "-fx-background-color: rgba(0, 0, 0, 0.4); -fx-padding: 2 6 2 6; -fx-background-radius: 3;"
-        ));
-        return indicator;
-    }
-    
-    /**
-     * Updates the screen indicator to show the current screen name.
-     */
-    private void updateScreenIndicator() {
-        if (screenIndicator != null) {
-            screenIndicator.setText(currentMode.getDisplayName());
-        }
     }
     
     /**
@@ -258,7 +230,6 @@ public class PokedexFrame extends StackPane {
         }
         
         currentMode = mode;
-        updateScreenIndicator();
         
         switch (mode) {
             case POKEMON:
@@ -298,7 +269,6 @@ public class PokedexFrame extends StackPane {
         
         currentScreen = historyScreen;
         currentMode = PokedexScreenMode.HISTORY;
-        updateScreenIndicator();
         screenArea.getChildren().add(historyScreen);
     }
     
@@ -321,7 +291,6 @@ public class PokedexFrame extends StackPane {
         
         currentScreen = statisticsScreen;
         currentMode = PokedexScreenMode.STATISTICS;
-        updateScreenIndicator();
         screenArea.getChildren().add(statisticsScreen);
     }
     
@@ -589,7 +558,6 @@ public class PokedexFrame extends StackPane {
         
         currentScreen = selectionScreen;
         currentMode = PokedexScreenMode.SELECTION;
-        updateScreenIndicator();
         screenArea.getChildren().add(selectionScreen);
     }
     
@@ -627,7 +595,6 @@ public class PokedexFrame extends StackPane {
         
         currentScreen = mainDisplay;
         currentMode = PokedexScreenMode.POKEMON;
-        updateScreenIndicator();
         screenArea.getChildren().add(mainDisplay);
     }
     
@@ -813,15 +780,6 @@ public class PokedexFrame extends StackPane {
      */
     public PokedexScreenMode getCurrentMode() {
         return currentMode;
-    }
-    
-    /**
-     * Gets the screen indicator label.
-     * 
-     * @return The screen indicator Label
-     */
-    public Label getScreenIndicator() {
-        return screenIndicator;
     }
     
     /**

@@ -89,9 +89,9 @@ public class PokedexControls extends HBox {
     
     /**
      * Creates a cross-shaped D-pad control element with clickable regions.
-     * The D-pad consists of a horizontal and vertical rectangle
+     * The D-pad consists of four separate directional segments
      * forming a plus/cross shape with white/light colored segments.
-     * Each direction (left, right, up, down) is clickable with visual feedback.
+     * Each direction (left, right, up, down) is clickable with independent visual feedback.
      * 
      * Requirements: 6.1, 6.2, 7.5, 7.6
      * 
@@ -103,17 +103,40 @@ public class PokedexControls extends HBox {
         dPadContainer.setMaxSize(DPAD_SIZE, DPAD_SIZE);
         dPadContainer.setMinSize(DPAD_SIZE, DPAD_SIZE);
         
-        // Create horizontal arm of the cross
-        Rectangle horizontalArm = new Rectangle(DPAD_SIZE, DPAD_ARM_WIDTH);
-        horizontalArm.setStyle(getDPadArmStyle());
-        horizontalArm.setArcWidth(4);
-        horizontalArm.setArcHeight(4);
+        // Create center square for the D-pad hub
+        Rectangle centerSquare = new Rectangle(DPAD_ARM_WIDTH, DPAD_ARM_WIDTH);
+        centerSquare.setStyle(getDPadArmStyle());
+        centerSquare.setArcWidth(2);
+        centerSquare.setArcHeight(2);
         
-        // Create vertical arm of the cross
-        Rectangle verticalArm = new Rectangle(DPAD_ARM_WIDTH, DPAD_SIZE);
-        verticalArm.setStyle(getDPadArmStyle());
-        verticalArm.setArcWidth(4);
-        verticalArm.setArcHeight(4);
+        // Create separate visual elements for each direction
+        // Left arm
+        Rectangle leftArm = new Rectangle(DPAD_ARM_LENGTH, DPAD_ARM_WIDTH);
+        leftArm.setStyle(getDPadArmStyle());
+        leftArm.setArcWidth(4);
+        leftArm.setArcHeight(4);
+        leftArm.setTranslateX(-DPAD_SIZE / 2 + DPAD_ARM_LENGTH / 2);
+        
+        // Right arm
+        Rectangle rightArm = new Rectangle(DPAD_ARM_LENGTH, DPAD_ARM_WIDTH);
+        rightArm.setStyle(getDPadArmStyle());
+        rightArm.setArcWidth(4);
+        rightArm.setArcHeight(4);
+        rightArm.setTranslateX(DPAD_SIZE / 2 - DPAD_ARM_LENGTH / 2);
+        
+        // Up arm
+        Rectangle upArm = new Rectangle(DPAD_ARM_WIDTH, DPAD_ARM_LENGTH);
+        upArm.setStyle(getDPadArmStyle());
+        upArm.setArcWidth(4);
+        upArm.setArcHeight(4);
+        upArm.setTranslateY(-DPAD_SIZE / 2 + DPAD_ARM_LENGTH / 2);
+        
+        // Down arm
+        Rectangle downArm = new Rectangle(DPAD_ARM_WIDTH, DPAD_ARM_LENGTH);
+        downArm.setStyle(getDPadArmStyle());
+        downArm.setArcWidth(4);
+        downArm.setArcHeight(4);
+        downArm.setTranslateY(DPAD_SIZE / 2 - DPAD_ARM_LENGTH / 2);
         
         // Create center circle for depth effect
         Circle centerCircle = new Circle(DPAD_ARM_WIDTH / 2.5);
@@ -123,41 +146,43 @@ public class PokedexControls extends HBox {
         ));
         
         // Create invisible clickable regions for each direction
-        // Left region
+        // Left region - uses leftArm for visual feedback
         leftRegion = new Rectangle(DPAD_ARM_LENGTH, DPAD_ARM_WIDTH);
         leftRegion.setStyle("-fx-fill: transparent;");
         leftRegion.setTranslateX(-DPAD_SIZE / 2 + DPAD_ARM_LENGTH / 2);
-        setupDPadRegion(leftRegion, horizontalArm, () -> {
+        setupDPadRegion(leftRegion, leftArm, () -> {
             if (onLeftPressed != null) onLeftPressed.run();
         });
         
-        // Right region
+        // Right region - uses rightArm for visual feedback
         rightRegion = new Rectangle(DPAD_ARM_LENGTH, DPAD_ARM_WIDTH);
         rightRegion.setStyle("-fx-fill: transparent;");
         rightRegion.setTranslateX(DPAD_SIZE / 2 - DPAD_ARM_LENGTH / 2);
-        setupDPadRegion(rightRegion, horizontalArm, () -> {
+        setupDPadRegion(rightRegion, rightArm, () -> {
             if (onRightPressed != null) onRightPressed.run();
         });
         
-        // Up region
+        // Up region - uses upArm for visual feedback
         upRegion = new Rectangle(DPAD_ARM_WIDTH, DPAD_ARM_LENGTH);
         upRegion.setStyle("-fx-fill: transparent;");
         upRegion.setTranslateY(-DPAD_SIZE / 2 + DPAD_ARM_LENGTH / 2);
-        setupDPadRegion(upRegion, verticalArm, () -> {
+        setupDPadRegion(upRegion, upArm, () -> {
             if (onUpPressed != null) onUpPressed.run();
         });
         
-        // Down region
+        // Down region - uses downArm for visual feedback
         downRegion = new Rectangle(DPAD_ARM_WIDTH, DPAD_ARM_LENGTH);
         downRegion.setStyle("-fx-fill: transparent;");
         downRegion.setTranslateY(DPAD_SIZE / 2 - DPAD_ARM_LENGTH / 2);
-        setupDPadRegion(downRegion, verticalArm, () -> {
+        setupDPadRegion(downRegion, downArm, () -> {
             if (onDownPressed != null) onDownPressed.run();
         });
         
         // Stack the arms to form a cross, then add clickable regions on top
-        dPadContainer.getChildren().addAll(horizontalArm, verticalArm, centerCircle,
-            leftRegion, rightRegion, upRegion, downRegion);
+        dPadContainer.getChildren().addAll(
+            centerSquare, leftArm, rightArm, upArm, downArm, centerCircle,
+            leftRegion, rightRegion, upRegion, downRegion
+        );
         
         return dPadContainer;
     }
