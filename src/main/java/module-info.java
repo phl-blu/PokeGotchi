@@ -5,6 +5,8 @@ module com.tamagotchi.committracker {
     requires java.desktop;
     requires java.prefs;
     requires java.logging;
+    requires okhttp3;
+    requires com.google.gson;
     
     exports com.tamagotchi.committracker;
     exports com.tamagotchi.committracker.ui.widget;
@@ -14,4 +16,5 @@ module com.tamagotchi.committracker {
     exports com.tamagotchi.committracker.domain;
     exports com.tamagotchi.committracker.config;
     exports com.tamagotchi.committracker.util;
+    exports com.tamagotchi.committracker.github;
 }
