@@ -12,6 +12,12 @@ package com.tamagotchi.committracker.ui.components;
  */
 public enum PokedexScreenMode {
     /**
+     * GitHub authentication screen (first-time only).
+     * Shows device code and verification URL for OAuth.
+     */
+    AUTH("AUTH"),
+    
+    /**
      * Pokemon selection grid screen (first-time only).
      * Shows available Pokemon for the user to choose from.
      */
@@ -53,7 +59,7 @@ public enum PokedexScreenMode {
     /**
      * Gets the next screen in the right navigation cycle.
      * Cycle: POKEMON → STATISTICS → HISTORY → POKEMON
-     * SELECTION is not part of the navigation cycle.
+     * SELECTION and AUTH are not part of the navigation cycle.
      * 
      * @return The next screen mode when navigating right
      */
@@ -67,6 +73,8 @@ public enum PokedexScreenMode {
                 return POKEMON;
             case SELECTION:
                 return SELECTION; // Selection screen doesn't navigate
+            case AUTH:
+                return AUTH; // Auth screen doesn't navigate
             default:
                 return POKEMON;
         }
@@ -75,7 +83,7 @@ public enum PokedexScreenMode {
     /**
      * Gets the previous screen in the left navigation cycle.
      * Cycle: POKEMON → HISTORY → STATISTICS → POKEMON
-     * SELECTION is not part of the navigation cycle.
+     * SELECTION and AUTH are not part of the navigation cycle.
      * 
      * @return The previous screen mode when navigating left
      */
@@ -89,6 +97,8 @@ public enum PokedexScreenMode {
                 return POKEMON;
             case SELECTION:
                 return SELECTION; // Selection screen doesn't navigate
+            case AUTH:
+                return AUTH; // Auth screen doesn't navigate
             default:
                 return POKEMON;
         }
@@ -96,11 +106,11 @@ public enum PokedexScreenMode {
     
     /**
      * Checks if this screen mode is part of the navigation cycle.
-     * SELECTION is not navigable via D-pad.
+     * SELECTION and AUTH are not navigable via D-pad.
      * 
      * @return true if this screen can be navigated to/from via D-pad
      */
     public boolean isNavigable() {
-        return this != SELECTION;
+        return this != SELECTION && this != AUTH;
     }
 }

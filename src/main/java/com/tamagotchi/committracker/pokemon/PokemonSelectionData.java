@@ -17,11 +17,17 @@ public class PokemonSelectionData {
     private static final String SELECTED_STARTER_KEY = "selected.starter";
     private static final String HAS_SELECTED_KEY = "has.selected";
     private static final String SELECTION_TIMESTAMP_KEY = "selection.timestamp";
+    private static final String GITHUB_USER_ID_KEY = "github.user.id";
+    private static final String GITHUB_USERNAME_KEY = "github.username";
+    private static final String GITHUB_AUTHENTICATED_KEY = "github.authenticated";
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     
     private PokemonSpecies selectedStarter;
     private boolean hasSelectedStarter;
     private LocalDateTime selectionTimestamp;
+    private long githubUserId;
+    private String githubUsername;
+    private boolean githubAuthenticated;
     
     /**
      * Creates a new PokemonSelectionData instance and loads any existing selection.
@@ -61,11 +67,30 @@ public class PokemonSelectionData {
                     }
                 }
             }
+            
+            // Load GitHub authentication data
+            String githubAuth = props.getProperty(GITHUB_AUTHENTICATED_KEY, "false");
+            this.githubAuthenticated = Boolean.parseBoolean(githubAuth);
+            
+            if (githubAuthenticated) {
+                String userIdStr = props.getProperty(GITHUB_USER_ID_KEY);
+                if (userIdStr != null && !userIdStr.isEmpty()) {
+                    try {
+                        this.githubUserId = Long.parseLong(userIdStr);
+                    } catch (NumberFormatException e) {
+                        this.githubUserId = 0;
+                    }
+                }
+                this.githubUsername = props.getProperty(GITHUB_USERNAME_KEY, "");
+            }
         } catch (IOException e) {
             // No saved selection, user is first-time
             this.hasSelectedStarter = false;
             this.selectedStarter = null;
             this.selectionTimestamp = null;
+            this.githubAuthenticated = false;
+            this.githubUserId = 0;
+            this.githubUsername = null;
         }
     }
     
@@ -90,11 +115,118 @@ public class PokemonSelectionData {
             props.setProperty(SELECTED_STARTER_KEY, starter.name());
             props.setProperty(SELECTION_TIMESTAMP_KEY, selectionTimestamp.format(TIMESTAMP_FORMAT));
             
+            // Preserve GitHub authentication data
+            props.setProperty(GITHUB_AUTHENTICATED_KEY, String.valueOf(githubAuthenticated));
+            if (githubAuthenticated) {
+                props.setProperty(GITHUB_USER_ID_KEY, String.valueOf(githubUserId));
+                if (githubUsername != null) {
+                    props.setProperty(GITHUB_USERNAME_KEY, githubUsername);
+                }
+            }
+            
             FileUtils.saveProperties(props, SELECTION_FILE);
             System.out.println("✅ Pokemon selection saved: " + starter.name());
         } catch (IOException e) {
             System.err.println("Failed to save Pokemon selection: " + e.getMessage());
         }
+    }
+    
+    /**
+     * Saves GitHub authentication data.
+     * Links the Pokemon progress to the GitHub account.
+     * 
+     * Requirements: 1.1, 1.6
+     * 
+     * @param userId The GitHub user ID
+     * @param username The GitHub username
+     */
+    public void saveGitHubAuth(long userId, String username) {
+        this.githubUserId = userId;
+        this.githubUsername = username;
+        this.githubAuthenticated = true;
+        
+        try {
+            Properties props = new Properties();
+            
+            // Preserve existing Pokemon selection data
+            props.setProperty(HAS_SELECTED_KEY, String.valueOf(hasSelectedStarter));
+            if (selectedStarter != null) {
+                props.setProperty(SELECTED_STARTER_KEY, selectedStarter.name());
+            }
+            if (selectionTimestamp != null) {
+                props.setProperty(SELECTION_TIMESTAMP_KEY, selectionTimestamp.format(TIMESTAMP_FORMAT));
+            }
+            
+            // Save GitHub authentication data
+            props.setProperty(GITHUB_AUTHENTICATED_KEY, "true");
+            props.setProperty(GITHUB_USER_ID_KEY, String.valueOf(userId));
+            if (username != null) {
+                props.setProperty(GITHUB_USERNAME_KEY, username);
+            }
+            
+            FileUtils.saveProperties(props, SELECTION_FILE);
+            System.out.println("✅ GitHub authentication saved for user: " + username + " (ID: " + userId + ")");
+        } catch (IOException e) {
+            System.err.println("Failed to save GitHub authentication: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Clears GitHub authentication data.
+     * Used when user revokes access or re-authenticates.
+     */
+    public void clearGitHubAuth() {
+        this.githubUserId = 0;
+        this.githubUsername = null;
+        this.githubAuthenticated = false;
+        
+        try {
+            Properties props = new Properties();
+            
+            // Preserve existing Pokemon selection data
+            props.setProperty(HAS_SELECTED_KEY, String.valueOf(hasSelectedStarter));
+            if (selectedStarter != null) {
+                props.setProperty(SELECTED_STARTER_KEY, selectedStarter.name());
+            }
+            if (selectionTimestamp != null) {
+                props.setProperty(SELECTION_TIMESTAMP_KEY, selectionTimestamp.format(TIMESTAMP_FORMAT));
+            }
+            
+            // Clear GitHub authentication data
+            props.setProperty(GITHUB_AUTHENTICATED_KEY, "false");
+            
+            FileUtils.saveProperties(props, SELECTION_FILE);
+            System.out.println("✅ GitHub authentication cleared");
+        } catch (IOException e) {
+            System.err.println("Failed to clear GitHub authentication: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Checks if GitHub authentication is saved.
+     * 
+     * @return true if GitHub authentication data is stored
+     */
+    public boolean isGitHubAuthenticated() {
+        return githubAuthenticated;
+    }
+    
+    /**
+     * Gets the stored GitHub user ID.
+     * 
+     * @return The GitHub user ID, or 0 if not authenticated
+     */
+    public long getGitHubUserId() {
+        return githubUserId;
+    }
+    
+    /**
+     * Gets the stored GitHub username.
+     * 
+     * @return The GitHub username, or null if not authenticated
+     */
+    public String getGitHubUsername() {
+        return githubUsername;
     }
     
     /**

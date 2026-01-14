@@ -16,6 +16,8 @@ import javafx.util.Duration;
 
 import com.tamagotchi.committracker.domain.Commit;
 import com.tamagotchi.committracker.domain.CommitHistory;
+import com.tamagotchi.committracker.github.AccessTokenResponse;
+import com.tamagotchi.committracker.github.GitHubOAuthService;
 import com.tamagotchi.committracker.pokemon.EvolutionStage;
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.ui.theme.PokedexTheme;
@@ -82,6 +84,7 @@ public class PokedexFrame extends StackPane {
     
     // Screen content
     private Node currentScreen;
+    private GitHubAuthScreen authScreen;
     private PokedexSelectionScreen selectionScreen;
     private PokedexMainDisplay mainDisplay;
     private PokedexHistoryScreen historyScreen;
@@ -243,10 +246,58 @@ public class PokedexFrame extends StackPane {
             case STATISTICS:
                 showStatisticsScreen();
                 break;
+            case AUTH:
+                // Auth screen is handled separately via showAuthScreen()
+                break;
             case SELECTION:
                 // Selection screen is handled separately
                 break;
         }
+    }
+    
+    /**
+     * Shows the GitHub authentication screen.
+     * Used for first-time users to authenticate with GitHub before Pokemon selection.
+     * 
+     * Requirements: 1.1, 1.5
+     * 
+     * @param oauthService The OAuth service to use for authentication
+     * @param onSuccess Callback when authentication succeeds
+     * @param onSkipped Callback when user skips authentication
+     */
+    public void showAuthScreen(GitHubOAuthService oauthService,
+                               Consumer<AccessTokenResponse> onSuccess,
+                               Runnable onSkipped) {
+        // Clear current screen
+        screenArea.getChildren().clear();
+        
+        // Create auth screen with callbacks
+        authScreen = new GitHubAuthScreen(oauthService, onSuccess, onSkipped);
+        
+        currentScreen = authScreen;
+        currentMode = PokedexScreenMode.AUTH;
+        screenArea.getChildren().add(authScreen);
+        
+        // Start the authentication flow
+        authScreen.startAuthentication();
+    }
+    
+    /**
+     * Checks if the authentication screen is currently displayed.
+     * 
+     * @return true if showing auth screen
+     */
+    public boolean isShowingAuthScreen() {
+        return currentScreen instanceof GitHubAuthScreen;
+    }
+    
+    /**
+     * Gets the auth screen if it has been created.
+     * 
+     * @return The GitHubAuthScreen, or null if not created
+     */
+    public GitHubAuthScreen getAuthScreen() {
+        return authScreen;
     }
     
     /**

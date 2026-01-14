@@ -60,23 +60,55 @@ public class GitHubOAuthServiceImpl implements GitHubOAuthService {
                     GitHubConfig.CLIENT_ID_ENV_VAR + " environment variable.");
             }
             
-            String requestBody = "client_id=" + clientId + "&scope=" + 
-                GitHubConfig.OAUTH_SCOPES.replace(" ", "%20");
+            // Trim the client ID to remove any trailing whitespace from env var
+            String trimmedClientId = clientId.trim();
             
-            Request request = new Request.Builder()
-                .url(GitHubConfig.DEVICE_CODE_URL)
-                .header(GitHubConfig.ACCEPT_HEADER, GitHubConfig.ACCEPT_JSON)
-                .header(GitHubConfig.USER_AGENT_HEADER, GitHubConfig.USER_AGENT_VALUE)
-                .post(RequestBody.create(requestBody, FORM))
-                .build();
-            
-            try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful()) {
-                    String errorBody = response.body() != null ? response.body().string() : "Unknown error";
-                    throw new OAuthException("Failed to initiate device flow: " + response.code() + " - " + errorBody);
+            try {
+                // Use HttpURLConnection for reliable GitHub API calls
+                java.net.URL url = new java.net.URL(GitHubConfig.DEVICE_CODE_URL);
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("User-Agent", GitHubConfig.USER_AGENT_VALUE);
+                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+                conn.setDoOutput(true);
+                
+                String body = "client_id=" + trimmedClientId + "&scope=" + 
+                    java.net.URLEncoder.encode(GitHubConfig.OAUTH_SCOPES, "UTF-8");
+                
+                try (java.io.OutputStream os = conn.getOutputStream()) {
+                    os.write(body.getBytes("UTF-8"));
                 }
                 
-                String responseBody = response.body().string();
+                int responseCode = conn.getResponseCode();
+                
+                if (responseCode != 200) {
+                    String errorBody = "";
+                    try (java.io.BufferedReader br = new java.io.BufferedReader(
+                            new java.io.InputStreamReader(conn.getErrorStream(), "UTF-8"))) {
+                        StringBuilder sb = new StringBuilder();
+                        String line;
+                        while ((line = br.readLine()) != null) {
+                            sb.append(line);
+                        }
+                        errorBody = sb.toString();
+                    } catch (Exception e) {
+                        errorBody = "Unknown error";
+                    }
+                    throw new OAuthException("Failed to initiate device flow: " + responseCode + " - " + errorBody);
+                }
+                
+                String responseBody;
+                try (java.io.BufferedReader br = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(conn.getInputStream(), "UTF-8"))) {
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        sb.append(line);
+                    }
+                    responseBody = sb.toString();
+                }
+                
                 JsonObject json = gson.fromJson(responseBody, JsonObject.class);
                 
                 return DeviceCodeResponse.fromGitHubResponse(
@@ -141,7 +173,10 @@ public class GitHubOAuthServiceImpl implements GitHubOAuthService {
     private AccessTokenResponse tryGetAccessToken(String deviceCode) 
             throws IOException, SlowDownException, AuthorizationPendingException, OAuthException {
         
-        String requestBody = "client_id=" + clientId + 
+        // Trim the client ID to remove any trailing whitespace from env var
+        String trimmedClientId = clientId.trim();
+        
+        String requestBody = "client_id=" + trimmedClientId + 
             "&device_code=" + deviceCode + 
             "&grant_type=urn:ietf:params:oauth:grant-type:device_code";
         

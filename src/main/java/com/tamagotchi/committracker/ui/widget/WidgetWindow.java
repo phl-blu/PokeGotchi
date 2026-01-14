@@ -40,6 +40,17 @@ import com.tamagotchi.committracker.ui.theme.UITheme;
 import com.tamagotchi.committracker.ui.theme.PokedexTheme;
 import com.tamagotchi.committracker.ui.animation.AnimationController;
 import com.tamagotchi.committracker.ui.animation.UITransitionManager;
+import com.tamagotchi.committracker.github.GitHubOAuthService;
+import com.tamagotchi.committracker.github.GitHubOAuthServiceImpl;
+import com.tamagotchi.committracker.github.SecureTokenStorage;
+import com.tamagotchi.committracker.github.SecureTokenStorageImpl;
+import com.tamagotchi.committracker.github.AccessTokenResponse;
+import com.tamagotchi.committracker.github.GitHubApiClient;
+import com.tamagotchi.committracker.github.GitHubApiClientImpl;
+import com.tamagotchi.committracker.github.GitHubUser;
+import com.tamagotchi.committracker.github.GitHubApiException;
+import com.tamagotchi.committracker.github.GitHubErrorHandler;
+import com.tamagotchi.committracker.github.GitHubConfig;
 
 import java.io.IOException;
 import java.util.List;
@@ -77,6 +88,11 @@ public class WidgetWindow {
     // Real Pokemon state management (not testing)
     private XPSystem xpSystem;
     private PokemonStateManager pokemonStateManager;
+    
+    // GitHub integration
+    private GitHubOAuthService oauthService;
+    private SecureTokenStorage tokenStorage;
+    private GitHubApiClient apiClient;
     
     // Animation and transition management
     private AnimationController animationController;
@@ -218,33 +234,20 @@ public class WidgetWindow {
             
             System.out.println("📊 Loaded saved stats - XP: " + savedXP + ", Streak: " + savedStreak + " days");
         } else {
-            // First-time user - show selection screen
-            System.out.println("🎮 First-time user - showing Pokemon selection screen");
+            // First-time user - show auth screen first, then selection screen
+            System.out.println("🎮 First-time user - starting authentication flow");
             
-            pokedexFrame.showSelectionScreen(selectedSpecies -> {
-                // Save the selection
-                selectionData.saveSelection(selectedSpecies);
-                
-                // Get reference to Pokemon display
-                pokemonDisplay = pokedexFrame.getPokemonDisplay();
-                
-                // Set up evolution listener on PokedexFrame for UI updates
-                setupPokedexEvolutionListener();
-                
-                // Initialize stats
-                int initialXP = 0;
-                int initialStreak = 0;
-                int nextThreshold = getNextEvolutionThreshold(EvolutionStage.EGG);
-                pokedexFrame.updateStats(initialXP, nextThreshold, initialStreak, EvolutionStage.EGG);
-                
-                // Notify callback if set
-                if (onPokemonSelected != null) {
-                    onPokemonSelected.accept(selectedSpecies);
-                }
-                
-                System.out.println("🎉 Pokemon selection complete! Starting with " + 
-                    PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
-            });
+            // Initialize GitHub services
+            initializeGitHubServices();
+            
+            // Check if GitHub auth is already done (user may have skipped before)
+            if (selectionData.isGitHubAuthenticated() || !isGitHubConfigured()) {
+                // Skip auth, go directly to Pokemon selection
+                showPokemonSelectionForFirstTime();
+            } else {
+                // Show auth screen first
+                showAuthScreenForFirstTime();
+            }
         }
         
         // Add PokedexFrame to root
@@ -1814,5 +1817,446 @@ public class WidgetWindow {
             
             selectionScreen.show();
         }
+    }
+    
+    // ==================== GitHub Authentication Integration ====================
+    
+    /**
+     * Initializes GitHub OAuth and API services.
+     * Creates instances of OAuth service, token storage, and API client.
+     * 
+     * Requirements: 1.1, 1.2
+     */
+    private void initializeGitHubServices() {
+        try {
+            // Initialize token storage first
+            tokenStorage = new SecureTokenStorageImpl();
+            
+            // Initialize OAuth service
+            oauthService = new GitHubOAuthServiceImpl();
+            
+            // Initialize API client
+            apiClient = new GitHubApiClientImpl();
+            
+            System.out.println("🔐 GitHub services initialized");
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to initialize GitHub services: " + e.getMessage());
+            // Services will be null, auth will be skipped
+        }
+    }
+    
+    /**
+     * Checks if GitHub OAuth is properly configured.
+     * Returns false if client ID is not set, allowing the app to skip auth.
+     * 
+     * @return true if GitHub OAuth is configured and ready to use
+     */
+    private boolean isGitHubConfigured() {
+        return GitHubConfig.isConfigured();
+    }
+    
+    /**
+     * Shows the GitHub authentication screen for first-time users.
+     * After successful authentication, transitions to Pokemon selection.
+     * 
+     * Requirements: 1.1, 1.5, 1.6
+     */
+    private void showAuthScreenForFirstTime() {
+        if (pokedexFrame == null || oauthService == null) {
+            // Fall back to Pokemon selection if services not available
+            showPokemonSelectionForFirstTime();
+            return;
+        }
+        
+        System.out.println("🔐 Showing GitHub authentication screen");
+        
+        pokedexFrame.showAuthScreen(
+            oauthService,
+            // On success: Store token, fetch user info, save auth data, then show Pokemon selection
+            accessTokenResponse -> {
+                System.out.println("✅ GitHub authentication successful");
+                
+                // Store the access token securely
+                if (tokenStorage != null && accessTokenResponse != null) {
+                    tokenStorage.storeAccessToken(accessTokenResponse.accessToken());
+                    if (accessTokenResponse.refreshToken() != null) {
+                        tokenStorage.storeRefreshToken(accessTokenResponse.refreshToken());
+                    }
+                }
+                
+                // Set token on API client
+                if (apiClient != null && accessTokenResponse != null) {
+                    apiClient.setAccessToken(accessTokenResponse.accessToken());
+                    
+                    // Fetch user info and save GitHub auth data
+                    apiClient.fetchAuthenticatedUser()
+                        .thenAccept(user -> {
+                            Platform.runLater(() -> {
+                                // Save GitHub user ID with Pokemon selection data
+                                selectionData.saveGitHubAuth(user.id(), user.login());
+                                System.out.println("👤 GitHub user linked: " + user.login() + " (ID: " + user.id() + ")");
+                                
+                                // Now show Pokemon selection
+                                showPokemonSelectionForFirstTime();
+                            });
+                        })
+                        .exceptionally(ex -> {
+                            System.err.println("⚠️ Failed to fetch GitHub user: " + ex.getMessage());
+                            Platform.runLater(() -> {
+                                // Still proceed to Pokemon selection even if user fetch fails
+                                showPokemonSelectionForFirstTime();
+                            });
+                            return null;
+                        });
+                } else {
+                    // No API client, just proceed to Pokemon selection
+                    showPokemonSelectionForFirstTime();
+                }
+            },
+            // On skip: Just show Pokemon selection without GitHub auth
+            () -> {
+                System.out.println("⏭️ GitHub authentication skipped");
+                showPokemonSelectionForFirstTime();
+            }
+        );
+    }
+    
+    /**
+     * Shows the Pokemon selection screen for first-time users.
+     * Called after GitHub authentication (or skip) completes.
+     * 
+     * Requirements: 1.1, 1.6
+     */
+    private void showPokemonSelectionForFirstTime() {
+        if (pokedexFrame == null) {
+            return;
+        }
+        
+        System.out.println("🎮 Showing Pokemon selection screen");
+        
+        pokedexFrame.showSelectionScreen(selectedSpecies -> {
+            // Save the selection (this also preserves GitHub auth data)
+            selectionData.saveSelection(selectedSpecies);
+            
+            // Get reference to new Pokemon display
+            pokemonDisplay = pokedexFrame.getPokemonDisplay();
+            
+            // Set up evolution listener
+            setupPokedexEvolutionListener();
+            
+            // Update stats with initial values
+            int initialXP = 0;
+            int initialStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+            int nextThreshold = getNextEvolutionThreshold(EvolutionStage.EGG);
+            pokedexFrame.updateStats(initialXP, nextThreshold, initialStreak, EvolutionStage.EGG);
+            
+            // Notify callback if set
+            if (onPokemonSelected != null) {
+                onPokemonSelected.accept(selectedSpecies);
+            }
+            
+            System.out.println("🎉 Pokemon selection complete! Starting with " + 
+                PokemonSelectionData.getDisplayName(selectedSpecies) + " egg");
+            
+            // Update the UI
+            updatePokemonStatusDisplay();
+        });
+    }
+    
+    /**
+     * Gets the OAuth service for external access.
+     * 
+     * @return The GitHubOAuthService instance, or null if not initialized
+     */
+    public GitHubOAuthService getOAuthService() {
+        return oauthService;
+    }
+    
+    /**
+     * Gets the token storage for external access.
+     * 
+     * @return The SecureTokenStorage instance, or null if not initialized
+     */
+    public SecureTokenStorage getTokenStorage() {
+        return tokenStorage;
+    }
+    
+    /**
+     * Gets the GitHub API client for external access.
+     * 
+     * @return The GitHubApiClient instance, or null if not initialized
+     */
+    public GitHubApiClient getApiClient() {
+        return apiClient;
+    }
+    
+    // ==================== Re-Authentication Flow ====================
+    
+    /**
+     * Listener interface for authentication events.
+     * Used to notify the application when re-authentication is needed.
+     * 
+     * Requirements: 1.5, 1.6
+     */
+    public interface AuthenticationListener {
+        /**
+         * Called when re-authentication is required (e.g., token revoked).
+         */
+        void onReAuthenticationRequired();
+        
+        /**
+         * Called when authentication is successful.
+         * @param userId The GitHub user ID
+         * @param username The GitHub username
+         */
+        void onAuthenticationSuccess(long userId, String username);
+        
+        /**
+         * Called when authentication fails or is cancelled.
+         */
+        void onAuthenticationFailed();
+    }
+    
+    private AuthenticationListener authenticationListener;
+    
+    /**
+     * Sets the authentication listener for receiving auth events.
+     * 
+     * @param listener The listener to set
+     */
+    public void setAuthenticationListener(AuthenticationListener listener) {
+        this.authenticationListener = listener;
+    }
+    
+    /**
+     * Triggers re-authentication flow when token is revoked or invalid.
+     * Preserves Pokemon state during re-authentication.
+     * 
+     * Requirements: 1.5, 1.6
+     */
+    public void triggerReAuthentication() {
+        Platform.runLater(() -> {
+            System.out.println("🔐 Re-authentication required - token may be revoked");
+            
+            // Clear stored tokens since they're invalid
+            if (tokenStorage != null) {
+                tokenStorage.clearAllTokens();
+            }
+            
+            // Clear GitHub auth data but preserve Pokemon selection
+            selectionData.clearGitHubAuth();
+            
+            // Show re-authentication screen
+            showReAuthScreen();
+        });
+    }
+    
+    /**
+     * Shows the re-authentication screen.
+     * Preserves Pokemon state and allows user to re-authenticate or skip.
+     * 
+     * Requirements: 1.5, 1.6
+     */
+    private void showReAuthScreen() {
+        if (pokedexFrame == null || oauthService == null) {
+            System.err.println("⚠️ Cannot show re-auth screen - services not available");
+            return;
+        }
+        
+        // Store current Pokemon state before showing auth screen
+        PokemonSpecies preservedSpecies = currentSpecies();
+        EvolutionStage preservedStage = currentStage();
+        int preservedXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+        int preservedStreak = commitHistory != null ? commitHistory.getCurrentStreak() : 0;
+        
+        System.out.println("🔐 Showing re-authentication screen (preserving Pokemon state)");
+        System.out.println("   Preserved: " + preservedSpecies + " at " + preservedStage + 
+                          ", XP: " + preservedXP + ", Streak: " + preservedStreak);
+        
+        pokedexFrame.showAuthScreen(
+            oauthService,
+            // On success: Store token, fetch user info, restore Pokemon display
+            accessTokenResponse -> {
+                System.out.println("✅ Re-authentication successful");
+                
+                // Store the access token securely
+                if (tokenStorage != null && accessTokenResponse != null) {
+                    tokenStorage.storeAccessToken(accessTokenResponse.accessToken());
+                    if (accessTokenResponse.refreshToken() != null) {
+                        tokenStorage.storeRefreshToken(accessTokenResponse.refreshToken());
+                    }
+                }
+                
+                // Set token on API client
+                if (apiClient != null && accessTokenResponse != null) {
+                    apiClient.setAccessToken(accessTokenResponse.accessToken());
+                    
+                    // Fetch user info and save GitHub auth data
+                    apiClient.fetchAuthenticatedUser()
+                        .thenAccept(user -> {
+                            Platform.runLater(() -> {
+                                // Save GitHub user ID with Pokemon selection data
+                                selectionData.saveGitHubAuth(user.id(), user.login());
+                                System.out.println("👤 GitHub user re-linked: " + user.login() + " (ID: " + user.id() + ")");
+                                
+                                // Restore Pokemon display with preserved state
+                                restorePokemonDisplay(preservedSpecies, preservedStage, preservedXP, preservedStreak);
+                                
+                                // Notify listener
+                                if (authenticationListener != null) {
+                                    authenticationListener.onAuthenticationSuccess(user.id(), user.login());
+                                }
+                            });
+                        })
+                        .exceptionally(ex -> {
+                            System.err.println("⚠️ Failed to fetch GitHub user: " + ex.getMessage());
+                            Platform.runLater(() -> {
+                                // Still restore Pokemon display even if user fetch fails
+                                restorePokemonDisplay(preservedSpecies, preservedStage, preservedXP, preservedStreak);
+                            });
+                            return null;
+                        });
+                } else {
+                    // No API client, just restore Pokemon display
+                    restorePokemonDisplay(preservedSpecies, preservedStage, preservedXP, preservedStreak);
+                }
+            },
+            // On skip: Just restore Pokemon display without GitHub auth
+            () -> {
+                System.out.println("⏭️ Re-authentication skipped");
+                restorePokemonDisplay(preservedSpecies, preservedStage, preservedXP, preservedStreak);
+                
+                // Notify listener
+                if (authenticationListener != null) {
+                    authenticationListener.onAuthenticationFailed();
+                }
+            }
+        );
+    }
+    
+    /**
+     * Restores the Pokemon display after re-authentication.
+     * Preserves all Pokemon state including species, stage, XP, and streak.
+     * 
+     * Requirements: 1.6
+     * 
+     * @param species The Pokemon species to restore
+     * @param stage The evolution stage to restore
+     * @param xp The XP to restore
+     * @param streak The streak to restore
+     */
+    private void restorePokemonDisplay(PokemonSpecies species, EvolutionStage stage, int xp, int streak) {
+        if (pokedexFrame == null) {
+            return;
+        }
+        
+        System.out.println("🔄 Restoring Pokemon display: " + species + " at " + stage);
+        
+        // Show main display with preserved Pokemon state
+        if (species != null) {
+            pokedexFrame.showMainDisplay(species, stage != null ? stage : EvolutionStage.EGG);
+            
+            // Get reference to Pokemon display
+            pokemonDisplay = pokedexFrame.getPokemonDisplay();
+            
+            // Set up evolution listener
+            setupPokedexEvolutionListener();
+            
+            // Update stats with preserved values
+            int nextThreshold = getNextEvolutionThreshold(stage != null ? stage : EvolutionStage.EGG);
+            pokedexFrame.updateStats(xp, nextThreshold, streak, stage != null ? stage : EvolutionStage.EGG);
+            
+            // Update Pokemon name
+            String pokemonName = getPokemonNameForCurrentStage();
+            pokedexFrame.updatePokemonName(pokemonName);
+            
+            System.out.println("✅ Pokemon display restored successfully");
+        } else {
+            // No Pokemon selected, show selection screen
+            showPokemonSelectionForFirstTime();
+        }
+    }
+    
+    /**
+     * Gets the current Pokemon species from the display.
+     * 
+     * @return The current species, or null if not available
+     */
+    private PokemonSpecies currentSpecies() {
+        if (pokemonDisplay != null) {
+            return pokemonDisplay.getCurrentSpecies();
+        }
+        if (pokedexFrame != null) {
+            return pokedexFrame.getCurrentSpecies();
+        }
+        return selectionData.getSelectedStarter();
+    }
+    
+    /**
+     * Gets the current evolution stage from the display.
+     * 
+     * @return The current stage, or EGG if not available
+     */
+    private EvolutionStage currentStage() {
+        if (pokemonDisplay != null) {
+            return pokemonDisplay.getCurrentStage();
+        }
+        if (pokedexFrame != null) {
+            return pokedexFrame.getCurrentStage();
+        }
+        return loadSavedEvolutionStage();
+    }
+    
+    /**
+     * Checks if the user is currently authenticated with GitHub.
+     * 
+     * @return true if authenticated
+     */
+    public boolean isGitHubAuthenticated() {
+        return selectionData.isGitHubAuthenticated() && 
+               tokenStorage != null && 
+               tokenStorage.getAccessToken().isPresent();
+    }
+    
+    /**
+     * Creates and returns a GitHubErrorHandler.ErrorListener that triggers
+     * re-authentication when needed.
+     * 
+     * Requirements: 1.5, 8.2
+     * 
+     * @return An ErrorListener that handles authentication errors
+     */
+    public GitHubErrorHandler.ErrorListener createErrorListener() {
+        return new GitHubErrorHandler.ErrorListener() {
+            @Override
+            public void onAuthenticationRequired() {
+                System.out.println("🔐 Authentication required - triggering re-auth flow");
+                triggerReAuthentication();
+            }
+            
+            @Override
+            public void onRateLimitExhausted(java.time.Instant resetTime) {
+                System.out.println("⏳ Rate limit exhausted - reset at: " + resetTime);
+                // Could show a notification to the user here
+            }
+            
+            @Override
+            public void onOfflineModeEntered() {
+                System.out.println("📴 Entered offline mode");
+                // Could update UI to show offline indicator
+            }
+            
+            @Override
+            public void onOfflineModeExited() {
+                System.out.println("📶 Exited offline mode");
+                // Could update UI to remove offline indicator
+            }
+            
+            @Override
+            public void onPersistentError(GitHubApiException error) {
+                System.err.println("❌ Persistent error: " + error.getMessage());
+                // Could show error notification to user
+            }
+        };
     }
 }
