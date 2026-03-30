@@ -13,8 +13,8 @@ import java.util.concurrent.TimeUnit;
  * 
  * BEFORE RUNNING:
  * Set the GITHUB_CLIENT_ID environment variable:
- *   Windows PowerShell: $env:GITHUB_CLIENT_ID="Ov23li1fNemWB2pz0nfX"
- *   Windows CMD: set GITHUB_CLIENT_ID=Ov23li1fNemWB2pz0nfX
+ *   Windows PowerShell: $env:GITHUB_CLIENT_ID="enterid"
+ *   Windows CMD: set GITHUB_CLIENT_ID=enterid
  */
 public class GitHubIntegrationCheckpointTest {
     
