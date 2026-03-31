@@ -2,6 +2,7 @@ package com.tamagotchi.committracker.pokemon;
 
 import com.tamagotchi.committracker.util.FileUtils;
 import java.io.IOException;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Properties;
@@ -10,6 +11,9 @@ import java.util.Properties;
  * Manages Pokemon selection persistence.
  * Stores the user's selected starter Pokemon and ensures the selection screen
  * is only shown once (on first application launch).
+ * Also persists GitHub account data, commit baseline, and last sync timestamp.
+ * 
+ * Requirements: 4.2, 10.2
  */
 public class PokemonSelectionData {
     
@@ -20,6 +24,10 @@ public class PokemonSelectionData {
     private static final String GITHUB_USER_ID_KEY = "github.user.id";
     private static final String GITHUB_USERNAME_KEY = "github.username";
     private static final String GITHUB_AUTHENTICATED_KEY = "github.authenticated";
+    /** ISO-8601 epoch-second string for the commit baseline (authentication date). Requirements: 4.2 */
+    private static final String COMMIT_BASELINE_KEY = "github.commit.baseline";
+    /** ISO-8601 epoch-second string for the last successful sync. Requirements: 10.2 */
+    private static final String LAST_SYNC_KEY = "github.last.sync";
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     
     private PokemonSpecies selectedStarter;
@@ -28,6 +36,10 @@ public class PokemonSelectionData {
     private long githubUserId;
     private String githubUsername;
     private boolean githubAuthenticated;
+    /** Commit baseline – the Instant from which GitHub commits are tracked. Requirements: 4.2 */
+    private Instant commitBaseline;
+    /** Timestamp of the last successful GitHub sync. Requirements: 10.2 */
+    private Instant lastSyncTimestamp;
     
     /**
      * Creates a new PokemonSelectionData instance and loads any existing selection.
@@ -83,6 +95,26 @@ public class PokemonSelectionData {
                 }
                 this.githubUsername = props.getProperty(GITHUB_USERNAME_KEY, "");
             }
+            
+            // Load commit baseline (Requirements: 4.2)
+            String baselineStr = props.getProperty(COMMIT_BASELINE_KEY);
+            if (baselineStr != null && !baselineStr.isEmpty()) {
+                try {
+                    this.commitBaseline = Instant.parse(baselineStr);
+                } catch (Exception e) {
+                    this.commitBaseline = null;
+                }
+            }
+            
+            // Load last sync timestamp (Requirements: 10.2)
+            String lastSyncStr = props.getProperty(LAST_SYNC_KEY);
+            if (lastSyncStr != null && !lastSyncStr.isEmpty()) {
+                try {
+                    this.lastSyncTimestamp = Instant.parse(lastSyncStr);
+                } catch (Exception e) {
+                    this.lastSyncTimestamp = null;
+                }
+            }
         } catch (IOException e) {
             // No saved selection, user is first-time
             this.hasSelectedStarter = false;
@@ -91,6 +123,8 @@ public class PokemonSelectionData {
             this.githubAuthenticated = false;
             this.githubUserId = 0;
             this.githubUsername = null;
+            this.commitBaseline = null;
+            this.lastSyncTimestamp = null;
         }
     }
     
@@ -162,6 +196,14 @@ public class PokemonSelectionData {
             props.setProperty(GITHUB_USER_ID_KEY, String.valueOf(userId));
             if (username != null) {
                 props.setProperty(GITHUB_USERNAME_KEY, username);
+            }
+            
+            // Preserve commit baseline and last sync if already set
+            if (commitBaseline != null) {
+                props.setProperty(COMMIT_BASELINE_KEY, commitBaseline.toString());
+            }
+            if (lastSyncTimestamp != null) {
+                props.setProperty(LAST_SYNC_KEY, lastSyncTimestamp.toString());
             }
             
             FileUtils.saveProperties(props, SELECTION_FILE);
@@ -236,6 +278,88 @@ public class PokemonSelectionData {
      */
     public boolean isFirstTimeUser() {
         return !hasSelectedStarter;
+    }
+    
+    // ==================== Commit Baseline (Requirements: 4.2) ====================
+    
+    /**
+     * Gets the stored commit baseline date.
+     * This is the Instant from which GitHub commits are tracked (typically the authentication date).
+     * 
+     * @return the commit baseline, or null if not set
+     */
+    public Instant getCommitBaseline() {
+        return commitBaseline;
+    }
+    
+    /**
+     * Saves the commit baseline date to persistent storage.
+     * 
+     * Requirements: 4.2
+     * 
+     * @param baseline the baseline Instant to persist
+     */
+    public void saveCommitBaseline(Instant baseline) {
+        this.commitBaseline = baseline;
+        persistCurrentState();
+        System.out.println("✅ Commit baseline saved: " + baseline);
+    }
+    
+    // ==================== Last Sync Timestamp (Requirements: 10.2) ====================
+    
+    /**
+     * Gets the timestamp of the last successful GitHub sync.
+     * 
+     * @return the last sync Instant, or null if never synced
+     */
+    public Instant getLastSyncTimestamp() {
+        return lastSyncTimestamp;
+    }
+    
+    /**
+     * Saves the last sync timestamp to persistent storage.
+     * 
+     * Requirements: 10.2
+     * 
+     * @param syncTime the Instant when the sync completed
+     */
+    public void saveLastSyncTimestamp(Instant syncTime) {
+        this.lastSyncTimestamp = syncTime;
+        persistCurrentState();
+        System.out.println("✅ Last sync timestamp saved: " + syncTime);
+    }
+    
+    /**
+     * Writes all current in-memory state back to the properties file.
+     * Used internally to persist individual field updates without losing other data.
+     */
+    private void persistCurrentState() {
+        try {
+            Properties props = new Properties();
+            props.setProperty(HAS_SELECTED_KEY, String.valueOf(hasSelectedStarter));
+            if (selectedStarter != null) {
+                props.setProperty(SELECTED_STARTER_KEY, selectedStarter.name());
+            }
+            if (selectionTimestamp != null) {
+                props.setProperty(SELECTION_TIMESTAMP_KEY, selectionTimestamp.format(TIMESTAMP_FORMAT));
+            }
+            props.setProperty(GITHUB_AUTHENTICATED_KEY, String.valueOf(githubAuthenticated));
+            if (githubAuthenticated) {
+                props.setProperty(GITHUB_USER_ID_KEY, String.valueOf(githubUserId));
+                if (githubUsername != null) {
+                    props.setProperty(GITHUB_USERNAME_KEY, githubUsername);
+                }
+            }
+            if (commitBaseline != null) {
+                props.setProperty(COMMIT_BASELINE_KEY, commitBaseline.toString());
+            }
+            if (lastSyncTimestamp != null) {
+                props.setProperty(LAST_SYNC_KEY, lastSyncTimestamp.toString());
+            }
+            FileUtils.saveProperties(props, SELECTION_FILE);
+        } catch (IOException e) {
+            System.err.println("Failed to persist preferences: " + e.getMessage());
+        }
     }
     
     /**

@@ -233,6 +233,9 @@ public class WidgetWindow {
             pokedexFrame.updateStats(savedXP, nextThreshold, savedStreak, savedStage);
             
             System.out.println("📊 Loaded saved stats - XP: " + savedXP + ", Streak: " + savedStreak + " days");
+            
+            // Refresh GitHub status indicator for returning users
+            Platform.runLater(this::refreshGitHubStatusIndicator);
         } else {
             // First-time user - show auth screen first, then selection screen
             System.out.println("🎮 First-time user - starting authentication flow");
@@ -1896,6 +1899,9 @@ public class WidgetWindow {
                                 selectionData.saveGitHubAuth(user.id(), user.login());
                                 System.out.println("👤 GitHub user linked: " + user.login() + " (ID: " + user.id() + ")");
                                 
+                                // Update GitHub status indicator
+                                refreshGitHubStatusIndicator();
+                                
                                 // Now show Pokemon selection
                                 showPokemonSelectionForFirstTime();
                             });
@@ -1990,7 +1996,49 @@ public class WidgetWindow {
         return apiClient;
     }
     
-    // ==================== Re-Authentication Flow ====================
+    /**
+     * Returns a human-readable GitHub connection status string suitable for display
+     * in the widget title bar or a tooltip.
+     * 
+     * Possible values:
+     * <ul>
+     *   <li>"GitHub: Connected (@username)" – authenticated and token present</li>
+     *   <li>"GitHub: Not connected" – no stored token or auth data</li>
+     * </ul>
+     * 
+     * Requirements: 1.1, 10.6
+     * 
+     * @return status string
+     */
+    public String getGitHubStatusText() {
+        if (!selectionData.isGitHubAuthenticated()) {
+            return "GitHub: Not connected";
+        }
+        if (tokenStorage == null || tokenStorage.getAccessToken().isEmpty()) {
+            return "GitHub: Not connected";
+        }
+        String username = selectionData.getGitHubUsername();
+        if (username != null && !username.isBlank()) {
+            return "GitHub: Connected (@" + username + ")";
+        }
+        return "GitHub: Connected";
+    }
+    
+    /**
+     * Updates the stage title to reflect the current GitHub connection status.
+     * Safe to call from any thread – dispatches to the JavaFX Application Thread if needed.
+     * 
+     * Requirements: 1.1, 10.6
+     */
+    public void refreshGitHubStatusIndicator() {
+        if (!Platform.isFxApplicationThread()) {
+            Platform.runLater(this::refreshGitHubStatusIndicator);
+            return;
+        }
+        String status = getGitHubStatusText();
+        System.out.println("🔗 GitHub status: " + status);
+        stage.setTitle("Pokemon Commit Tracker – " + status);
+    }
     
     /**
      * Listener interface for authentication events.
@@ -2098,6 +2146,9 @@ public class WidgetWindow {
                                 // Save GitHub user ID with Pokemon selection data
                                 selectionData.saveGitHubAuth(user.id(), user.login());
                                 System.out.println("👤 GitHub user re-linked: " + user.login() + " (ID: " + user.id() + ")");
+                                
+                                // Update GitHub status indicator
+                                refreshGitHubStatusIndicator();
                                 
                                 // Restore Pokemon display with preserved state
                                 restorePokemonDisplay(preservedSpecies, preservedStage, preservedXP, preservedStreak);

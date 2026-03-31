@@ -4,6 +4,7 @@ import com.tamagotchi.committracker.domain.Commit;
 import com.tamagotchi.committracker.domain.CommitHistory;
 import com.tamagotchi.committracker.domain.Repository;
 import com.tamagotchi.committracker.config.AppConfig;
+import com.tamagotchi.committracker.github.GitHubCommitIntegration;
 import com.tamagotchi.committracker.util.WindowsIntegration;
 import com.tamagotchi.committracker.util.ErrorHandler;
 import com.tamagotchi.committracker.util.RetryMechanism;
@@ -28,9 +29,10 @@ import java.util.logging.Logger;
  * Orchestrates repository monitoring and data collection.
  * Manages 5-minute polling cycle and processes new commits.
  * Implements graceful error handling and retry mechanisms for resilience.
+ * Supports both local Git scanning and GitHub API as commit sources.
  * 
- * Requirements: 1.5, 3.1, 4.3, 4.5 - Proper resource cleanup, configurable timeouts,
- * and background repository discovery with progress reporting
+ * Requirements: 1.5, 2.1, 3.1, 4.1, 4.3, 4.5 - Proper resource cleanup, configurable timeouts,
+ * background repository discovery with progress reporting, and GitHub source support
  */
 public class CommitService {
     private static final Logger logger = Logger.getLogger(CommitService.class.getName());
@@ -39,6 +41,19 @@ public class CommitService {
     private static final int SHUTDOWN_TIMEOUT_SECONDS = 10;
     private static final int TASK_TIMEOUT_SECONDS = 30;
     
+    /**
+     * Defines the source of commit data.
+     * LOCAL uses local Git repository scanning; GITHUB uses the GitHub API.
+     * 
+     * Requirements: 2.1, 4.1
+     */
+    public enum CommitSource {
+        /** Scan local Git repositories on disk (default, backward-compatible). */
+        LOCAL,
+        /** Fetch commits from GitHub API for the authenticated user. */
+        GITHUB
+    }
+    
     private final RepositoryScanner repositoryScanner;
     private final BackgroundRepositoryDiscoveryService discoveryService;
     private final ScheduledExecutorService scheduler;
@@ -46,6 +61,12 @@ public class CommitService {
     private final CommitHistory commitHistory;
     private final List<CommitListener> listeners;
     private final RetryMechanism retryMechanism;
+    
+    // GitHub integration (optional – only active when source == GITHUB)
+    private GitHubCommitIntegration gitHubIntegration;
+    
+    // Current commit source – defaults to LOCAL for backward compatibility
+    private volatile CommitSource commitSource = CommitSource.LOCAL;
     
     // Progress listener for UI updates during discovery
     private DiscoveryProgressListener discoveryProgressListener;
@@ -191,6 +212,11 @@ public class CommitService {
         // Cancel any ongoing repository discovery
         if (discoveryService != null) {
             discoveryService.shutdown();
+        }
+        
+        // Stop GitHub integration if active
+        if (gitHubIntegration != null) {
+            gitHubIntegration.stopTracking();
         }
         
         // Also shutdown the scanner directly (in case it was used independently)
@@ -622,6 +648,104 @@ public class CommitService {
      */
     public BackgroundRepositoryDiscoveryService getDiscoveryService() {
         return discoveryService;
+    }
+    
+    // ==================== GitHub Source Support ====================
+    
+    /**
+     * Returns the current commit source (LOCAL or GITHUB).
+     * 
+     * Requirements: 2.1, 4.1
+     */
+    public CommitSource getCommitSource() {
+        return commitSource;
+    }
+    
+    /**
+     * Switches the commit source.
+     * When switching to GITHUB, local scanning is paused and GitHub polling takes over.
+     * When switching to LOCAL, GitHub polling is stopped and local scanning resumes.
+     * Backward compatibility is preserved: existing callers that never call this method
+     * continue to use LOCAL scanning unchanged.
+     * 
+     * Requirements: 2.1, 4.1
+     * 
+     * @param source the desired commit source
+     */
+    public void setCommitSource(CommitSource source) {
+        if (source == null || source == commitSource) {
+            return;
+        }
+        
+        CommitSource previous = commitSource;
+        commitSource = source;
+        
+        logger.info("Commit source changed: " + previous + " → " + source);
+        
+        if (source == CommitSource.GITHUB) {
+            // Pause local polling – GitHub integration drives updates from here
+            if (pollingTask != null) {
+                pollingTask.cancel(false);
+                pollingTask = null;
+            }
+            logger.info("Local repository scanning paused – GitHub mode active");
+        } else {
+            // Switching back to LOCAL: stop GitHub polling and restart local scanning
+            if (gitHubIntegration != null) {
+                gitHubIntegration.stopTracking();
+            }
+            if (isMonitoring && !isShutdown) {
+                int pollingInterval = AppConfig.getPollingIntervalSeconds();
+                pollingTask = scheduler.scheduleAtFixedRate(
+                    this::scanAllRepositories,
+                    pollingInterval,
+                    pollingInterval,
+                    TimeUnit.SECONDS
+                );
+                logger.info("Local repository scanning resumed");
+            }
+        }
+    }
+    
+    /**
+     * Attaches a {@link GitHubCommitIntegration} and switches to GITHUB source mode.
+     * The integration's commit listener will forward new commits into this service's
+     * commit history and notify all registered {@link CommitListener}s.
+     * 
+     * Requirements: 4.1
+     * 
+     * @param integration the initialized GitHub commit integration
+     */
+    public void setGitHubIntegration(GitHubCommitIntegration integration) {
+        this.gitHubIntegration = integration;
+        
+        if (integration != null) {
+            // Bridge GitHub commits into this service's history and listeners
+            integration.setOnNewCommitsCallback(commits -> {
+                processNewCommits(commits);
+                logger.fine("GitHub integration forwarded " + commits.size() + " commits to CommitService");
+            });
+            
+            setCommitSource(CommitSource.GITHUB);
+            logger.info("GitHub integration attached to CommitService");
+        }
+    }
+    
+    /**
+     * Returns the attached GitHub integration, or {@code null} if none is set.
+     * 
+     * @return the current {@link GitHubCommitIntegration}, or null
+     */
+    public GitHubCommitIntegration getGitHubIntegration() {
+        return gitHubIntegration;
+    }
+    
+    /**
+     * Returns {@code true} when the service is actively using the GitHub API as its
+     * commit source.
+     */
+    public boolean isGitHubMode() {
+        return commitSource == CommitSource.GITHUB;
     }
     
     /**
