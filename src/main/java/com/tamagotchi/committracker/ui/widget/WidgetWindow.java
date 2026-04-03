@@ -326,8 +326,7 @@ public class WidgetWindow {
                     if (pokemonDisplay != null) {
                         System.out.println("🧪 TESTING: 'E' pressed - Forcing evolution");
                         pokemonDisplay.forceEvolutionForTesting();
-                        // Update PokedexFrame stats after evolution
-                        updatePokedexFrameStats();
+                        // Stats/name update handled by evolution listener after animation completes
                     } else {
                         System.out.println("⚠️ TESTING: No Pokemon display available - select a Pokemon first");
                     }
@@ -441,9 +440,8 @@ public class WidgetWindow {
             
             pokedexFrame.updateStats(currentXP, nextThreshold, currentStreak, currentStage);
             
-            // Also update the Pokemon name if it changed due to evolution
-            String pokemonName = getPokemonNameForCurrentStage();
-            pokedexFrame.updatePokemonName(pokemonName);
+            // Note: Pokemon name is updated by the evolution listener, not here,
+            // to avoid overwriting with a stale stage during async evolution animations.
         }
     }
     
@@ -1749,9 +1747,21 @@ public class WidgetWindow {
                 case BASIC:
                 case STAGE_1:
                 case STAGE_2:
+                    // Accumulate XP for post-egg stages too
+                    int xpBeforeEvolved = testingAccumulatedXP;
+                    testingAccumulatedXP += commitXP;
+                    System.out.println("XP before commit: " + xpBeforeEvolved);
+                    System.out.println("XP earned from commit: " + commitXP);
+                    System.out.println("XP after commit: " + testingAccumulatedXP);
+                    System.out.println("-----------------------------");
+                    
                     // For evolved Pokemon, trigger commit animation
                     System.out.println("🐣 TESTING: Commit gives +" + commitXP + " XP - Pokemon should animate");
-                    pokemonDisplay.triggerCommitAnimation(commitXP, 1); // This commit's XP, 1 day streak
+                    pokemonDisplay.triggerCommitAnimation(testingAccumulatedXP, 1);
+                    
+                    // Check if XP threshold reached for next evolution
+                    pokemonDisplay.checkEvolutionRequirements(testingAccumulatedXP, 0);
+                    
                     // Update PokedexFrame stats
                     updatePokedexFrameStats();
                     break;

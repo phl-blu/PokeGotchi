@@ -157,7 +157,7 @@ public class PokemonDisplayComponent extends StackPane {
         pokemonImageView.setFitWidth(64);
         pokemonImageView.setFitHeight(64);
         pokemonImageView.setPreserveRatio(true);
-        pokemonImageView.setSmooth(true);
+        pokemonImageView.setSmooth(false);
         
         // Add to the StackPane
         this.getChildren().add(pokemonImageView);
@@ -237,20 +237,17 @@ public class PokemonDisplayComponent extends StackPane {
                 // For Pokemon: set to HAPPY state temporarily
                 PokemonState animationState = PokemonState.HAPPY;
                 this.currentState = animationState;
-                loadAndStartAnimation(); // Use normal animation for Pokemon
+                loadAndStartAnimation();
                 
-                // Revert to static state after 3 seconds for Pokemon
-                Platform.runLater(() -> {
-                    try {
-                        Thread.sleep(3000);
-                        if (this.currentState == animationState) {
-                            this.currentState = PokemonState.CONTENT;
-                            loadAndStartAnimation();
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+                // Revert to content state after 3 seconds using a Timeline (never block FX thread)
+                javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(3));
+                pause.setOnFinished(e -> {
+                    if (this.currentState == animationState) {
+                        this.currentState = PokemonState.CONTENT;
+                        loadAndStartAnimation();
                     }
                 });
+                pause.play();
             }
         }
     }
@@ -272,20 +269,17 @@ public class PokemonDisplayComponent extends StackPane {
                 // For Pokemon: set to HAPPY state temporarily
                 PokemonState animationState = PokemonState.HAPPY;
                 this.currentState = animationState;
-                loadAndStartAnimation(); // Use normal animation for Pokemon
+                loadAndStartAnimation();
                 
-                // Revert to static state after 3 seconds for Pokemon
-                Platform.runLater(() -> {
-                    try {
-                        Thread.sleep(3000);
-                        if (this.currentState == animationState) {
-                            this.currentState = PokemonState.CONTENT;
-                            loadAndStartAnimation();
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+                // Revert to content state after 3 seconds using a Timeline (never block FX thread)
+                javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(3));
+                pause.setOnFinished(e -> {
+                    if (this.currentState == animationState) {
+                        this.currentState = PokemonState.CONTENT;
+                        loadAndStartAnimation();
                     }
                 });
+                pause.play();
             }
         }
     }
@@ -387,17 +381,14 @@ public class PokemonDisplayComponent extends StackPane {
             
             // If this is a temporary animation (like celebrating), revert after a delay
             if (animationType == PokemonState.THRIVING || animationType == PokemonState.HAPPY) {
-                Platform.runLater(() -> {
-                    try {
-                        Thread.sleep(3000); // Show celebration for 3 seconds
-                        if (this.currentState == animationType) {
-                            this.currentState = previousState;
-                            loadAndStartAnimation();
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+                javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(3));
+                pause.setOnFinished(e -> {
+                    if (this.currentState == animationType) {
+                        this.currentState = previousState;
+                        loadAndStartAnimation();
                     }
                 });
+                pause.play();
             }
         }
     }
@@ -422,34 +413,40 @@ public class PokemonDisplayComponent extends StackPane {
                 stopAndCleanupAnimation();
             }
             
-            // Load sprite frames for current Pokemon configuration
-            currentFrames = AnimationUtils.loadSpriteFrames(currentSpecies, currentStage, currentState);
-            
-            if (!currentFrames.isEmpty()) {
-                // Create continuous animation for Pokemon
-                currentAnimation = AnimationUtils.createFrameAnimation(
-                    currentFrames,
-                    this::updateDisplayedFrame,
-                    currentSpecies,
-                    currentStage
-                );
-                
-                if (currentAnimation != null) {
-                    // Register Timeline with ResourceManager
-                    currentAnimationId = "pokemon-animation-" + System.currentTimeMillis();
-                    ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
-                    
-                    // Track with weak reference for cleanup verification (Requirements 1.2)
-                    weakTimelineRef = new WeakReference<>(currentAnimation);
-                    
-                    // Set up timeout-based cleanup for stuck animations (Requirements 1.2, 2.1)
-                    scheduleAnimationTimeout();
-                    
-                    currentAnimation.play();
-                    
-                    // Also set the first frame immediately
-                    updateDisplayedFrame(currentFrames.get(0));
+            // Try GIF first (preserves original frame timing)
+            AnimationUtils.GifResult gif = AnimationUtils.loadSpriteGif(currentSpecies, currentStage, currentState);
+            if (gif != null) {
+                currentFrames = gif.frames;
+                currentAnimation = AnimationUtils.createFrameAnimationWithDelays(
+                    gif.frames, gif.delaysMs, this::updateDisplayedFrame);
+            } else {
+                // Load sprite frames for current Pokemon configuration
+                currentFrames = AnimationUtils.loadSpriteFrames(currentSpecies, currentStage, currentState);
+                if (!currentFrames.isEmpty()) {
+                    currentAnimation = AnimationUtils.createFrameAnimation(
+                        currentFrames,
+                        this::updateDisplayedFrame,
+                        currentSpecies,
+                        currentStage
+                    );
                 }
+            }
+
+            if (currentAnimation != null) {
+                // Register Timeline with ResourceManager
+                currentAnimationId = "pokemon-animation-" + System.currentTimeMillis();
+                ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
+                
+                // Track with weak reference for cleanup verification (Requirements 1.2)
+                weakTimelineRef = new WeakReference<>(currentAnimation);
+                
+                // Set up timeout-based cleanup for stuck animations (Requirements 1.2, 2.1)
+                scheduleAnimationTimeout();
+                
+                currentAnimation.play();
+                
+                // Also set the first frame immediately
+                if (!currentFrames.isEmpty()) updateDisplayedFrame(currentFrames.get(0));
             }
         }
     }
@@ -484,42 +481,44 @@ public class PokemonDisplayComponent extends StackPane {
             return; // Never start continuous animation for eggs - they should be static
         } else {
             // Use normal Pokemon sprite loading for non-egg stages
-            currentFrames = AnimationUtils.loadSpriteFrames(currentSpecies, currentStage, currentState);
-            
-            if (!currentFrames.isEmpty()) {
-                // For Pokemon, create continuous animation
-                currentAnimation = AnimationUtils.createFrameAnimation(
-                    currentFrames,
-                    this::updateDisplayedFrame,
-                    currentSpecies,
-                    currentStage
-                );
-                
-                if (currentAnimation != null) {
-                    // Register Timeline with ResourceManager
-                    currentAnimationId = "pokemon-animation-" + System.currentTimeMillis();
-                    ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
-                    
-                    // Track with weak reference for cleanup verification (Requirements 1.2)
-                    weakTimelineRef = new WeakReference<>(currentAnimation);
-                    
-                    // Set up timeout-based cleanup for stuck animations (Requirements 1.2, 2.1)
-                    scheduleAnimationTimeout();
-                    
-                    currentAnimation.play();
-                    
-                    // Also set the first frame immediately
-                    updateDisplayedFrame(currentFrames.get(0));
+            AnimationUtils.GifResult gif = AnimationUtils.loadSpriteGif(currentSpecies, currentStage, currentState);
+            if (gif != null) {
+                currentFrames = gif.frames;
+                currentAnimation = AnimationUtils.createFrameAnimationWithDelays(
+                    gif.frames, gif.delaysMs, this::updateDisplayedFrame);
+            } else {
+                currentFrames = AnimationUtils.loadSpriteFrames(currentSpecies, currentStage, currentState);
+                if (!currentFrames.isEmpty()) {
+                    currentAnimation = AnimationUtils.createFrameAnimation(
+                        currentFrames,
+                        this::updateDisplayedFrame,
+                        currentSpecies,
+                        currentStage
+                    );
                 }
+            }
+
+            if (currentAnimation != null) {
+                // Register Timeline with ResourceManager
+                currentAnimationId = "pokemon-animation-" + System.currentTimeMillis();
+                ResourceManager.getInstance().registerTimeline(currentAnimationId, currentAnimation);
+                
+                // Track with weak reference for cleanup verification (Requirements 1.2)
+                weakTimelineRef = new WeakReference<>(currentAnimation);
+                
+                // Set up timeout-based cleanup for stuck animations (Requirements 1.2, 2.1)
+                scheduleAnimationTimeout();
+                
+                currentAnimation.play();
+                
+                // Also set the first frame immediately
+                if (!currentFrames.isEmpty()) updateDisplayedFrame(currentFrames.get(0));
             }
         }
     }
-    
+
     /**
-     * Loads sprite frames for the current Pokemon configuration with specific streak data.
-     * 
-     * @deprecated Use loadAndStartAnimationWithXP() instead for XP-based progression
-     * @param streakDays Number of consecutive commit days (for egg stage determination)
+     * @deprecated Use loadAndStartAnimationWithXP() instead
      */
     @Deprecated
     public void loadAndStartAnimationWithStreak(int streakDays) {
@@ -897,17 +896,9 @@ public class PokemonDisplayComponent extends StackPane {
             updateDisplayedFrame(stage4EggFrames.get(0));
             
             // Wait briefly (200ms) to show the stage 4 egg, then start evolution
-            Platform.runLater(() -> {
-                try {
-                    Thread.sleep(200);
-                    // Now start the actual evolution animation
-                    startEvolutionFromEggStage4(newStage);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    // If interrupted, still start evolution
-                    startEvolutionFromEggStage4(newStage);
-                }
-            });
+            javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.millis(200));
+            pause.setOnFinished(e -> startEvolutionFromEggStage4(newStage));
+            pause.play();
         } else {
             System.out.println("⚠️ Could not load stage 4 egg sprite, proceeding with evolution");
             // Fallback: start evolution immediately
@@ -988,14 +979,9 @@ public class PokemonDisplayComponent extends StackPane {
         if (pendingTargetStage != null && getStageLevel(currentStage) < getStageLevel(pendingTargetStage)) {
             System.out.println("🔄 More evolution needed: current=" + currentStage + ", target=" + pendingTargetStage);
             // Schedule the next evolution after a short delay to let the animation settle
-            Platform.runLater(() -> {
-                try {
-                    Thread.sleep(500); // Brief pause between evolutions
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                checkEvolutionRequirements(lastKnownXP, lastKnownStreak);
-            });
+            javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.millis(500));
+            pause.setOnFinished(e -> checkEvolutionRequirements(lastKnownXP, lastKnownStreak));
+            pause.play();
         } else {
             // Process any queued evolutions
             processEvolutionQueue();

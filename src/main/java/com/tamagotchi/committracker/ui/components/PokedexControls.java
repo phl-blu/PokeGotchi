@@ -207,12 +207,17 @@ public class PokedexControls extends HBox {
         
         region.setOnMousePressed(e -> {
             arm.setStyle(String.format("-fx-fill: %s;", DPAD_PRESSED));
+            e.consume();
         });
         
         region.setOnMouseReleased(e -> {
             arm.setStyle(String.format("-fx-fill: %s;", DPAD_HOVER));
             if (action != null) action.run();
+            e.consume();
         });
+
+        // Consume click events so double-clicking d-pad doesn't bubble to root and trigger toggleMode
+        region.setOnMouseClicked(e -> e.consume());
     }
     
     /**

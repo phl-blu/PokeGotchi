@@ -647,6 +647,9 @@ public class PokedexFrame extends StackPane {
         currentScreen = mainDisplay;
         currentMode = PokedexScreenMode.POKEMON;
         screenArea.getChildren().add(mainDisplay);
+        
+        // Re-apply stored evolution listener to the new mainDisplay instance
+        applyEvolutionListenerToMainDisplay();
     }
     
     /**
@@ -929,16 +932,24 @@ public class PokedexFrame extends StackPane {
      * 
      * @param listener The evolution listener
      */
+    // Stored evolution listener - re-applied when mainDisplay is recreated
+    private PokemonDisplayComponent.EvolutionListener storedEvolutionListener;
+
     public void setEvolutionListener(PokemonDisplayComponent.EvolutionListener listener) {
+        this.storedEvolutionListener = listener;
+        applyEvolutionListenerToMainDisplay();
+    }
+
+    private void applyEvolutionListenerToMainDisplay() {
         if (mainDisplay != null) {
             mainDisplay.setEvolutionListener((newSpecies, newStage) -> {
                 // Update internal state
                 this.currentSpecies = newSpecies;
                 this.currentStage = newStage;
-                
+
                 // Notify external listener
-                if (listener != null) {
-                    listener.onEvolutionComplete(newSpecies, newStage);
+                if (storedEvolutionListener != null) {
+                    storedEvolutionListener.onEvolutionComplete(newSpecies, newStage);
                 }
             });
         }

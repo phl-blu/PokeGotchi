@@ -1,6 +1,7 @@
 module com.tamagotchi.committracker {
     requires javafx.controls;
     requires javafx.fxml;
+    requires javafx.swing;
     requires org.eclipse.jgit;
     requires java.desktop;
     requires java.prefs;

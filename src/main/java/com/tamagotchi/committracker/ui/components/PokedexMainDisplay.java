@@ -266,12 +266,8 @@ public class PokedexMainDisplay extends BorderPane {
     public boolean checkEvolutionRequirements(int xpLevel, int streakDays) {
         if (pokemonDisplay != null) {
             boolean evolved = pokemonDisplay.checkEvolutionRequirements(xpLevel, streakDays);
-            if (evolved) {
-                // Update current stage and name after evolution
-                this.currentStage = pokemonDisplay.getCurrentStage();
-                this.currentSpecies = pokemonDisplay.getCurrentSpecies();
-                updateNameFromStage();
-            }
+            // Don't update name here - evolution is async. The evolution listener handles name update
+            // after completeEvolution() fires when the animation finishes.
             return evolved;
         }
         return false;

@@ -162,26 +162,28 @@ public class TamagotchiCommitTrackerApp extends Application {
                 }
             });
             
-            // Set up evolution listener to update UI and record evolution when it completes
-            widgetWindow.getPokemonDisplay().setEvolutionListener((newSpecies, newStage) -> {
-                System.out.println("🌟 Evolution complete! Updating UI with new stage: " + newStage);
-                
-                // Record the evolution in statistics service
-                var statisticsService = widgetWindow.getStatisticsService();
-                if (statisticsService != null) {
-                    // Determine the previous stage
-                    EvolutionStage fromStage = getPreviousStage(newStage);
-                    int currentXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
-                    int currentStreak = commitService != null ? commitService.getCommitHistory().getCurrentStreak() : 0;
+            // Set up evolution listener via PokedexFrame so PokedexMainDisplay.updateNameFromStage() fires
+            var pokedexFrameForListener = widgetWindow.getPokedexFrame();
+            if (pokedexFrameForListener != null) {
+                pokedexFrameForListener.setEvolutionListener((newSpecies, newStage) -> {
+                    System.out.println("🌟 Evolution complete! Updating UI with new stage: " + newStage);
                     
-                    statisticsService.recordEvolution(newSpecies, fromStage, newStage, currentXP, currentStreak);
-                }
-                
-                // Update the UI with the new Pokemon stage
-                javafx.application.Platform.runLater(() -> {
-                    widgetWindow.updatePokemonStatusDisplay();
+                    // Record the evolution in statistics service
+                    var statisticsService = widgetWindow.getStatisticsService();
+                    if (statisticsService != null) {
+                        EvolutionStage fromStage = getPreviousStage(newStage);
+                        int currentXP = xpSystem != null ? xpSystem.getCurrentXP() : 0;
+                        int currentStreak = commitService != null ? commitService.getCommitHistory().getCurrentStreak() : 0;
+                        statisticsService.recordEvolution(newSpecies, fromStage, newStage, currentXP, currentStreak);
+                    }
+                    
+                    // PokedexMainDisplay.setEvolutionListener already called updateNameFromStage().
+                    // Just trigger a full status refresh on the FX thread.
+                    javafx.application.Platform.runLater(() -> {
+                        widgetWindow.updatePokemonStatusDisplay();
+                    });
                 });
-            });
+            }
         }
     }
     

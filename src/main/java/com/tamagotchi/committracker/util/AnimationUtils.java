@@ -7,7 +7,14 @@ import javafx.util.Duration;
 import java.util.List;
 import java.util.ArrayList;
 import java.io.InputStream;
+import java.io.IOException;
 import java.util.function.Consumer;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import java.util.Iterator;
+import javafx.embed.swing.SwingFXUtils;
 
 import com.tamagotchi.committracker.pokemon.PokemonSpecies;
 import com.tamagotchi.committracker.pokemon.PokemonState;
@@ -113,6 +120,63 @@ public class AnimationUtils {
         // Fallback to direct loading if caching is disabled
         return loadSpriteFramesDirect(species, stage, state);
     }
+
+    /**
+     * Loads sprite frames for non-egg stages, returning GIF timing data if available.
+     * Returns null if the sprite is not a GIF (caller should use loadSpriteFrames + createFrameAnimation instead).
+     */
+    /**
+     * Per-species scale multiplier for GIF rendering.
+     * Values < 1.0 make the sprite smaller (more padding), > 1.0 make it larger.
+     */
+    private static double getGifScaleMultiplier(PokemonSpecies species, EvolutionStage stage) {
+        // Per-species overrides
+        switch (species) {
+            case FROAKIE:    return 0.60;
+            case FROGADIER:  return 0.85;
+            case GRENINJA:   return 1.05;
+            case ROWLET:     return 0.60;
+            case DARTRIX:    return 0.80;
+            case DECIDUEYE:  return 1.0;
+            case SERVINE:    return 0.85;
+            case CHARIZARD:  return 1.1;
+            case SKELEDIRGE: return 1.05;
+            case THWACKEY:   return 0.85;
+            case RILLABOOM:  return 1.05;
+            default: break;
+        }
+        // Stage-based defaults
+        if (stage == EvolutionStage.BASIC)   return 0.65;
+        if (stage == EvolutionStage.STAGE_1) return 0.75;
+        return 1.0;
+    }
+
+    /** Y offset in pixels (negative = shift up). Applied after centering. */
+    private static int getGifYOffset(PokemonSpecies species) {
+        switch (species) {
+            case CHARIZARD: return -6;
+            default: return 0;
+        }
+    }
+
+    public static GifResult loadSpriteGif(PokemonSpecies species, EvolutionStage stage, PokemonState state) {
+        if (stage == EvolutionStage.EGG) return null;
+        String speciesFolder = getBaseSpeciesFolder(species);
+        double scale = getGifScaleMultiplier(species, stage);
+        int yOffset = getGifYOffset(species);
+        String basePath = "/pokemon/sprites/" + speciesFolder + "/" +
+                         stage.name().toLowerCase() + "/" + state.name().toLowerCase();
+        GifResult result = loadGifFrames(basePath + "/sprite.gif", scale, yOffset);
+        if (!result.isEmpty()) return result;
+        // Try content fallback
+        if (!state.equals(PokemonState.CONTENT)) {
+            String contentPath = "/pokemon/sprites/" + speciesFolder + "/" +
+                               stage.name().toLowerCase() + "/content";
+            result = loadGifFrames(contentPath + "/sprite.gif", scale, yOffset);
+            if (!result.isEmpty()) return result;
+        }
+        return null;
+    }
     
     /**
      * Directly loads sprite frames without caching.
@@ -132,6 +196,12 @@ public class AnimationUtils {
         // Build the base path for sprites
         String basePath = "/pokemon/sprites/" + speciesFolder + "/" + 
                          stage.name().toLowerCase() + "/" + state.name().toLowerCase();
+        
+        // Try GIF first (animated GIF takes priority over numbered PNGs)
+        GifResult gifResult = loadGifFrames(basePath + "/sprite.gif");
+        if (!gifResult.isEmpty()) {
+            return gifResult.frames;
+        }
         
         // Try to load up to 8 frames for the animation (flexible frame count)
         for (int i = 1; i <= 8; i++) {
@@ -153,11 +223,16 @@ public class AnimationUtils {
             }
         }
         
-        // If no frames were loaded, try to load from 'content' state as fallback
+        // If no frames were loaded, try 'content' state as fallback (GIF first, then PNGs)
         if (frames.isEmpty() && !state.equals(PokemonState.CONTENT)) {
             String speciesFolderFallback = getBaseSpeciesFolder(species);
             String contentPath = "/pokemon/sprites/" + speciesFolderFallback + "/" + 
                                stage.name().toLowerCase() + "/content";
+            
+            GifResult fallbackGifResult = loadGifFrames(contentPath + "/sprite.gif");
+            if (!fallbackGifResult.isEmpty()) {
+                return fallbackGifResult.frames;
+            }
             
             for (int i = 1; i <= 8; i++) {
                 String framePath = contentPath + "/frame" + i + ".png";
@@ -451,6 +526,194 @@ public class AnimationUtils {
         return null;
     }
     
+    /**
+     * Holds GIF frames and their per-frame delays in milliseconds.
+     */
+    public static class GifResult {
+        public final List<Image> frames;
+        public final List<Integer> delaysMs;
+        public GifResult(List<Image> frames, List<Integer> delaysMs) {
+            this.frames = frames;
+            this.delaysMs = delaysMs;
+        }
+        public boolean isEmpty() { return frames.isEmpty(); }
+    }
+
+    /**
+     * Loads frames and per-frame delays from an animated GIF resource path.
+     * Only used for non-egg stages. Returns empty result if GIF not found or on error.
+     */
+    private static GifResult loadGifFrames(String path) {
+        return loadGifFrames(path, 1.0);
+    }
+
+    private static GifResult loadGifFrames(String path, double scaleMultiplier) {
+        return loadGifFrames(path, scaleMultiplier, 0);
+    }
+
+    private static GifResult loadGifFrames(String path, double scaleMultiplier, int yOffset) {
+        List<Image> frames = new ArrayList<>();
+        List<Integer> delays = new ArrayList<>();
+        try (InputStream stream = AnimationUtils.class.getResourceAsStream(path)) {
+            if (stream == null) return new GifResult(frames, delays);
+            ImageInputStream iis = ImageIO.createImageInputStream(stream);
+            Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
+            if (!readers.hasNext()) return new GifResult(frames, delays);
+            ImageReader reader = readers.next();
+            reader.setInput(iis);
+            int count = reader.getNumImages(true);
+
+            // Get canvas size from stream metadata
+            int canvasWidth = 0, canvasHeight = 0;
+            try {
+                javax.imageio.metadata.IIOMetadata streamMeta = reader.getStreamMetadata();
+                if (streamMeta != null) {
+                    org.w3c.dom.Node tree = streamMeta.getAsTree(streamMeta.getNativeMetadataFormatName());
+                    org.w3c.dom.NodeList children = tree.getChildNodes();
+                    for (int j = 0; j < children.getLength(); j++) {
+                        org.w3c.dom.Node child = children.item(j);
+                        if ("LogicalScreenDescriptor".equals(child.getNodeName())) {
+                            org.w3c.dom.NamedNodeMap attrs = child.getAttributes();
+                            canvasWidth = Integer.parseInt(attrs.getNamedItem("logicalScreenWidth").getNodeValue());
+                            canvasHeight = Integer.parseInt(attrs.getNamedItem("logicalScreenHeight").getNodeValue());
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            java.awt.image.BufferedImage canvas = null;
+            java.awt.image.BufferedImage previousCanvas = null;
+
+            for (int i = 0; i < count; i++) {
+                BufferedImage frame = reader.read(i);
+                javax.imageio.metadata.IIOMetadata meta = reader.getImageMetadata(i);
+
+                int delayMs = 100;
+                int disposalMethod = 0; // 0=none, 1=doNotDispose, 2=restoreToBackground, 3=restoreToPrevious
+                int frameX = 0, frameY = 0;
+
+                try {
+                    String metaFormat = meta.getNativeMetadataFormatName();
+                    org.w3c.dom.Node tree = meta.getAsTree(metaFormat);
+                    org.w3c.dom.NodeList children = tree.getChildNodes();
+                    for (int j = 0; j < children.getLength(); j++) {
+                        org.w3c.dom.Node child = children.item(j);
+                        if ("GraphicControlExtension".equals(child.getNodeName())) {
+                            org.w3c.dom.NamedNodeMap attrs = child.getAttributes();
+                            org.w3c.dom.Node delayNode = attrs.getNamedItem("delayTime");
+                            if (delayNode != null) {
+                                delayMs = Integer.parseInt(delayNode.getNodeValue()) * 10;
+                                if (delayMs < 20) delayMs = 100;
+                            }
+                            org.w3c.dom.Node disposeNode = attrs.getNamedItem("disposalMethod");
+                            if (disposeNode != null) {
+                                String disposeStr = disposeNode.getNodeValue();
+                                if ("restoreToBackgroundColor".equals(disposeStr)) disposalMethod = 2;
+                                else if ("restoreToPrevious".equals(disposeStr)) disposalMethod = 3;
+                                else disposalMethod = 1; // doNotDispose
+                            }
+                        }
+                        if ("ImageDescriptor".equals(child.getNodeName())) {
+                            org.w3c.dom.NamedNodeMap attrs = child.getAttributes();
+                            org.w3c.dom.Node xNode = attrs.getNamedItem("imageLeftPosition");
+                            org.w3c.dom.Node yNode = attrs.getNamedItem("imageTopPosition");
+                            if (xNode != null) frameX = Integer.parseInt(xNode.getNodeValue());
+                            if (yNode != null) frameY = Integer.parseInt(yNode.getNodeValue());
+                        }
+                    }
+                } catch (Exception ignored) {}
+
+                int w = canvasWidth > 0 ? canvasWidth : frame.getWidth();
+                int h = canvasHeight > 0 ? canvasHeight : frame.getHeight();
+
+                if (canvas == null) {
+                    canvas = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                }
+
+                // Save previous canvas for restoreToPrevious disposal
+                if (disposalMethod == 3) {
+                    previousCanvas = copyImage(canvas);
+                }
+
+                // Draw current frame onto canvas
+                java.awt.Graphics2D cg = canvas.createGraphics();
+                cg.drawImage(frame, frameX, frameY, null);
+                cg.dispose();
+
+                // Snapshot this canvas as the output frame
+                java.awt.image.BufferedImage snapshot = copyImage(canvas);
+
+                // Scale to SPRITE_SIZE with letterboxing (preserve ratio, center in frame)
+                java.awt.image.BufferedImage scaled = new java.awt.image.BufferedImage(
+                    SPRITE_SIZE, SPRITE_SIZE, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                java.awt.Graphics2D g = scaled.createGraphics();
+                g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                    java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                // Fit within SPRITE_SIZE preserving aspect ratio, then apply scale multiplier
+                double scaleX = (double) SPRITE_SIZE / w;
+                double scaleY = (double) SPRITE_SIZE / h;
+                double scale = Math.min(scaleX, scaleY) * scaleMultiplier;
+                int drawW = (int) (w * scale);
+                int drawH = (int) (h * scale);
+                int offsetX = (SPRITE_SIZE - drawW) / 2;
+                int offsetY = (SPRITE_SIZE - drawH) / 2 + yOffset;
+                g.drawImage(snapshot, offsetX, offsetY, drawW, drawH, null);
+                g.dispose();
+                frames.add(SwingFXUtils.toFXImage(scaled, null));
+                delays.add(delayMs);
+
+                // Apply disposal method for next frame
+                if (disposalMethod == 2) {
+                    // Clear the frame area to transparent
+                    java.awt.Graphics2D clearG = canvas.createGraphics();
+                    clearG.setComposite(java.awt.AlphaComposite.Clear);
+                    clearG.fillRect(frameX, frameY, frame.getWidth(), frame.getHeight());
+                    clearG.dispose();
+                } else if (disposalMethod == 3 && previousCanvas != null) {
+                    canvas = previousCanvas;
+                    previousCanvas = null;
+                }
+            }
+            reader.dispose();
+            if (!frames.isEmpty()) {
+                System.out.println("🎞️ Loaded " + frames.size() + " GIF frames from " + path);
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to load GIF: " + path + " - " + e.getMessage());
+        }
+        return new GifResult(frames, delays);
+    }
+
+    private static java.awt.image.BufferedImage copyImage(java.awt.image.BufferedImage src) {
+        java.awt.image.BufferedImage copy = new java.awt.image.BufferedImage(
+            src.getWidth(), src.getHeight(), java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D g = copy.createGraphics();
+        g.drawImage(src, 0, 0, null);
+        g.dispose();
+        return copy;
+    }
+
+    /**
+     * Creates a looping Timeline animation using per-frame delays (e.g. from a GIF).
+     */
+    public static Timeline createFrameAnimationWithDelays(List<Image> frames, List<Integer> delaysMs,
+                                                           Consumer<Image> frameUpdateCallback) {
+        if (frames.isEmpty()) return new Timeline();
+        Timeline timeline = new Timeline();
+        double t = 0;
+        for (int i = 0; i < frames.size(); i++) {
+            final int idx = i;
+            timeline.getKeyFrames().add(new KeyFrame(
+                Duration.millis(t),
+                e -> frameUpdateCallback.accept(frames.get(idx))
+            ));
+            t += (i < delaysMs.size() ? delaysMs.get(i) : 100);
+        }
+        timeline.getKeyFrames().add(new KeyFrame(Duration.millis(t))); // end marker
+        timeline.setCycleCount(Timeline.INDEFINITE);
+        return timeline;
+    }
+
     /**
      * Attempts to load an image from the given path.
      * Returns null if loading fails.
@@ -915,10 +1178,13 @@ public class AnimationUtils {
             oldPokemonFrames = loadPokemonEggSpriteFramesForStageDirect(fromSpecies, 4, PokemonState.CONTENT);
             System.out.println("🥚 Using stage 4 egg sprite for evolution animation: " + fromSpecies);
         } else {
-            oldPokemonFrames = loadSpriteFrames(fromSpecies, fromStage, PokemonState.CONTENT);
+            GifResult oldGif = loadSpriteGif(fromSpecies, fromStage, PokemonState.CONTENT);
+            oldPokemonFrames = (oldGif != null && !oldGif.isEmpty()) ? oldGif.frames : loadSpriteFrames(fromSpecies, fromStage, PokemonState.CONTENT);
         }
-        
-        List<Image> newPokemonFrames = loadSpriteFrames(toSpecies, toStage, PokemonState.HAPPY);
+
+        // Use GIF first frame for new Pokemon if available (respects scale multiplier)
+        GifResult newGif = loadSpriteGif(toSpecies, toStage, PokemonState.HAPPY);
+        List<Image> newPokemonFrames = (newGif != null && !newGif.isEmpty()) ? newGif.frames : loadSpriteFrames(toSpecies, toStage, PokemonState.HAPPY);
         List<Image> evolutionEffects = loadEvolutionEffectFrames();
         
         Image oldPokemon = oldPokemonFrames.isEmpty() ? null : oldPokemonFrames.get(0);
@@ -1075,19 +1341,17 @@ public class AnimationUtils {
         currentTime += sparklesDuration;
         
         // === FINAL: Show clean new Pokemon and trigger callback ===
-        if (newPokemon != null) {
-            final Image pokemon = newPokemon;
-            final double finalTime = currentTime;
-            evolutionTimeline.getKeyFrames().add(new KeyFrame(
-                Duration.millis(finalTime),
-                e -> {
-                    frameUpdateCallback.accept(pokemon);
-                    if (evolutionCompleteCallback != null) {
-                        evolutionCompleteCallback.run();
-                    }
+        final Image pokemon = newPokemon;
+        final double finalTime = currentTime;
+        evolutionTimeline.getKeyFrames().add(new KeyFrame(
+            Duration.millis(finalTime),
+            e -> {
+                if (pokemon != null) frameUpdateCallback.accept(pokemon);
+                if (evolutionCompleteCallback != null) {
+                    evolutionCompleteCallback.run();
                 }
-            ));
-        }
+            }
+        ));
         
         evolutionTimeline.setCycleCount(1);
         System.out.println("✨ Created evolution animation with 3 accelerating flashes: " + fromSpecies + " → " + toSpecies + 
