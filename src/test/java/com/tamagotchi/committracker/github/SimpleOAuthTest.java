@@ -9,7 +9,13 @@ import java.net.*;
 public class SimpleOAuthTest {
     public static void main(String[] args) throws Exception {
         String clientId = System.getenv("GITHUB_CLIENT_ID");
-        if (clientId == null) clientId = "Ov23li1fNemWB2pz0nfX";
+        if (clientId == null) {
+            clientId = GitHubConfig.getClientId();
+        }
+        if (clientId == null) {
+            System.err.println("ERROR: No client ID found. Set GITHUB_CLIENT_ID env var or add to config/github.properties");
+            return;
+        }
         
         // Trim any whitespace!
         clientId = clientId.trim();

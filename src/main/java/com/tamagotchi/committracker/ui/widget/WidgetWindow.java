@@ -28,6 +28,7 @@ import com.tamagotchi.committracker.ui.components.StatisticsTab;
 import com.tamagotchi.committracker.ui.components.PokemonDisplayComponent;
 import com.tamagotchi.committracker.ui.components.PokemonSelectionScreen;
 import com.tamagotchi.committracker.ui.components.PokedexFrame;
+import com.tamagotchi.committracker.ui.components.GitHubLoginWindow;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.Tab;
 import com.tamagotchi.committracker.pokemon.PokemonSelectionData;
@@ -234,6 +235,9 @@ public class WidgetWindow {
             
             System.out.println("📊 Loaded saved stats - XP: " + savedXP + ", Streak: " + savedStreak + " days");
             
+            // GitHub tracking will be activated in setCommitService() once commitService is injected
+            initializeGitHubServices();
+            
             // Refresh GitHub status indicator for returning users
             Platform.runLater(this::refreshGitHubStatusIndicator);
         } else {
@@ -323,27 +327,35 @@ public class WidgetWindow {
             
             switch (event.getCode()) {
                 case E: // Press 'E' to force evolution for testing
-                    if (pokemonDisplay != null) {
+                    if (isDevUser() && pokemonDisplay != null) {
                         System.out.println("🧪 TESTING: 'E' pressed - Forcing evolution");
                         pokemonDisplay.forceEvolutionForTesting();
                         // Stats/name update handled by evolution listener after animation completes
+                    } else if (!isDevUser()) {
+                        System.out.println("⚠️ Dev shortcuts locked to developer account only");
                     } else {
                         System.out.println("⚠️ TESTING: No Pokemon display available - select a Pokemon first");
                     }
                     break;
                 case R: // Press 'R' to reset Pokemon to egg stage for testing
-                    if (pokemonDisplay != null) {
+                    if (isDevUser() && pokemonDisplay != null) {
                         System.out.println("🧪 TESTING: 'R' pressed - Resetting Pokemon to egg stage");
                         pokemonDisplay.forceDeevolutionToEggForTesting();
                         resetTestingXP(); // Also reset the testing XP accumulator
                         // Update PokedexFrame stats after reset
                         updatePokedexFrameStats();
+                    } else if (!isDevUser()) {
+                        System.out.println("⚠️ Dev shortcuts locked to developer account only");
                     } else {
                         System.out.println("⚠️ TESTING: No Pokemon display available - select a Pokemon first");
                     }
                     break;
                 case C: // Press 'C' to simulate a commit for testing egg animations
-                    simulateCommitForTesting();
+                    if (isDevUser()) {
+                        simulateCommitForTesting();
+                    } else {
+                        System.out.println("⚠️ Dev shortcuts locked to developer account only");
+                    }
                     break;
                 case H: // Press 'H' to make Pokemon happy
                     if (pokemonDisplay != null) {
@@ -378,8 +390,12 @@ public class WidgetWindow {
                     forceRepositoryScan();
                     break;
                 case P: // Press 'P' to pick a different Pokemon egg for testing
-                    System.out.println("🧪 TESTING: 'P' pressed - Opening Pokemon picker");
-                    showPokemonPickerForTesting();
+                    if (isDevUser()) {
+                        System.out.println("🧪 TESTING: 'P' pressed - Opening Pokemon picker");
+                        showPokemonPickerForTesting();
+                    } else {
+                        System.out.println("⚠️ Dev shortcuts locked to developer account only");
+                    }
                     break;
                 case ESCAPE: // Press 'ESC' to close the application
                     System.out.println("🚪 ESC pressed - closing application");
@@ -708,6 +724,15 @@ public class WidgetWindow {
         if (isCompactMode) {
             System.out.println("📖 Switching to expanded mode (PokedexFrame)");
             
+            // If pokemonDisplay was detached for compact mode, put it back in PokedexFrame
+            if (pokemonDisplay != null && pokemonDisplay.getParent() == root) {
+                root.getChildren().remove(pokemonDisplay);
+                if (pokedexFrame != null) {
+                    pokedexFrame.getScreenArea().getChildren().clear();
+                    pokedexFrame.getScreenArea().getChildren().add(pokemonDisplay);
+                }
+            }
+            
             // Resize window to expanded size
             stage.setWidth(AppConfig.EXPANDED_WIDTH);
             stage.setHeight(AppConfig.EXPANDED_HEIGHT);
@@ -792,6 +817,12 @@ public class WidgetWindow {
                 PokemonState state = pokemonDisplay.getCurrentState();
                 
                 PokemonDisplayComponent compactDisplay = new PokemonDisplayComponent(species, stage, state);
+                
+                // For eggs: load the correct cracked egg visual based on current XP
+                if (stage == EvolutionStage.EGG && xpSystem != null) {
+                    compactDisplay.loadAndStartAnimationWithXP(xpSystem.getCurrentXP());
+                }
+                
                 root.getChildren().add(compactDisplay);
                 
                 // Center the Pokemon in the compact view
@@ -838,6 +869,12 @@ public class WidgetWindow {
             PokemonState state = pokemonDisplay.getCurrentState();
             
             PokemonDisplayComponent compactDisplay = new PokemonDisplayComponent(species, stage, state);
+            
+            // For eggs: load the correct cracked egg visual based on current XP
+            if (stage == EvolutionStage.EGG && xpSystem != null) {
+                compactDisplay.loadAndStartAnimationWithXP(xpSystem.getCurrentXP());
+            }
+            
             root.getChildren().add(compactDisplay);
             
             // Center the Pokemon in the compact view
@@ -1218,6 +1255,15 @@ public class WidgetWindow {
      */
     public void setCommitService(com.tamagotchi.committracker.git.CommitService commitService) {
         this.commitService = commitService;
+        
+        // Now that commitService is available, activate GitHub tracking if we have a stored token
+        if (tokenStorage != null) {
+            tokenStorage.getAccessToken().ifPresent(token -> {
+                if (!token.isBlank()) {
+                    activateGitHubTracking(token);
+                }
+            });
+        }
     }
     
     /**
@@ -1857,7 +1903,46 @@ public class WidgetWindow {
             // Services will be null, auth will be skipped
         }
     }
+
+    /**
+     * Activates GitHub commit tracking using the provided access token.
+     * Wires GitHubCommitIntegration into CommitService so all repos are tracked via API.
+     */
+    private void activateGitHubTracking(String accessToken) {
+        if (accessToken == null || accessToken.isBlank() || commitService == null) {
+            return;
+        }
+        try {
+            com.tamagotchi.committracker.github.GitHubCommitIntegration integration =
+                new com.tamagotchi.committracker.github.GitHubCommitIntegration();
+            integration.initialize(accessToken).thenAccept(success -> {
+                if (success) {
+                    commitService.setGitHubIntegration(integration);
+                    integration.startTracking().thenAccept(result ->
+                        System.out.println("✅ GitHub tracking active: " + result.repositoryCount() + " repos, " + result.commitCount() + " commits")
+                    );
+                    System.out.println("🔗 GitHub commit tracking activated");
+                }
+            });
+        } catch (Exception e) {
+            System.err.println("⚠️ Failed to activate GitHub tracking: " + e.getMessage());
+        }
+    }
     
+    /**
+     * Checks if the currently authenticated GitHub user is the developer.
+     * Used to gate dev-only shortcuts (C, E, R, P) to the developer's account.
+     * The allowed username is read from config/github.properties (gitignored).
+     */
+    private boolean isDevUser() {
+        String devUsername = com.tamagotchi.committracker.github.GitHubConfig.getDevUsername();
+        if (devUsername == null) {
+            return false; // No dev username configured
+        }
+        String authenticatedUsername = selectionData.getGitHubUsername();
+        return devUsername.equalsIgnoreCase(authenticatedUsername);
+    }
+
     /**
      * Checks if GitHub OAuth is properly configured.
      * Returns false if client ID is not set, allowing the app to skip auth.
@@ -1870,71 +1955,58 @@ public class WidgetWindow {
     
     /**
      * Shows the GitHub authentication screen for first-time users.
+     * Opens as a separate window so it has enough space to display properly.
      * After successful authentication, transitions to Pokemon selection.
-     * 
-     * Requirements: 1.1, 1.5, 1.6
      */
     private void showAuthScreenForFirstTime() {
-        if (pokedexFrame == null || oauthService == null) {
-            // Fall back to Pokemon selection if services not available
+        if (oauthService == null) {
             showPokemonSelectionForFirstTime();
             return;
         }
-        
-        System.out.println("🔐 Showing GitHub authentication screen");
-        
-        pokedexFrame.showAuthScreen(
+
+        System.out.println("🔐 Showing GitHub authentication window");
+
+        GitHubLoginWindow loginWindow = new GitHubLoginWindow(
+            stage,
             oauthService,
-            // On success: Store token, fetch user info, save auth data, then show Pokemon selection
+            // On success
             accessTokenResponse -> {
                 System.out.println("✅ GitHub authentication successful");
-                
-                // Store the access token securely
+
                 if (tokenStorage != null && accessTokenResponse != null) {
                     tokenStorage.storeAccessToken(accessTokenResponse.accessToken());
                     if (accessTokenResponse.refreshToken() != null) {
                         tokenStorage.storeRefreshToken(accessTokenResponse.refreshToken());
                     }
                 }
-                
-                // Set token on API client
+
                 if (apiClient != null && accessTokenResponse != null) {
                     apiClient.setAccessToken(accessTokenResponse.accessToken());
-                    
-                    // Fetch user info and save GitHub auth data
                     apiClient.fetchAuthenticatedUser()
-                        .thenAccept(user -> {
-                            Platform.runLater(() -> {
-                                // Save GitHub user ID with Pokemon selection data
-                                selectionData.saveGitHubAuth(user.id(), user.login());
-                                System.out.println("👤 GitHub user linked: " + user.login() + " (ID: " + user.id() + ")");
-                                
-                                // Update GitHub status indicator
-                                refreshGitHubStatusIndicator();
-                                
-                                // Now show Pokemon selection
-                                showPokemonSelectionForFirstTime();
-                            });
-                        })
+                        .thenAccept(user -> Platform.runLater(() -> {
+                            selectionData.saveGitHubAuth(user.id(), user.login());
+                            System.out.println("👤 GitHub user linked: " + user.login());
+                            refreshGitHubStatusIndicator();
+                            // Activate GitHub tracking for all repos
+                            activateGitHubTracking(accessTokenResponse.accessToken());
+                            showPokemonSelectionForFirstTime();
+                        }))
                         .exceptionally(ex -> {
-                            System.err.println("⚠️ Failed to fetch GitHub user: " + ex.getMessage());
-                            Platform.runLater(() -> {
-                                // Still proceed to Pokemon selection even if user fetch fails
-                                showPokemonSelectionForFirstTime();
-                            });
+                            Platform.runLater(this::showPokemonSelectionForFirstTime);
                             return null;
                         });
                 } else {
-                    // No API client, just proceed to Pokemon selection
                     showPokemonSelectionForFirstTime();
                 }
             },
-            // On skip: Just show Pokemon selection without GitHub auth
+            // On skip
             () -> {
-                System.out.println("⏭️ GitHub authentication skipped");
+                System.out.println("⏭️ GitHub authentication skipped - using local Git only");
                 showPokemonSelectionForFirstTime();
             }
         );
+
+        loginWindow.show();
     }
     
     /**
@@ -1949,6 +2021,14 @@ public class WidgetWindow {
         }
         
         System.out.println("🎮 Showing Pokemon selection screen");
+        
+        // Center on screen for first-time users (same position as login window)
+        javafx.geometry.Rectangle2D screenBounds = javafx.stage.Screen.getPrimary().getVisualBounds();
+        stage.setX((screenBounds.getWidth() - com.tamagotchi.committracker.ui.theme.PokedexTheme.FRAME_WIDTH) / 2);
+        stage.setY((screenBounds.getHeight() - com.tamagotchi.committracker.ui.theme.PokedexTheme.FRAME_HEIGHT) / 2);
+        
+        // Show the widget now (auth is done, time to pick a Pokemon)
+        stage.show();
         
         pokedexFrame.showSelectionScreen(selectedSpecies -> {
             // Save the selection (this also preserves GitHub auth data)

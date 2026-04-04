@@ -179,7 +179,7 @@ public class GitHubAuthScreen extends VBox {
      * Creates the skip button for users who want to skip GitHub auth.
      */
     private HBox createSkipButton() {
-        Label skipLabel = new Label("Skip for now");
+        Label skipLabel = new Label("Use local Git only");
         skipLabel.setStyle(PokedexTheme.combineStyles(
             PokedexTheme.getPixelFontStyle(7),
             PokedexTheme.getTextStyle("#9CA3AF")

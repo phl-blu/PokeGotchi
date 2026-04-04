@@ -69,12 +69,57 @@ public final class GitHubConfig {
     public static final String IF_NONE_MATCH_HEADER = "If-None-Match";
     public static final String IF_MODIFIED_SINCE_HEADER = "If-Modified-Since";
     
+    /** Local config file path (gitignored) */
+    private static final String CONFIG_FILE = "config/github.properties";
+
     /**
-     * Gets the GitHub Client ID from environment variable.
+     * Gets the GitHub Client ID from environment variable first,
+     * then falls back to config/github.properties.
      * @return the client ID or null if not configured
      */
     public static String getClientId() {
-        return System.getenv(CLIENT_ID_ENV_VAR);
+        String fromEnv = System.getenv(CLIENT_ID_ENV_VAR);
+        if (fromEnv != null && !fromEnv.isBlank()) {
+            return fromEnv.trim();
+        }
+        // Fallback: read from local config file (not committed to git)
+        java.io.File configFile = new java.io.File(CONFIG_FILE);
+        if (configFile.exists()) {
+            java.util.Properties props = new java.util.Properties();
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(configFile)) {
+                props.load(fis);
+                String fromFile = props.getProperty("github.client.id");
+                if (fromFile != null && !fromFile.isBlank()) {
+                    return fromFile.trim();
+                }
+            } catch (java.io.IOException e) {
+                // fall through to return null
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Gets the developer GitHub username from config/github.properties.
+     * Used to gate dev-only shortcuts to a specific account.
+     * This value is never committed to source control.
+     * @return the dev username or null if not configured
+     */
+    public static String getDevUsername() {
+        java.io.File configFile = new java.io.File(CONFIG_FILE);
+        if (configFile.exists()) {
+            java.util.Properties props = new java.util.Properties();
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(configFile)) {
+                props.load(fis);
+                String username = props.getProperty("github.dev.username");
+                if (username != null && !username.isBlank() && !username.equals("YOUR_GITHUB_USERNAME_HERE")) {
+                    return username.trim();
+                }
+            } catch (java.io.IOException e) {
+                // fall through
+            }
+        }
+        return null;
     }
     
     /**

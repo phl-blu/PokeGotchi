@@ -1,6 +1,5 @@
 @echo off
 setlocal
-set GITHUB_CLIENT_ID=Ov23li1fNemWB2pz0nfX
 echo ========================================
 echo GitHub Integration Test
 echo ========================================

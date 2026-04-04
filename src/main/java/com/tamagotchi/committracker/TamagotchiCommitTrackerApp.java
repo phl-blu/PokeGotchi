@@ -74,23 +74,17 @@ public class TamagotchiCommitTrackerApp extends Application {
             setupResetListener();
         }, xpSystem, pokemonStateManager);
         
-        // Check if this is a first-time user
-        if (widgetWindow.isFirstTimeUser()) {
-            // Show the widget first (so selection screen has an owner)
-            widgetWindow.show();
-            
-            // Show Pokemon selection screen (blocks until selection is made)
-            widgetWindow.showPokemonSelectionScreen();
-        } else {
-            // Returning user - use saved Pokemon selection
-            PokemonSpecies savedSpecies = widgetWindow.getSelectedPokemonSpecies();
-            if (savedSpecies != null) {
-                pokemonStateManager.setCurrentSpecies(savedSpecies);
-                System.out.println("🎮 Welcome back! Continuing with " + 
-                    PokemonSelectionData.getDisplayName(savedSpecies));
-            }
+        // WidgetWindow.initialize() handles first-time auth and Pokemon selection internally.
+        // For returning users, show immediately. For first-time users, WidgetWindow
+        // will call show() itself after auth + selection completes.
+        PokemonSpecies savedSpecies = widgetWindow.getSelectedPokemonSpecies();
+        if (savedSpecies != null) {
+            pokemonStateManager.setCurrentSpecies(savedSpecies);
+            System.out.println("🎮 Welcome back! Continuing with " + 
+                PokemonSelectionData.getDisplayName(savedSpecies));
             widgetWindow.show();
         }
+        // First-time users: WidgetWindow will call show() after auth + Pokemon selection
         
         // Set up reset listener to reset XP when Pokemon is reset (R key pressed)
         // TODO: REMOVE THIS LISTENER SETUP BEFORE PRODUCTION - See TODO.md

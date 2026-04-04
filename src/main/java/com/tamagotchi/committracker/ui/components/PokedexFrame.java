@@ -635,6 +635,16 @@ public class PokedexFrame extends StackPane {
         this.currentSpecies = species;
         this.currentStage = stage;
         
+        // Reuse existing mainDisplay if it exists for the same species
+        // (prevents resetting egg crack state when navigating back from history/stats)
+        if (mainDisplay != null && species == currentSpecies) {
+            screenArea.getChildren().clear();
+            currentScreen = mainDisplay;
+            currentMode = PokedexScreenMode.POKEMON;
+            screenArea.getChildren().add(mainDisplay);
+            return;
+        }
+        
         // Clear current screen
         screenArea.getChildren().clear();
         

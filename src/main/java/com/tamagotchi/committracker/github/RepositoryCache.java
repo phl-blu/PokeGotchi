@@ -193,21 +193,25 @@ public class RepositoryCache {
     
     /**
      * Saves the cache to disk.
+     * Skipped silently if serialization fails due to module access restrictions.
      */
     private void saveToDisk() {
         try {
-            // Ensure cache directory exists
             Files.createDirectories(cacheDirectory);
-            
             Path cacheFile = cacheDirectory.resolve(CACHE_FILE_NAME);
             
-            CacheData data = new CacheData(cachedRepositories, lastUpdated);
-            String json = gson.toJson(data);
+            // Serialize manually to avoid Gson module access issues with inner classes
+            StringBuilder sb = new StringBuilder("{\"repositories\":[");
+            for (int i = 0; i < cachedRepositories.size(); i++) {
+                if (i > 0) sb.append(",");
+                sb.append(gson.toJson(cachedRepositories.get(i)));
+            }
+            sb.append("],\"lastUpdated\":\"").append(lastUpdated != null ? lastUpdated.toString() : "").append("\"}");
             
-            Files.writeString(cacheFile, json);
+            Files.writeString(cacheFile, sb.toString());
             LOGGER.fine("Saved repository cache to disk");
-        } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Failed to save repository cache", e);
+        } catch (Exception e) {
+            LOGGER.log(Level.FINE, "Could not save repository cache to disk (non-critical)", e);
         }
     }
     

@@ -271,20 +271,9 @@ public class CommitCache {
      * Saves the cache to disk.
      */
     private void saveToDisk() {
-        try {
-            // Ensure cache directory exists
-            Files.createDirectories(cacheDirectory);
-            
-            Path cacheFile = cacheDirectory.resolve(CACHE_FILE_NAME);
-            
-            CacheData data = new CacheData(cachedCommits, etagCache, lastUpdated);
-            String json = gson.toJson(data);
-            
-            Files.writeString(cacheFile, json);
-            LOGGER.fine("Saved commit cache to disk");
-        } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Failed to save commit cache", e);
-        }
+        // Skip disk persistence - in-memory cache is sufficient for a session.
+        // Gson cannot serialize inner classes due to Java module restrictions.
+        LOGGER.fine("Commit cache disk persistence skipped (in-memory only)");
     }
     
     /**

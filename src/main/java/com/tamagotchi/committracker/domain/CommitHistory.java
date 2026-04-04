@@ -153,11 +153,11 @@ public class CommitHistory {
         LocalDate today = LocalDate.now();
         int streak = 0;
         
-        // Check if there were commits today or yesterday (to account for timezone differences)
-        if (dailyCommitCounts.getOrDefault(today, 0) > 0 || 
-            dailyCommitCounts.getOrDefault(today.minusDays(1), 0) > 0) {
-            
-            LocalDate checkDate = today;
+        // Start from today; if no commits today, allow yesterday as the streak start
+        LocalDate startDate = dailyCommitCounts.containsKey(today) ? today : today.minusDays(1);
+        
+        if (dailyCommitCounts.getOrDefault(startDate, 0) > 0) {
+            LocalDate checkDate = startDate;
             while (dailyCommitCounts.getOrDefault(checkDate, 0) > 0) {
                 streak++;
                 checkDate = checkDate.minusDays(1);

@@ -142,6 +142,40 @@
                     <classpathScope>test</classpathScope>
                 </configuration>
             </plugin>
+
+            <!-- Maven Jar Plugin - sets main class manifest -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.tamagotchi.committracker.TamagotchiCommitTrackerApp</mainClass>
+                        </manifest>
+                    </archive>
+                    <outputDirectory>${project.build.directory}/jpackage-input</outputDirectory>
+                    <finalName>commit-tracker</finalName>
+                </configuration>
+            </plugin>
+
+            <!-- Copy all dependencies for jpackage -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>package</phase>
+                        <goals><goal>copy-dependencies</goal></goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/jpackage-input</outputDirectory>
+                            <includeScope>runtime</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

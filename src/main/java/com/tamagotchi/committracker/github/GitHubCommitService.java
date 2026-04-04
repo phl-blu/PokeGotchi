@@ -108,10 +108,10 @@ public class GitHubCommitService {
         
         apiClient.setAccessToken(accessToken);
         
-        // Set baseline to now if not already set (Requirement 4.2)
+        // Set baseline to 30 days ago if not already set, to capture recent commit history
         if (!baselineManager.hasBaseline()) {
-            baselineManager.setBaseline(Instant.now());
-            LOGGER.info("Set commit baseline to current time");
+            baselineManager.setBaseline(Instant.now().minus(30, java.time.temporal.ChronoUnit.DAYS));
+            LOGGER.info("Set commit baseline to 30 days ago");
         }
         
         isInitialized = true;
