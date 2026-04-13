@@ -55,6 +55,7 @@ mvn clean package
 ---
 
 ## Project Structure
+
 src/
 ├── main/
 │ ├── java/com/tamagotchi/committracker/
