@@ -11,7 +11,6 @@ The UI takes visual inspiration from the official Pokémon Pokédex design.
 - **9 Starter Lines** — Choose from starters spanning Generations 1–9 (Charmander, Cyndaquil, Mudkip, Piplup, Snivy, Froakie, Rowlet, Grookey, Fuecoco)
 - **Egg Hatching** — Your Pokémon starts as an egg and hatches once you begin committing
 - **Evolution System** — Pokémon evolve through Egg → Basic → Stage 1 → Stage 2 based on XP earned from commits
-- **Emotional States** — Pokémon mood changes dynamically based on your recent commit activity
 - **Automatic Repository Discovery** — Scans your system for all local Git repositories
 - **5-Minute Polling** — Continuously monitors for new commits in the background
 - **Compact Widget Mode** — 80×80px transparent desktop overlay
@@ -102,4 +101,4 @@ All Pokémon sprites (excluding eggs) are sourced from the **Project Pokémon Sp
 
 ## Architecture
 
-This project follows clean architecture principles — domain logic, Pokémon mechanics, Git operations, and UI are fully decoupled. See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed breakdown.
+This project follows clean architecture principles — domain logic, Pokémon mechanics, Git operations, and UI are fully decoupled.
