@@ -1,4 +1,4 @@
-# 🥚 PokeGotchi
+# PokeGotchi
 
 A Pokémon-themed desktop widget that tracks your Git commits and raises a virtual Pokémon companion whose growth reflects your coding activity. The more you commit, the more your Pokémon thrives — neglect your repos and watch it sulk.
 
