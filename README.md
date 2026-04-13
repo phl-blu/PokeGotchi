@@ -1,19 +1,21 @@
-# PokeGotchi
+# 🥚 PokeGotchi
 
-A Pokémon-themed desktop widget that tracks your Git commits and raises a virtual Pokémon companion whose growth reflects your coding activity. The more you commit, the more your Pokémon thrives. Neglect your repos and watch it sulk.
+A Pokémon-themed desktop widget that tracks your Git commits and raises a virtual Pokémon companion whose growth reflects your coding activity. The more you commit, the more your Pokémon thrives — neglect your repos and watch it sulk.
 
 The UI takes visual inspiration from the official Pokémon Pokédex design.
 
 ---
 
 ## Features
+
 - **9 Starter Lines** — Choose from starters spanning Generations 1–9 (Charmander, Cyndaquil, Mudkip, Piplup, Snivy, Froakie, Rowlet, Grookey, Fuecoco)
 - **Egg Hatching** — Your Pokémon starts as an egg and hatches once you begin committing
 - **Evolution System** — Pokémon evolve through Egg → Basic → Stage 1 → Stage 2 based on XP earned from commits
+- **Emotional States** — Pokémon mood changes dynamically based on your recent commit activity
 - **Automatic Repository Discovery** — Scans your system for all local Git repositories
 - **5-Minute Polling** — Continuously monitors for new commits in the background
-- **Compact Widget Mode** — Transparent desktop overlay
-- **Expanded History View** — Detailed commit history panel
+- **Compact Widget Mode** — 80×80px transparent desktop overlay
+- **Expanded History View** — 320×450px detailed commit history panel
 
 ---
 
@@ -56,27 +58,30 @@ mvn clean package
 
 ## Project Structure
 
+```
 src/
 ├── main/
-│ ├── java/com/tamagotchi/committracker/
-│ │ ├── config/ # App configuration
-│ │ ├── domain/ # Core models (Commit, Repository, etc.)
-│ │ ├── pokemon/ # Pokémon logic, XP, evolution
-│ │ ├── git/ # Repository scanning & commit polling
-│ │ ├── ui/ # Widget window & UI components
-│ │ └── util/ # File & animation utilities
-│ └── resources/
-│ ├── config/ # Default settings
-│ ├── pokemon/sprites/ # Sprite assets
-│ └── ui/styles/ # CSS theming
-└── test/ # Unit & property-based tests
-
+│   ├── java/com/tamagotchi/committracker/
+│   │   ├── config/          # App configuration
+│   │   ├── domain/          # Core models (Commit, Repository, etc.)
+│   │   ├── pokemon/         # Pokémon logic, XP, evolution
+│   │   ├── git/             # Repository scanning & commit polling
+│   │   ├── ui/              # Widget window & UI components
+│   │   └── util/            # File & animation utilities
+│   └── resources/
+│       ├── config/          # Default settings
+│       ├── pokemon/sprites/ # Sprite assets
+│       └── ui/styles/       # CSS theming
+└── test/                    # Unit & property-based tests
+```
 
 ---
 
 ## Credits & Assets
+
 ### Pokémon Sprites
-All Pokémon sprites (excluding eggs) are sourced from the **Project Pokémon Sprite Index** and community contributors. Egg sprites were **original artwork drawn and animated by me**.
+
+All Pokémon sprites (excluding eggs) are sourced from the **Project Pokémon Sprite Index** and community contributors. Egg sprites were **original artwork drawn by me**.
 
 | Starter Line | Source |
 |---|---|
@@ -97,4 +102,4 @@ All Pokémon sprites (excluding eggs) are sourced from the **Project Pokémon Sp
 
 ## Architecture
 
-This project follows clean architecture principles — domain logic, Pokémon mechanics, Git operations, and UI are fully decoupled.
+This project follows clean architecture principles — domain logic, Pokémon mechanics, Git operations, and UI are fully decoupled. See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed breakdown.
